@@ -1,21 +1,32 @@
-Jenkins data volume
-===================
+CGHub Cloud Utils (officially, cghub-cloud-utils) manages virtual machines in Amazon's Elastic Compute Cloud. Each virtual machine (aka box) is automatically provisioned with operating system and application software such that it can function in one of several predefined roles, e.g. as a continuous integration server, for running tests or as a build server for creating platform-specific builds of CGHub's client applications.
 
-The following steps line out how the jenkins-data EBS volume can be recreated:
+Quickstart
+==========
 
-1. Using the EC2 AWS console, create the volume in the availability zone that
-   you wish to run the build-master in
+To install cghub-cloud-utils You need Python 2.7.x and `pip <http://www.pip-installer.org/en/latest/installing.html#installing-globally>`_::
 
-2. Create a a build-master without an attached Jenkins data volume by running
+   pip install hg+https://bitbucket.org/cghub/cghub-cloud-utils/
 
-   ::
+At the moment, the project is hosted in a private repository on Bitbucket and you will be
+prompted to enter your Bitbucket credentials.
 
-   cg-ec2-dev-env \
-      --build-instance build-master \
-      --jenkins-data-volume
+The installer places the ``cgcloud`` executable on your PATH so should be able to invoke it now::
 
-3. Using the EC2 AWS console, stop the instance
+   cgcloud --help
 
-4. Attache the new volume to the instance
+Next, log into `Amazon's EC2 console <https://console.aws.amazon.com/ec2/home?region=us-west-1#s=KeyPairs>`_ and register your SSH key pair in a region of your choice (at the moment, CGHub uses the us-west-1 region).  Ask your a CGHub EC2 admin (Hannes or Paul) to setup an account in AWS for you.  If you don't have a key pair yet, create one using ``ssh-keygen`` and paste the contents of ~/.ssh/id_rsa.pub into the EC2 console. As the name of the key pair, use your login name or the the part before the ``@`` in your UCSC email address.
 
-5. Start
+That's it. Now, let's say we want to create the build-master, i.e. the machine that runs the Jenkins Continuous Integration server::
+
+   cgcloud setup build-master -k YOUR_KEY_PAIR_NAME
+
+SSH into the build master (TODO)
+
+   cgcloud ssh build-master
+   
+This will SSH into the build master and setup a port forwarding to Jenkins' web UI. Point your browser at http://localhost:8080/.
+
+Motivation
+==========
+
+TODO
