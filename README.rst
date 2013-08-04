@@ -1,5 +1,5 @@
 CGHub Cloud Utils (officially, cghub-cloud-utils) manages virtual machines in Amazon's Elastic
-Compute Cloud. Each virtual machine (aka box) is automatically provisioned with operating system
+Compute Cloud. Each virtual machine (*box*) is automatically provisioned with operating system
 and application software such that it can function in one of several predefined roles, e.g. as a
 continuous integration server, for running tests or as a build server for creating
 platform-specific builds of CGHub's client applications.
@@ -7,7 +7,7 @@ platform-specific builds of CGHub's client applications.
 Quickstart
 ==========
 
-To install cghub-cloud-utils You need Python 2.7.x and `pip <http://www.pip-installer.org/en/latest/installing.html#installing-globally>`_::
+To install cghub-cloud-utils, you need Python 2.7.x and `pip <http://www.pip-installer.org/en/latest/installing.html#installing-globally>`_::
 
    sudo pip install hg+https://bitbucket.org/cghub/cghub-cloud-utils/
 
@@ -33,17 +33,20 @@ Create an access key from `Amazon's IAM console <https://console.aws.amazon.com/
 3. Click *Manage Access Keys*
 4. Click *Create Access Key*
 5. Click *Show User Security Credentials*, leave the page open
+6. Create ``~/.boto`` with the following contents
 
-Create ``~/.boto`` with the following contents::
+   ::
 
-   [Credentials]
-   aws_access_key_id = PASTE YOUR ACCESS KEY ID HERE
-   aws_secret_access_key = PASTE YOUR SECRET ACCESS KEY HERE
+      [Credentials]
+      aws_access_key_id = PASTE YOUR ACCESS KEY ID HERE
+      aws_secret_access_key = PASTE YOUR SECRET ACCESS KEY HERE
 
-Click Close Window
+7. Click *Close Window*
 
-That's it. Now, let's say we want to create the ``build-master``, i.e. the machine that runs the
-Jenkins Continuous Integration server::
+That's it. 
+
+Now, let's say we want to create the ``build-master``, i.e. the machine that runs the
+Jenkins continuous integration server::
 
    cgcloud setup build-master -k YOUR_KEY_PAIR_NAME
 
