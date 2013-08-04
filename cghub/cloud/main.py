@@ -5,6 +5,8 @@ from cghub.cloud.util import Command, Application
 from ec2_options import Ec2Options
 
 
+DEBUG_LOG_FILE_NAME = 'cgcloud.log'
+
 # After adding a new box class, add its name to the source list in the generator expression below
 BOXES = dict( ( cls.name( ), cls) for cls in [ BuildMaster ] )
 
@@ -13,6 +15,7 @@ def main():
     app = Cgcloud( )
     app.add( ListCommand )
     app.add( SetupCommand )
+    app.add( SshCommand )
     app.add( GetJenkinsKeyCommand )
     app.run( )
 
@@ -20,18 +23,20 @@ def main():
 class Cgcloud( Application ):
     def __init__(self):
         super( Cgcloud, self ).__init__( )
-        self.option( '--debug', default='False', action='store_true' )
+        self.option( '--debug',
+                     default=False, action='store_true',
+                     help='Write debug log to %s in current directory.' % DEBUG_LOG_FILE_NAME )
 
     def prepare(self, options):
         if options.debug:
-            logging.basicConfig( filename="cgcloud.log", level=logging.DEBUG )
+            logging.basicConfig( filename=DEBUG_LOG_FILE_NAME, level=logging.DEBUG )
 
 
 class Ec2Command( Command ):
-    def __init__(self, application, **kwargs):
+    def __init__(self, application, ssh_key_required=True, **kwargs):
         super( Ec2Command, self ).__init__( application, **kwargs )
         self.option( '--ssh-key-name', '-k', metavar='KEY_NAME',
-                     required=True,
+                     required=ssh_key_required,
                      help='The name of the SSH public key to inject into the instance. The '
                           'corresponding public key must be registered in EC2 under the given name '
                           'and a matching private key needs to be present locally.' )
@@ -62,11 +67,29 @@ class ListCommand( Command ):
         print '\n'.join( BOXES.iterkeys( ) )
 
 
-class SetupCommand( Ec2Command ):
+class BoxCommand( Ec2Command ):
+    def run_on(self, box, options):
+        raise NotImplementedError( )
+
+    def __init__(self, application, **kwargs):
+        super( BoxCommand, self ).__init__( application, **kwargs )
+        self.option( 'box_name',
+                     metavar='BOX_NAME',
+                     help="The name of the box to operate on. "
+                          "Use the list command to show valid box names." )
+
+    def run(self, options):
+        box_name = options.box_name
+        box_cls = BOXES.get( box_name )
+        if box_cls is None: raise RuntimeError( "No such box name: '%s'" % box_name )
+        box = box_cls( self.ec2_options( options ) )
+        return self.run_on( box, options )
+
+
+class SetupCommand( BoxCommand ):
     def __init__(self, application):
         super( SetupCommand, self ).__init__( application,
                                               help='Build a box and optionally image it' )
-        self.option( 'box_name', metavar='BOX' )
         self.option( '--image', '-I',
                      default=False, action='store_true',
                      help='Create an image of the box when setup is complete.' )
@@ -86,22 +109,31 @@ class SetupCommand( Ec2Command ):
                           'post-mortem analysis.' )
         self.end_mutex( )
 
-    def run(self, options):
-        box_name = options.box_name
-        box_cls = BOXES.get( box_name )
-        if box_cls is None:
-            raise RuntimeError( "No such box name: '%s'" % box_name )
-        box_cls.create_and_setup( self.ec2_options( options ),
-                                  update=options.update,
-                                  image=options.image,
-                                  terminate=options.terminate )
+    def run_on(self, box, options):
+        box.create_and_setup( update=options.update,
+                              image=options.image,
+                              terminate=options.terminate )
 
 
 class GetJenkinsKeyCommand( Ec2Command ):
-    def __init__(self, application, **kwargs):
+    def __init__(self, application):
         super( GetJenkinsKeyCommand, self ).__init__(
             application,
+            ssh_key_required=False,
             help='Get a copy of the public key used by Jenkins to connect to slaves.' )
 
     def run(self, options):
-        BuildMaster.download_jenkins_key( self.ec2_options( options ) )
+        box = BuildMaster( self.ec2_options( options ) )
+        box.download_jenkins_key( )
+
+
+class SshCommand( BoxCommand ):
+    def __init__(self, application):
+        super( SshCommand, self ).__init__(
+            application,
+            ssh_key_required=False,
+            help='Start an interactive SSH session with the host.' )
+
+    def run_on(self, box, options):
+        box.ssh( )
+

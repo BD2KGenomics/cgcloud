@@ -130,13 +130,19 @@ class BuildMaster( UbuntuEc2Box ):
         #
         self._download_jenkins_key( )
 
-    @classmethod
-    def download_jenkins_key(cls, ec2_options):
-        box = cls( ec2_options )
-        box.adopt( )
-        box.execute( box._download_jenkins_key )
+    def download_jenkins_key(self):
+        self.adopt( )
+        self.execute( self._download_jenkins_key )
 
     def _download_jenkins_key(self):
         local_key_path = config_file_path( 'jenkins.id_rsa.pub' )
         get( '%s/.ssh/id_rsa.pub' % JENKINS_HOME, local_key_path )
+
+    def ssh_args(self):
+        args = super( BuildMaster, self ).ssh_args( )
+        args[ 1:1 ] = [ '-L localhost:8080:localhost:8080' ]
+        return args
+
+
+
 

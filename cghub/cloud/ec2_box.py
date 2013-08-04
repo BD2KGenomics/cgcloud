@@ -1,5 +1,6 @@
 from __future__ import print_function
 import socket
+import subprocess
 import time
 
 from boto import ec2
@@ -44,41 +45,6 @@ class Ec2Box( object ):
         Returns the ID of the AMI to boot this box from
         """
         raise NotImplementedError( )
-
-    @classmethod
-    def create_and_setup(cls, ec2_options, update=False, image=False, terminate=None):
-        """
-        Create an object of the given box class, create the EC2 instance represented by that
-        object, install OS and additional packages on, optionally create an AMI image of it,
-        and/or terminate it.
-
-        :param cls: The concrete box class to be instantiated (on this machine and in EC2)
-        :param ec2_options: The EC2 configuration to be used
-        :param update:
-            Bring the package repository as well as any installed packages up to date, i.e. do
-            what on Ubuntu is achieved by doing 'sudo apt-get update ; sudo apt-get upgrade'.
-        :param image:
-            If True, create an image (AMI) of this box after setup completes. The image name (the
-            value of the Name tag) will be the name of the box followed by the current date.
-        :param terminate:
-            If True, terminate the box before this method exits. If False, don't
-            terminate this box. If None, terminate only on exceptions.
-        """
-        box = cls( ec2_options )
-        try:
-            box.setup( update )
-            if image:
-                box.stop( )
-                box.create_image( )
-                if terminate is not True:
-                    box.start( )
-        except:
-            if terminate is not False:
-                box.terminate( wait=False )
-            raise
-        else:
-            if terminate is True:
-                box.terminate( )
 
     def setup(self, update=False):
         """
@@ -146,6 +112,43 @@ class Ec2Box( object ):
             instance = unpack_singleton( reservation.instances )
             self.instance_id = instance.id
             self.__wait_ready( instance )
+
+    def create_and_setup(self, update=False, image=False, terminate=None):
+        """
+        Create the EC2 instance to be represented by this box, install OS and additional packages
+        on it, optionally create an AMI image of it, and/or terminate it.
+
+        :param update:
+            Bring the package repository as well as any installed packages up to date, i.e. do
+            what on Ubuntu is achieved by doing 'sudo apt-get update ; sudo apt-get upgrade'.
+        :param image:
+            If True, create an image (AMI) of this box after setup completes. The image name (the
+            value of the Name tag) will be the name of the box followed by the current date.
+        :param terminate:
+            If True, terminate the box before this method exits. If False, don't
+            terminate this box. If None, terminate only on exceptions.
+        """
+        try:
+            self.setup( update )
+            if image:
+                self.stop( )
+                self.create_image( )
+                if terminate is not True:
+                    self.start( )
+        except:
+            if terminate is not False:
+                self.terminate( wait=False )
+            raise
+        else:
+            if terminate is True:
+                self.terminate( )
+
+    def ssh_args(self):
+        return [ 'ssh', '-l', 'ubuntu', self.host_name ]
+
+    def ssh(self):
+        self.adopt( )
+        subprocess.call( self.ssh_args( ) )
 
     @needs_instance
     def execute(self, task):
