@@ -9,7 +9,7 @@ Quickstart
 
 To install cghub-cloud-utils You need Python 2.7.x and `pip <http://www.pip-installer.org/en/latest/installing.html#installing-globally>`_::
 
-   pip install hg+https://bitbucket.org/cghub/cghub-cloud-utils/
+   sudo pip install hg+https://bitbucket.org/cghub/cghub-cloud-utils/
 
 At the moment, the project is hosted in a private repository on Bitbucket and you will be prompted
 to enter your Bitbucket credentials.
@@ -26,7 +26,23 @@ create one using ``ssh-keygen`` and paste the contents of ~/.ssh/id_rsa.pub into
 As the name of the key pair, use your login name or the the part before the ``@`` in your UCSC
 email address.
 
-That's it. Now, let's say we want to create the build-master, i.e. the machine that runs the
+Create an access key from `Amazon's IAM console <https://console.aws.amazon.com/iam/home?#users>`_:
+
+1. Select the row that represents yourself
+2. Click the *Security Credentials* tab
+3. Click *Manage Access Keys*
+4. Click *Create Access Key*
+5. Click *Show User Security Credentials*, leave the page open
+
+Create ``~/.boto`` with the following contents::
+
+   [Credentials]
+   aws_access_key_id = PASTE YOUR ACCESS KEY ID HERE
+   aws_secret_access_key = PASTE YOUR SECRET ACCESS KEY HERE
+
+Click Close Window
+
+That's it. Now, let's say we want to create the ``build-master``, i.e. the machine that runs the
 Jenkins Continuous Integration server::
 
    cgcloud setup build-master -k YOUR_KEY_PAIR_NAME
@@ -37,6 +53,13 @@ SSH into the build master (not yet implemented)
    
 This will SSH into the build master and setup a port forwarding to Jenkins' web UI. Point your
 browser at http://localhost:8080/.
+
+Uninstallation
+==============
+
+::
+
+    sudo pip uninstall cghub-cloud-utils
 
 Motivation
 ==========
