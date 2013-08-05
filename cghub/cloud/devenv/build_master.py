@@ -2,7 +2,7 @@ from StringIO import StringIO
 from textwrap import dedent
 from fabric.operations import run, sudo, put, get
 from cghub.cloud import config_file_path
-from cghub.cloud.ubuntu_ec2_box import UbuntuEc2Box
+from cghub.cloud.ubuntu_box import UbuntuBox
 
 # EC2's name of the block device to which to attach the Jenkins data volume
 JENKINS_DATA_DEVICE_EXT = '/dev/sdf'
@@ -22,27 +22,27 @@ JENKINS_DATA_VOLUME_SIZE_GB = 100
 JENKINS_HOME = '/var/lib/jenkins'
 
 
-class BuildMaster( UbuntuEc2Box ):
+class BuildMaster( UbuntuBox ):
     """
     An instance of this class represents the build master in our EC2 build environment
     """
 
     @staticmethod
-    def name():
+    def role():
         return 'build-master'
 
-    def __init__(self, ec2_options):
-        super( BuildMaster, self ).__init__( 'precise', ec2_options )
+    def __init__(self, env):
+        super( BuildMaster, self ).__init__( 'precise', env )
+
+    def create(self):
+        self.volume = self.get_or_create_volume( JENKINS_DATA_VOLUME_NAME,
+                                                 JENKINS_DATA_VOLUME_SIZE_GB )
+        super( BuildMaster, self ).create( )
+        self.attach_volume( self.volume, JENKINS_DATA_DEVICE_EXT )
 
     def setup(self, update=False):
-        self.volume = self.ensure_volume_exists( JENKINS_DATA_VOLUME_NAME,
-                                                 JENKINS_DATA_VOLUME_SIZE_GB )
-        self.create( )
-        self.attach_volume( self.volume, JENKINS_DATA_DEVICE_EXT )
-        if update:
-            self.execute( self.update_upgrade )
-            self.reboot( )
-        self.execute( self.setup_jenkins )
+        super( BuildMaster, self ).setup( update )
+        self._execute( self.setup_jenkins )
 
     def setup_jenkins(self):
         #
@@ -122,7 +122,7 @@ class BuildMaster( UbuntuEc2Box ):
         #
         if sudo( 'test -f %s/.ssh/id_rsa' % JENKINS_HOME, quiet=True ).failed:
             sudo( 'ssh-keygen -f %s/.ssh/id_rsa' % JENKINS_HOME, user='jenkins' )
-            sudo( 'sudo chmod go+rx %s/.ssh' % JENKINS_HOME ) # so we can download the pub key
+            sudo( 'sudo chmod go+rx %s/.ssh' % JENKINS_HOME ) # so we can download the public key
             self._log( 'Remember to configure Jenkins via its web UI to actually use the key.' )
 
         #
@@ -131,18 +131,13 @@ class BuildMaster( UbuntuEc2Box ):
         self._download_jenkins_key( )
 
     def download_jenkins_key(self):
-        self.adopt( )
-        self.execute( self._download_jenkins_key )
+        self._execute( self._download_jenkins_key )
 
     def _download_jenkins_key(self):
-        local_key_path = config_file_path( 'jenkins.id_rsa.pub' )
-        get( '%s/.ssh/id_rsa.pub' % JENKINS_HOME, local_key_path )
+        get( remote_path='%s/.ssh/id_rsa.pub' % JENKINS_HOME,
+             local_path=self._config_file_path( 'jenkins.id_rsa.pub', mkdir=True ) )
 
-    def ssh_args(self):
-        args = super( BuildMaster, self ).ssh_args( )
+    def _ssh_args(self):
+        args = super( BuildMaster, self )._ssh_args( )
         args[ 1:1 ] = [ '-L localhost:8080:localhost:8080' ]
         return args
-
-
-
-

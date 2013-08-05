@@ -1,9 +1,7 @@
 import argparse
-from collections import Mapping
 import os
 import re
 import errno
-import sys
 
 
 def unpack_singleton(singleton):

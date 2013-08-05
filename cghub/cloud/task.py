@@ -1,7 +1,7 @@
 import fabric.tasks
 
 
-class Ec2Task( fabric.tasks.Task ):
+class Task( fabric.tasks.Task ):
     """
     A Fabric task for EC2 boxes. Use this as the base class for custom Fabric tasks to be run on
     an EC2 box, as represented by an instance of Ec2Box. Pass instances of this class to Ec2Box
@@ -19,5 +19,5 @@ class Ec2Task( fabric.tasks.Task ):
 
         :param box: the box
         :type box: Ec2Box"""
-        super( Ec2Task, self ).__init__( name=self.__class__.__name__ )
+        super( Task, self ).__init__( name=self.__class__.__name__ )
         self.box = box

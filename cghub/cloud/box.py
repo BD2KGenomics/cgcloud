@@ -2,12 +2,13 @@ from __future__ import print_function
 import socket
 import subprocess
 import time
+import sys
 
 from boto import ec2
-
 from fabric.api import execute
-import sys
+
 from util import unpack_singleton
+
 
 EC2_POLLING_INTERVAL = 5
 
@@ -28,9 +29,10 @@ class Ec2Box( object ):
     """
 
     @staticmethod
-    def name(self):
+    def role(self):
         """
-        The human-readable name of this box
+        The name of the role performed by instances of this class, or rather by the EC2 instances
+        they represent.
         """
         raise NotImplementedError( )
 
@@ -57,16 +59,16 @@ class Ec2Box( object ):
         """
         raise NotImplementedError( )
 
-    def __init__(self, ec2_options):
+    def __init__(self, env):
         """
         Initialize an instance of this class. Before calling any of the methods on this object,
         you must ensure that a corresponding EC2 instance exists by calling either create() or
         adopt(). The former creates a new EC2 instance, the latter looks up an existing one.
         """
-        self.ec2_options = ec2_options
+        self.env = env
         self.instance_id = None
         self.host_name = None
-        self.connection = ec2.connect_to_region( ec2_options.region )
+        self.connection = ec2.connect_to_region( env.region )
 
     def create(self):
         """
@@ -86,72 +88,45 @@ class Ec2Box( object ):
         self.__wait_ready( instance )
 
         self._log( 'Tagging instances.' )
-        instance.add_tag( 'Name', self.name( ) )
+        instance.add_tag( 'Name', self.env.absolute_name( self.role( ) ) )
 
     def _instance_creation_args(self):
         """
         Returns the keyword arguments that will be passed to boto.connection.run_instances method.
         Subclasses may want to override this method in order to modify those arguments to.
         """
-        kwargs = dict( instance_type=self.ec2_options.instance_type,
-                       key_name=self.ec2_options.ssh_key_name,
-                       placement=self.ec2_options.availability_zone )
+        kwargs = dict( instance_type=self.env.instance_type,
+                       key_name=self.env.ssh_key_name,
+                       placement=self.env.availability_zone )
         return kwargs
 
     def adopt(self):
         """
-        Adopt the EC instance represented by this box.
+        Verify that the EC instance represented by this box exists and is ready,
+        i.e. that it is is running, has a public host name and can be connected to via SSH. If
+        the box doesn't exist and exception will be raised. If the box exists but is not ready,
+        this method will wait until the instance is ready.
         """
         if self.instance_id is None:
             self._log( 'Looking up instance ... ', newline=False )
-            box_name = self.name( )
-            reservations = self.connection.get_all_instances( filters={ 'tag:Name': box_name } )
+            name = self.env.absolute_name( self.role( ) )
+            reservations = self.connection.get_all_instances( filters={ 'tag:Name': name } )
             if not reservations:
-                raise RuntimeError( "No such box: '%s'" % box_name )
+                raise RuntimeError( "No such box: '%s'" % name )
             reservation = unpack_singleton( reservations )
             instance = unpack_singleton( reservation.instances )
             self.instance_id = instance.id
             self.__wait_ready( instance )
 
-    def create_and_setup(self, update=False, image=False, terminate=None):
-        """
-        Create the EC2 instance to be represented by this box, install OS and additional packages
-        on it, optionally create an AMI image of it, and/or terminate it.
-
-        :param update:
-            Bring the package repository as well as any installed packages up to date, i.e. do
-            what on Ubuntu is achieved by doing 'sudo apt-get update ; sudo apt-get upgrade'.
-        :param image:
-            If True, create an image (AMI) of this box after setup completes. The image name (the
-            value of the Name tag) will be the name of the box followed by the current date.
-        :param terminate:
-            If True, terminate the box before this method exits. If False, don't
-            terminate this box. If None, terminate only on exceptions.
-        """
-        try:
-            self.setup( update )
-            if image:
-                self.stop( )
-                self.create_image( )
-                if terminate is not True:
-                    self.start( )
-        except:
-            if terminate is not False:
-                self.terminate( wait=False )
-            raise
-        else:
-            if terminate is True:
-                self.terminate( )
-
-    def ssh_args(self):
+    def _ssh_args(self):
         return [ 'ssh', '-l', 'ubuntu', self.host_name ]
 
+    @needs_instance
     def ssh(self):
-        self.adopt( )
-        subprocess.call( self.ssh_args( ) )
+        subprocess.call( self._ssh_args( ) )
 
     @needs_instance
-    def execute(self, task):
+    def _execute(self, task):
         """
         Execute the given Fabric task on the EC2 instance represented by this box
         """
@@ -170,7 +145,8 @@ class Ec2Box( object ):
             raise RuntimeError( 'Instance is not stopped' )
 
         self._log( "Creating image ... ", newline=False )
-        image_name = "%s %s" % ( self.name( ), time.strftime( '%Y%m%d%H%M%S' ) )
+        image_name = "%s %s" % ( self.role( ), time.strftime( '%Y-%m-%d %H-%M-%S' ) )
+        image_name = self.env.absolute_name( image_name )
         image_id = self.connection.create_image( self.instance_id, image_name )
         while True:
             try:
@@ -227,7 +203,7 @@ class Ec2Box( object ):
                                         'terminated' )
         self._log( 'done.' )
 
-    def lookup_volume(self, name):
+    def get_attachable_volume(self, name):
         """
         Ensure that an EBS volume of the given name is available in the current availability zone.
         If the EBS volume exists but has been placed into a different zone, or if it is not
@@ -235,19 +211,20 @@ class Ec2Box( object ):
 
         :param name: the name of the volume
         """
+        name = self.env.absolute_name( name )
         volumes = self.connection.get_all_volumes( filters={ 'tag:Name': name } )
         if len( volumes ) < 1: return None
         if len( volumes ) > 1: raise RuntimeError( "More than one EBS volume named %s" % name )
         volume = volumes[ 0 ]
         if volume.status != 'available':
             raise RuntimeError( "EBS volume %s is not available." % name )
-        expected_zone = self.ec2_options.availability_zone
+        expected_zone = self.env.availability_zone
         if volume.zone != expected_zone:
             raise RuntimeError( "Availability zone of EBS volume %s is %s but should be %s."
                                 % (name, volume.zone, expected_zone ) )
         return volume
 
-    def ensure_volume_exists(self, name, size, **kwargs):
+    def get_or_create_volume(self, name, size, **kwargs):
         """
         Ensure that an EBS volume of the given name is available in the current availability zone.
         If the EBS volume exists but has been placed into a different zone, or if it is not
@@ -259,15 +236,16 @@ class Ec2Box( object ):
         :param kwargs: additional parameters for boto.connection.create_volume()
         :return: the volume
         """
-        volume = self.lookup_volume( name )
+        name = self.env.absolute_name( name )
+        volume = self.get_attachable_volume( name )
         if volume is None:
             self._log( "Creating volume %s ... " % name, newline=False )
-            zone = self.ec2_options.availability_zone
+            zone = self.env.availability_zone
             volume = self.connection.create_volume( size, zone, **kwargs )
             self.__wait_volume_transition( volume, { 'creating' }, 'available' )
             volume.add_tag( 'Name', name )
             self._log( 'done.' )
-            volume = self.lookup_volume( name )
+            volume = self.get_attachable_volume( name )
         return volume
 
     @needs_instance
@@ -292,6 +270,9 @@ class Ec2Box( object ):
         """
         reservations = self.connection.get_all_instances( self.instance_id )
         return unpack_singleton( unpack_singleton( reservations ).instances )
+
+    def _config_file_path(self, file_name, mkdir=False):
+        return self.env.config_file_path( [ self.role( ), file_name ], mkdir=mkdir )
 
     def __wait_ready(self, instance):
         """
@@ -361,3 +342,4 @@ class Ec2Box( object ):
         if state != to_state:
             raise RuntimeError( "Expected state of %s to be '%s' but got '%s'"
                                 % ( resource, to_state, state ) )
+

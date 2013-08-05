@@ -2,7 +2,7 @@ import contextlib
 import csv
 import urllib2
 from fabric.operations import sudo
-from ec2_box import Ec2Box
+from box import Ec2Box
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 
@@ -12,20 +12,20 @@ class TemplateDict( dict ):
         return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
 
-class UbuntuEc2Box( Ec2Box ):
+class UbuntuBox( Ec2Box ):
     """
     An EC2 instance that boots from one of Ubuntu's cloud-image AMIs
     """
 
-    def __init__(self, release, ec2_options):
-        super( UbuntuEc2Box, self ).__init__( ec2_options )
+    def __init__(self, release, env):
+        super( UbuntuBox, self ).__init__( env )
         self.base_image = self.__find_image(
             template=TemplateDict( release=release,
                                    purpose='server',
                                    release_type='release',
                                    storage_type='ebs',
                                    arch='amd64',
-                                   region=ec2_options.region,
+                                   region=env.region,
                                    hypervisor='paravirtual' ),
             url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
             fields=[
@@ -39,9 +39,8 @@ class UbuntuEc2Box( Ec2Box ):
         return self.base_image[ 'ami_id' ]
 
     def setup(self, update=False):
-        self.create( )
         if update:
-            self.execute( self.update_upgrade )
+            self._execute( self.update_upgrade )
             self.reboot( )
 
     @staticmethod
