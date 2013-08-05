@@ -1,8 +1,10 @@
 CGHub Cloud Utils (officially, cghub-cloud-utils) manages virtual machines in Amazon's Elastic
-Compute Cloud. Each virtual machine (*box*) is automatically provisioned with operating system
-and application software such that it can function in one of several predefined roles, e.g. as a
+Compute Cloud. Each virtual machine (*box*) is automatically provisioned with operating system and
+application software such that it can function in one of several predefined ``roles``, e.g. as a
 continuous integration server, for running tests or as a build server for creating
-platform-specific builds of CGHub's client applications.
+platform-specific builds of CGHub's client applications. Multiple boxes performing a variety of
+roles can collaborate with each other inside a ``namespace``. Cloud resources such as EC2
+instances, volumes and images can be isolated from each other by using separate namespaces.
 
 Quickstart
 ==========
@@ -22,11 +24,11 @@ Next, log into `Amazon's EC2 console
 <https://console.aws.amazon.com/ec2/home?region=us-west-1#s=KeyPairs>`_ and register your SSH key
 pair in a region of your choice (at the moment, CGHub uses the us-west-1 region). Ask your a CGHub
 EC2 admin (Hannes or Paul) to setup an account in AWS for you. If you don't have a key pair yet,
-create one using ``ssh-keygen`` and paste the contents of ~/.ssh/id_rsa.pub into the EC2 console.
-As the name of the key pair, use your login name or the the part before the ``@`` in your UCSC
-email address.
+create one using ``ssh-keygen`` and paste the contents of ``~/.ssh/id_rsa.pub into`` the EC2
+console. As the name of the key pair, use your login name or the the part before the ``@`` in your
+UCSC email address.
 
-Create an access key from `Amazon's IAM console <https://console.aws.amazon.com/iam/home?#users>`_:
+Create access keys on `Amazon's IAM console <https://console.aws.amazon.com/iam/home?#users>`_:
 
 1. Select the row that represents yourself
 2. Click the *Security Credentials* tab
@@ -43,7 +45,7 @@ Create an access key from `Amazon's IAM console <https://console.aws.amazon.com/
 
 7. Click *Close Window*
 
-That's it. 
+That's it.
 
 Now, let's say we want to create the ``build-master``, i.e. the machine that runs the
 Jenkins continuous integration server::

@@ -13,7 +13,7 @@ BOXES = dict( ( cls.role( ), cls) for cls in [ BuildMaster ] )
 
 def main():
     app = Cgcloud( )
-    app.add( ListCommand )
+    app.add( ListRolesCommand )
     app.add( SetupCommand )
     app.add( SshCommand )
     app.add( GetJenkinsKeyCommand )
@@ -70,9 +70,9 @@ class EnvironmentCommand( Command ):
         return self.run_in_env( options, env )
 
 
-class ListCommand( Command ):
+class ListRolesCommand( Command ):
     def __init__(self, app):
-        super( ListCommand, self ).__init__( app, help='List known box names' )
+        super( ListRolesCommand, self ).__init__( app, help='List known box names' )
 
     def run(self, options):
         print '\n'.join( BOXES.iterkeys( ) )
