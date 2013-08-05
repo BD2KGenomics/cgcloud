@@ -1,9 +1,9 @@
 CGHub Cloud Utils (officially, cghub-cloud-utils) manages virtual machines in Amazon's Elastic
 Compute Cloud. Each virtual machine (*box*) is automatically provisioned with operating system and
-application software such that it can function in one of several predefined ``roles``, e.g. as a
+application software such that it can function in one of several predefined *roles*, e.g. as a
 continuous integration server, for running tests or as a build server for creating
 platform-specific builds of CGHub's client applications. Multiple boxes performing a variety of
-roles can collaborate with each other inside a ``namespace``. Cloud resources such as EC2
+roles can collaborate with each other inside a *namespace*. Cloud resources such as EC2
 instances, volumes and images can be isolated from each other by using separate namespaces.
 
 Quickstart
@@ -52,7 +52,7 @@ Jenkins continuous integration server::
 
    cgcloud setup build-master -k YOUR_KEY_PAIR_NAME
 
-SSH into the build master
+SSH into the build master::
 
    cgcloud ssh build-master
    
