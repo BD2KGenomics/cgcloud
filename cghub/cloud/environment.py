@@ -11,11 +11,7 @@ class Environment:
 
     availability_zone_re = re.compile( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$' )
 
-    def __init__(self,
-                 availability_zone='us-west-1b',
-                 instance_type='t1.micro',
-                 ssh_key_name=None,
-                 namespace='/'):
+    def __init__(self, availability_zone='us-west-1b', namespace='/'):
         """
         Create an Environment object.
 
@@ -72,8 +68,6 @@ class Environment:
             raise RuntimeError(
                 "Can't extract region from availability-zone '%s'" % availability_zone )
         self.region = m.group( 1 )
-        self.instance_type = instance_type
-        self.ssh_key_name = ssh_key_name
         if namespace is not None:
             if namespace[ 0:1 ] != '/': namespace = '/' + namespace
             if namespace[ -1: ] != '/': namespace += '/'

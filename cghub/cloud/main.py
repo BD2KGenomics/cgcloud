@@ -1,6 +1,13 @@
+import collections
 import logging
+import pprint
+import textwrap
+import boto
+import sys
+from operator import itemgetter
 
 from devenv.build_master import BuildMaster
+from box import Box
 from util import Command, Application
 from environment import Environment
 
@@ -15,6 +22,11 @@ def main():
     app = Cgcloud( )
     app.add( ListRolesCommand )
     app.add( SetupCommand )
+    app.add( StartCommand )
+    app.add( StopCommand )
+    app.add( RebootCommand )
+    app.add( TerminateCommand )
+    app.add( ShowCommand )
     app.add( SshCommand )
     app.add( GetJenkinsKeyCommand )
     app.run( )
@@ -36,43 +48,31 @@ class EnvironmentCommand( Command ):
     def run_in_env(self, options, env):
         raise NotImplementedError( )
 
-    def __init__(self, application, ssh_key_required=True, **kwargs):
+    def __init__(self, application, **kwargs):
         defaults = Environment( )
         super( EnvironmentCommand, self ).__init__( application, **kwargs )
-        self.option( '--ssh-key-name', '-k', metavar='KEY_NAME',
-                     required=ssh_key_required, default=defaults.ssh_key_name,
-                     help='The name of the SSH public key to inject into the instance. The '
-                          'corresponding public key must be registered in EC2 under the given name '
-                          'and a matching private key needs to be present locally.' )
-
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                      default=defaults.availability_zone, dest='availability_zone',
                      help='The name of the EC2 availability zone to place EC2 resources into, '
                           'e.g. us-east-1a, us-west-1b or us-west-2c etc. This argument implies '
                           'the AWS region to run in. ' )
 
-        self.option( '--instance-type', '-t', metavar='TYPE',
-                     default=defaults.instance_type,
-                     help='The type of EC2 instance to launch for the box, e.g. of t1.micro, '
-                          'm1.small, m1.medium, or m1.large etc.' )
-
         self.option( '--namespace', '-n', metavar='PREFIX',
                      default=defaults.namespace,
-                     help='Optional prefix for box names, image names, etc. '
-                          'Use this option to create a separate namespace in order to avoid '
-                          'collisions, e.g. when running tests.' )
+                     help='Optional prefix for naming EC2 resource like instances, images, volumes, '
+                          'etc. Use this option to create a separate namespace in order to avoid '
+                          'collisions, e.g. when running tests. The default represents the root '
+                          'namespace.' )
 
     def run(self, options):
         env = Environment( availability_zone=options.availability_zone,
-                           instance_type=options.instance_type,
-                           ssh_key_name=options.ssh_key_name,
                            namespace=options.namespace )
         return self.run_in_env( options, env )
 
 
 class ListRolesCommand( Command ):
     def __init__(self, app):
-        super( ListRolesCommand, self ).__init__( app, help='List known box names' )
+        super( ListRolesCommand, self ).__init__( app, help='List available roles.' )
 
     def run(self, options):
         print '\n'.join( BOXES.iterkeys( ) )
@@ -80,6 +80,9 @@ class ListRolesCommand( Command ):
 
 class BoxCommand( EnvironmentCommand ):
     def run_on_box(self, options, box):
+        """
+        :type box: Box
+        """
         raise NotImplementedError( )
 
     def __init__(self, application, **kwargs):
@@ -104,6 +107,17 @@ class SetupCommand( BoxCommand ):
                                                    'install OS and additional packages on it, '
                                                    'optionally create an AMI image of it, and/or '
                                                    'terminate it.' )
+        self.option( '--ssh-key-name', '-k', metavar='KEY_NAME',
+                     required=True,
+                     help='The name of the SSH public key to inject into the instance. The '
+                          'corresponding public key must be registered in EC2 under the given name '
+                          'and a matching private key needs to be present locally.' )
+
+        self.option( '--instance-type', '-t', metavar='TYPE',
+                     default='t1.micro',
+                     help='The type of EC2 instance to launch for the box, e.g. of t1.micro, '
+                          'm1.small, m1.medium, or m1.large etc.' )
+
         self.option( '--image', '-I',
                      default=False, action='store_true',
                      help='Create an image of the box when setup is complete.' )
@@ -130,7 +144,8 @@ class SetupCommand( BoxCommand ):
 
     def run_on_box(self, options, box):
         try:
-            box.create( )
+            box.create( instance_type=options.instance_type,
+                        ssh_key_name=options.ssh_key_name )
             box.setup( options.update )
             if options.image:
                 box.stop( )
@@ -150,7 +165,6 @@ class GetJenkinsKeyCommand( EnvironmentCommand ):
     def __init__(self, application):
         super( GetJenkinsKeyCommand, self ).__init__(
             application,
-            ssh_key_required=False,
             help='Get a copy of the public key used by Jenkins to connect to slaves.' )
 
     def run_in_env(self, options, env):
@@ -163,10 +177,68 @@ class SshCommand( BoxCommand ):
     def __init__(self, application):
         super( SshCommand, self ).__init__(
             application,
-            ssh_key_required=False,
             help='Start an interactive SSH session with the host.' )
 
     def run_on_box(self, options, box):
         box.adopt( )
         box.ssh( )
+
+
+class LifecycleCommand( BoxCommand ):
+    def __init__(self, application, **kwargs):
+        super( LifecycleCommand, self ).__init__(
+            application,
+            help='Transition the box between states.' )
+
+    def run_on_box(self, options, box):
+        box.adopt( wait_ready=False )
+        getattr( box, self.name( ) )( )
+
+
+class StartCommand( LifecycleCommand ): pass
+
+
+class StopCommand( LifecycleCommand ): pass
+
+
+class RebootCommand( LifecycleCommand ): pass
+
+
+class TerminateCommand( LifecycleCommand ): pass
+
+
+class ShowCommand( BoxCommand ):
+    def __init__(self, application):
+        super( ShowCommand, self ).__init__( application )
+
+    def print_object(self, o, visited=set( ), depth=1):
+        _id = id( o )
+        if not _id in visited:
+            visited.add( _id )
+            self.print_dict( o.__dict__, visited, depth )
+            visited.remove( _id )
+        if depth == 1: sys.stdout.write( '\n' )
+
+    def print_dict(self, d, visited, depth):
+        for k, v in sorted( d.iteritems( ), key=itemgetter( 0 ) ):
+            k = str( k )
+            if k[ 0:1 ] != '_' \
+                and k != 'connection' \
+                and not isinstance( v, boto.ec2.connection.EC2Connection ):
+                sys.stdout.write( '\n%s%s: ' % ('\t' * depth, k) )
+                if isinstance( v, basestring ):
+                    sys.stdout.write( v.strip( ) )
+                elif hasattr( v, 'iteritems' ):
+                    self.print_dict( v, visited, depth + 1 )
+                elif hasattr( v, '__iter__' ):
+                    self.print_dict( dict( enumerate( v ) ), visited, depth + 1 )
+                elif isinstance( v, boto.ec2.blockdevicemapping.BlockDeviceType ) \
+                    or isinstance( v, boto.ec2.group.Group ):
+                    self.print_object( v, visited, depth + 1 )
+                else:
+                    sys.stdout.write( repr( v ) )
+
+    def run_on_box(self, options, box):
+        box.adopt( wait_ready=False )
+        self.print_object( box.get_instance( ) )
 

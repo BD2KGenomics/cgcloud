@@ -2,7 +2,7 @@ import contextlib
 import csv
 import urllib2
 from fabric.operations import sudo
-from box import Ec2Box
+from box import Box
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 
@@ -12,7 +12,7 @@ class TemplateDict( dict ):
         return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
 
-class UbuntuBox( Ec2Box ):
+class UbuntuBox( Box ):
     """
     An EC2 instance that boots from one of Ubuntu's cloud-image AMIs
     """

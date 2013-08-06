@@ -17,12 +17,12 @@ def needs_instance(method):
     def wrapped_method(self, *args, **kwargs):
         if self.instance_id is None:
             raise RuntimeError( "Instance ID not set" )
-        method( self, *args, **kwargs )
+        return method( self, *args, **kwargs )
 
     return wrapped_method
 
 
-class Ec2Box( object ):
+class Box( object ):
     """
     Manage EC2 instances. Each instance of this class represents a single virtual machine (aka
     instance) in EC2.
@@ -70,45 +70,37 @@ class Ec2Box( object ):
         self.host_name = None
         self.connection = ec2.connect_to_region( env.region )
 
-    def create(self):
+    def create(self, instance_type, ssh_key_name):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
         """
         if self.instance_id is not None:
             raise RuntimeError( "Instance already adopted or created" )
 
-        self._log( 'Creating instance ... ', newline=False )
+        self._log( 'Creating instance, ... ', newline=False )
 
-        kwargs = self._instance_creation_args( )
-
-        reservation = self.connection.run_instances( self.image_id( ), **kwargs )
+        reservation = self.connection.run_instances( self.image_id( ),
+                                                     instance_type=instance_type,
+                                                     key_name=ssh_key_name,
+                                                     placement=self.env.availability_zone )
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
 
-        self.__wait_ready( instance )
+        self.__wait_ready( instance, { 'pending' } )
 
-        self._log( 'Tagging instances.' )
+        self._log( 'Tagging instance.' )
         instance.add_tag( 'Name', self.env.absolute_name( self.role( ) ) )
 
-    def _instance_creation_args(self):
+    def adopt(self, wait_ready=True):
         """
-        Returns the keyword arguments that will be passed to boto.connection.run_instances method.
-        Subclasses may want to override this method in order to modify those arguments to.
-        """
-        kwargs = dict( instance_type=self.env.instance_type,
-                       key_name=self.env.ssh_key_name,
-                       placement=self.env.availability_zone )
-        return kwargs
+        Verify that the EC instance represented by this box exists and, optionally,
+        wait until it is ready, i.e. that it is is running, has a public host name and can be
+        connected to via SSH. If the box doesn't exist and exception will be raised.
 
-    def adopt(self):
-        """
-        Verify that the EC instance represented by this box exists and is ready,
-        i.e. that it is is running, has a public host name and can be connected to via SSH. If
-        the box doesn't exist and exception will be raised. If the box exists but is not ready,
-        this method will wait until the instance is ready.
+        :param wait_ready: if True, wait for the instance to be ready
         """
         if self.instance_id is None:
-            self._log( 'Looking up instance ... ', newline=False )
+            self._log( 'Adopting instance, ... ', newline=False )
             name = self.env.absolute_name( self.role( ) )
             reservations = self.connection.get_all_instances( filters={ 'tag:Name': name } )
             if not reservations:
@@ -116,22 +108,10 @@ class Ec2Box( object ):
             reservation = unpack_singleton( reservations )
             instance = unpack_singleton( reservation.instances )
             self.instance_id = instance.id
-            self.__wait_ready( instance )
-
-    def _ssh_args(self):
-        return [ 'ssh', '-l', 'ubuntu', self.host_name ]
-
-    @needs_instance
-    def ssh(self):
-        subprocess.call( self._ssh_args( ) )
-
-    @needs_instance
-    def _execute(self, task):
-        """
-        Execute the given Fabric task on the EC2 instance represented by this box
-        """
-        if not callable( task ): task = task( self )
-        execute( task, hosts=[ "%s@%s" % ( self.username( ), self.host_name ) ] )
+            if wait_ready:
+                self.__wait_ready( instance, from_states={ 'pending' } )
+            else:
+                self._log( 'done.' )
 
     @needs_instance
     def create_image(self):
@@ -140,11 +120,9 @@ class Ec2Box( object ):
         The EC2 instance needs to use an EBS-backed root volume. The box must be stopped or
         an exception will be raised.
         """
-        instance = self._get_instance( )
-        if instance.state != 'stopped':
-            raise RuntimeError( 'Instance is not stopped' )
+        self.__expect_state( 'stopped' )
 
-        self._log( "Creating image ... ", newline=False )
+        self._log( "Creating image, ... ", newline=False )
         image_name = "%s %s" % ( self.role( ), time.strftime( '%Y-%m-%d %H-%M-%S' ) )
         image_name = self.env.absolute_name( image_name )
         image_id = self.connection.create_image( self.instance_id, image_name )
@@ -165,9 +143,12 @@ class Ec2Box( object ):
         Stop the EC2 instance represented by this box. Stopped instances can be started later using
         :py:func:`start`.
         """
-        self._log( 'Stopping instance ... ', newline=False )
-        self.connection.stop_instances( [ self.instance_id ] )
-        self.__wait_transition( self._get_instance( ), { 'stopping' }, 'stopped' );
+        instance = self.__expect_state( 'running' )
+        self._log( 'Stopping instance, ... ', newline=False )
+        self.connection.stop_instances( [ instance.id ] )
+        self.__wait_transition( instance,
+                                from_states={ 'running', 'stopping' },
+                                to_state='stopped' );
         self._log( 'done.' )
 
     @needs_instance
@@ -175,18 +156,23 @@ class Ec2Box( object ):
         """
         Start the EC2 instance represented by this box
         """
-        self._log( 'Starting instance ... ', newline=False )
+        instance = self.__expect_state( 'stopped' )
+        self._log( 'Starting instance, ... ', newline=False )
         self.connection.start_instances( [ self.instance_id ] )
-        self.__wait_ready( self._get_instance( ) )
+        # Not 100% sure why from_states includes 'stopped' but I think I noticed that there is a
+        # short interval after start_instances returns during which the instance is still in
+        # stopped before it goes into pending
+        self.__wait_ready( instance, from_states={ 'stopped', 'pending' } )
 
     @needs_instance
     def reboot(self):
         """
-        Reboot the EC2 instance represented by this box
+        Reboot the EC2 instance represented by this box. When this method returns,
+        the EC2 instance represented by this object will likely have different public IP and
+        hostname.
         """
         # There is reboot_instances in the API but reliably detecting the
-        # state transitions is hard. So we stop and start instead. Note that
-        # this will change the IP address and hostname of the instance.
+        # state transitions is hard. So we stop and start instead.
         self.stop( )
         self.start( )
 
@@ -195,13 +181,15 @@ class Ec2Box( object ):
         Terminate the EC2 instance represented by this box.
         """
         if self.instance_id is not None:
-            self._log( 'Terminating instance ... ', newline=False )
-            self.connection.terminate_instances( [ self.instance_id ] )
-            if wait:
-                self.__wait_transition( self._get_instance( ),
-                                        { 'running', 'shutting-down', 'stopped' },
-                                        'terminated' )
-        self._log( 'done.' )
+            instance = self.get_instance( )
+            if instance._state != 'terminated':
+                self._log( 'Terminating instance, ... ', newline=False )
+                self.connection.terminate_instances( [ self.instance_id ] )
+                if wait:
+                    self.__wait_transition( instance,
+                                            from_states={ 'running', 'shutting-down', 'stopped' },
+                                            to_state='terminated' )
+                self._log( 'done.' )
 
     def get_attachable_volume(self, name):
         """
@@ -239,7 +227,7 @@ class Ec2Box( object ):
         name = self.env.absolute_name( name )
         volume = self.get_attachable_volume( name )
         if volume is None:
-            self._log( "Creating volume %s ... " % name, newline=False )
+            self._log( "Creating volume %s, ... " % name, newline=False )
             zone = self.env.availability_zone
             volume = self.connection.create_volume( size, zone, **kwargs )
             self.__wait_volume_transition( volume, { 'creating' }, 'available' )
@@ -264,22 +252,44 @@ class Ec2Box( object ):
             sys.stderr.write( string )
             sys.stderr.flush( )
 
-    def _get_instance(self):
+    @needs_instance
+    def _execute(self, task):
+        """
+        Execute the given Fabric task on the EC2 instance represented by this box
+        """
+        if not callable( task ): task = task( self )
+        execute( task, hosts=[ "%s@%s" % ( self.username( ), self.host_name ) ] )
+
+    def __expect_state(self, expected_state):
+        """
+        Raises an exception if the instance represented by this object is not in the given state.
+        :param expected_state: the expected state
+        :return: the instance
+        :rtype: boto.ec2.instance.Instance
+        """
+        instance = self.get_instance( )
+        actual_state = instance.state
+        if actual_state != expected_state:
+            raise RuntimeError( "Expected instance state %s but got %s"
+                                % (expected_state, actual_state) )
+        return instance
+
+    @needs_instance
+    def get_instance(self):
         """
         Return the EC2 instance API object represented by this box.
+
+        :rtype: boto.ec2.instance.Instance
         """
         reservations = self.connection.get_all_instances( self.instance_id )
         return unpack_singleton( unpack_singleton( reservations ).instances )
 
-    def _config_file_path(self, file_name, mkdir=False):
-        return self.env.config_file_path( [ self.role( ), file_name ], mkdir=mkdir )
-
-    def __wait_ready(self, instance):
+    def __wait_ready(self, instance, from_states):
         """
         Wait until the given instance transistions from stopped or pending state to being fully
         running and accessible via SSH.
         """
-        self.__wait_transition( instance, { 'stopped', 'pending' }, 'running' )
+        self.__wait_transition( instance, from_states, 'running' )
         self._log( "running, ... ", newline=False )
         self.__wait_hostname_assigned( instance )
         self._log( "hostname assigned, ... ", newline=False )
@@ -342,4 +352,21 @@ class Ec2Box( object ):
         if state != to_state:
             raise RuntimeError( "Expected state of %s to be '%s' but got '%s'"
                                 % ( resource, to_state, state ) )
+
+    def _config_file_path(self, file_name, mkdir=False):
+        """
+        Returns the path to a role-specific config file.
+
+        :param file_name: the desired file name
+        :param mkdir: ensure that the directies in the returned path exist
+        :return: the absolute path of the config file
+        """
+        return self.env.config_file_path( [ self.role( ), file_name ], mkdir=mkdir )
+
+    @needs_instance
+    def ssh(self):
+        subprocess.call( self._ssh_args( ) )
+
+    def _ssh_args(self):
+        return [ 'ssh', '-l', 'ubuntu', self.host_name ]
 

@@ -34,10 +34,10 @@ class BuildMaster( UbuntuBox ):
     def __init__(self, env):
         super( BuildMaster, self ).__init__( 'precise', env )
 
-    def create(self):
+    def create(self, *args, **kwargs):
         self.volume = self.get_or_create_volume( JENKINS_DATA_VOLUME_NAME,
                                                  JENKINS_DATA_VOLUME_SIZE_GB )
-        super( BuildMaster, self ).create( )
+        super( BuildMaster, self ).create( *args, **kwargs )
         self.attach_volume( self.volume, JENKINS_DATA_DEVICE_EXT )
 
     def setup(self, update=False):

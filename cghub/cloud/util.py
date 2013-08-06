@@ -153,13 +153,17 @@ class Command( object ):
         """
         Initializes this command.
         :param application: The application this command belongs to.
+        :type application: Application
         :param kwargs: optional arguments to the argparse's add_parser() method
 
         >>> cmd = Command(Application(),help='A command that does something')
         >>> cmd.
         """
         super( Command, self ).__init__( )
-        self.parser = application.subparsers.add_parser( self.name( ), **kwargs )
+        self.parser = application.subparsers.add_parser(
+            self.name( ),
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            **kwargs )
         self.group = None
 
     def option(self, *args, **kwargs):

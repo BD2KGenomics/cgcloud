@@ -18,6 +18,6 @@ class Task( fabric.tasks.Task ):
         Initializes this task for the given box.
 
         :param box: the box
-        :type box: Ec2Box"""
+        :type box: Box"""
         super( Task, self ).__init__( name=self.__class__.__name__ )
         self.box = box
