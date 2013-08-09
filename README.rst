@@ -50,7 +50,7 @@ That's it.
 Now, let's say we want to create the ``build-master``, i.e. the machine that runs the
 Jenkins continuous integration server::
 
-   cgcloud setup build-master -k YOUR_KEY_PAIR_NAME
+   cgcloud create build-master -k YOUR_KEY_PAIR_NAME
 
 SSH into the build master::
 

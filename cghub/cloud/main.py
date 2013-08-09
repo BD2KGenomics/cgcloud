@@ -1,12 +1,12 @@
-import collections
 import logging
-import pprint
-import textwrap
-import boto
 import sys
 from operator import itemgetter
 
+import boto
+from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericUbuntuPreciseBox
+
 from devenv.build_master import BuildMaster
+
 from box import Box
 from util import Command, Application
 from environment import Environment
@@ -15,19 +15,24 @@ from environment import Environment
 DEBUG_LOG_FILE_NAME = 'cgcloud.log'
 
 # After adding a new box class, add its name to the source list in the generator expression below
-BOXES = dict( ( cls.role( ), cls) for cls in [ BuildMaster ] )
+BOXES = dict( ( cls.role( ), cls) for cls in [
+    BuildMaster,
+    GenericCentos6Box,
+    GenericCentos5Box,
+    GenericUbuntuPreciseBox ] )
 
 
 def main():
     app = Cgcloud( )
     app.add( ListRolesCommand )
-    app.add( SetupCommand )
+    app.add( CreateCommand )
     app.add( StartCommand )
     app.add( StopCommand )
     app.add( RebootCommand )
     app.add( TerminateCommand )
     app.add( ShowCommand )
     app.add( SshCommand )
+    app.add( ListBoxesCommand )
     app.add( GetJenkinsKeyCommand )
     app.run( )
 
@@ -78,15 +83,12 @@ class ListRolesCommand( Command ):
         print '\n'.join( BOXES.iterkeys( ) )
 
 
-class BoxCommand( EnvironmentCommand ):
+class RoleCommand( EnvironmentCommand ):
     def run_on_box(self, options, box):
-        """
-        :type box: Box
-        """
         raise NotImplementedError( )
 
     def __init__(self, application, **kwargs):
-        super( BoxCommand, self ).__init__( application, **kwargs )
+        super( RoleCommand, self ).__init__( application, **kwargs )
         self.option( 'role',
                      metavar='ROLE',
                      help="The role name of the box to perform this command on. "
@@ -100,13 +102,25 @@ class BoxCommand( EnvironmentCommand ):
         return self.run_on_box( options, box )
 
 
-class SetupCommand( BoxCommand ):
+class InstanceCommand( RoleCommand ):
+    def __init__(self, application, **kwargs):
+        super( InstanceCommand, self ).__init__( application, **kwargs )
+        self.option( '--ordinal', '-o', default=None, type=int,
+                     help='Selects an individual box among the boxes performing the same role. '
+                          'The ordinal is an zero-based index into the list of all boxes performing '
+                          'the given role, sorted by creation time. This means that the ordinal of '
+                          'a box is not fixed, it may change if another box performing the same '
+                          'role is terminated. This option is only required if there are multiple '
+                          'boxes performing the same role.' )
+
+
+class CreateCommand( RoleCommand ):
     def __init__(self, application):
-        super( SetupCommand, self ).__init__( application,
-                                              help='Create an EC2 instance of the specified box, '
-                                                   'install OS and additional packages on it, '
-                                                   'optionally create an AMI image of it, and/or '
-                                                   'terminate it.' )
+        super( CreateCommand, self ).__init__( application,
+                                               help='Create an EC2 instance of the specified box, '
+                                                    'install OS and additional packages on it, '
+                                                    'optionally create an AMI image of it, and/or '
+                                                    'terminate it.' )
         self.option( '--ssh-key-name', '-k', metavar='KEY_NAME',
                      required=True,
                      help='The name of the SSH public key to inject into the instance. The '
@@ -169,29 +183,29 @@ class GetJenkinsKeyCommand( EnvironmentCommand ):
 
     def run_in_env(self, options, env):
         box = BuildMaster( env )
-        box.adopt( )
+        box.adopt( ordinal=options.ordinal )
         box.download_jenkins_key( )
 
 
-class SshCommand( BoxCommand ):
+class SshCommand( InstanceCommand ):
     def __init__(self, application):
         super( SshCommand, self ).__init__(
             application,
             help='Start an interactive SSH session with the host.' )
 
     def run_on_box(self, options, box):
-        box.adopt( )
+        box.adopt( ordinal=options.ordinal )
         box.ssh( )
 
 
-class LifecycleCommand( BoxCommand ):
+class LifecycleCommand( InstanceCommand ):
     def __init__(self, application, **kwargs):
         super( LifecycleCommand, self ).__init__(
             application,
             help='Transition the box between states.' )
 
     def run_on_box(self, options, box):
-        box.adopt( wait_ready=False )
+        box.adopt( ordinal=options.ordinal, wait_ready=False )
         getattr( box, self.name( ) )( )
 
 
@@ -207,9 +221,10 @@ class RebootCommand( LifecycleCommand ): pass
 class TerminateCommand( LifecycleCommand ): pass
 
 
-class ShowCommand( BoxCommand ):
+class ShowCommand( InstanceCommand ):
     def __init__(self, application):
-        super( ShowCommand, self ).__init__( application )
+        super( ShowCommand, self ).__init__( application,
+                                             help='Display the attributes of the EC2 instance' )
 
     def print_object(self, o, visited=set( ), depth=1):
         _id = id( o )
@@ -239,6 +254,11 @@ class ShowCommand( BoxCommand ):
                     sys.stdout.write( repr( v ) )
 
     def run_on_box(self, options, box):
-        box.adopt( wait_ready=False )
+        box.adopt( ordinal=options.ordinal, wait_ready=False )
         self.print_object( box.get_instance( ) )
 
+
+class ListBoxesCommand( RoleCommand ):
+    def run_on_box(self, options, box):
+        for instance in box.list( ):
+            print( '{role} {ordinal} {id} {created_at}'.format( **instance ) )

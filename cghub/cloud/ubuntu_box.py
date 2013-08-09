@@ -14,10 +14,10 @@ class TemplateDict( dict ):
 
 class UbuntuBox( Box ):
     """
-    An EC2 instance that boots from one of Ubuntu's cloud-image AMIs
+    A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """
 
-    def __init__(self, release, env):
+    def __init__(self, env, release):
         super( UbuntuBox, self ).__init__( env )
         self.base_image = self.__find_image(
             template=TemplateDict( release=release,
@@ -40,7 +40,7 @@ class UbuntuBox( Box ):
 
     def setup(self, update=False):
         if update:
-            self._execute( self.update_upgrade )
+            self._execute( self.__update_upgrade )
             self.reboot( )
 
     @staticmethod
@@ -58,7 +58,7 @@ class UbuntuBox( Box ):
         match = matches[ 0 ]
         return match
 
-    def update_upgrade(self):
+    def __update_upgrade(self):
         """
         Bring package repository index up-to-date, install upgrades for installed packages.
         """

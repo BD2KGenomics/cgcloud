@@ -1,4 +1,5 @@
 from __future__ import print_function
+from operator import attrgetter
 import socket
 import subprocess
 import time
@@ -44,7 +45,7 @@ class Box( object ):
 
     def image_id(self):
         """
-        Returns the ID of the AMI to boot this box from
+        Returns the ID of the AMI to boot instances of this box from
         """
         raise NotImplementedError( )
 
@@ -91,7 +92,7 @@ class Box( object ):
         self._log( 'Tagging instance.' )
         instance.add_tag( 'Name', self.env.absolute_name( self.role( ) ) )
 
-    def adopt(self, wait_ready=True):
+    def adopt(self, ordinal=None, wait_ready=True):
         """
         Verify that the EC instance represented by this box exists and, optionally,
         wait until it is ready, i.e. that it is is running, has a public host name and can be
@@ -101,17 +102,51 @@ class Box( object ):
         """
         if self.instance_id is None:
             self._log( 'Adopting instance, ... ', newline=False )
-            name = self.env.absolute_name( self.role( ) )
-            reservations = self.connection.get_all_instances( filters={ 'tag:Name': name } )
-            if not reservations:
-                raise RuntimeError( "No such box: '%s'" % name )
-            reservation = unpack_singleton( reservations )
-            instance = unpack_singleton( reservation.instances )
+            instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
             if wait_ready:
                 self.__wait_ready( instance, from_states={ 'pending' } )
             else:
                 self._log( 'done.' )
+
+    def list(self):
+        role, instances = self.__list_instances( )
+        return [ dict( role=role,
+                       ordinal=ordinal,
+                       id=instance.id,
+                       ip=instance.public_dns_name,
+                       created_at=instance.launch_time )
+            for ordinal, instance in enumerate( instances ) ]
+
+    def __list_instances(self):
+        """
+        Lookup and return a list of instance performing this box' role
+
+        :return tuple of role name and list of instances
+        :rtype: string, list of boto.ec2.instance.Instance
+        """
+        name = self.env.absolute_name( self.role( ) )
+        reservations = self.connection.get_all_instances( filters={ 'tag:Name': name } )
+        instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
+        instances.sort( key=attrgetter( 'launch_time' ) )
+        return name, instances
+
+    def __get_instance_by_ordinal(self, ordinal):
+        """
+        Get the n-th instance that performs this box' role
+
+        :param ordinal: the index of the instance based on the ordering by launch_time
+        :return:
+        """
+        role, instances = self.__list_instances( )
+        if not instances:
+            raise RuntimeError( "No instance performing role '%s'" % role )
+        if ordinal is None:
+            if len( instances ) > 1:
+                raise RuntimeError( "More than one instance performing role '%s'. "
+                                    "Please specify an ordinal." % role )
+            ordinal = 0
+        return instances[ ordinal ]
 
     @needs_instance
     def create_image(self):
@@ -141,7 +176,7 @@ class Box( object ):
     def stop(self):
         """
         Stop the EC2 instance represented by this box. Stopped instances can be started later using
-        :py:func:`start`.
+        :py:func:`Box.start`.
         """
         instance = self.__expect_state( 'running' )
         self._log( 'Stopping instance, ... ', newline=False )
@@ -368,5 +403,5 @@ class Box( object ):
         subprocess.call( self._ssh_args( ) )
 
     def _ssh_args(self):
-        return [ 'ssh', '-l', 'ubuntu', self.host_name ]
+        return [ 'ssh', '-l', self.username( ), self.host_name ]
 

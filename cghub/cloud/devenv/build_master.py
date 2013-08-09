@@ -31,8 +31,8 @@ class BuildMaster( UbuntuBox ):
     def role():
         return 'build-master'
 
-    def __init__(self, env):
-        super( BuildMaster, self ).__init__( 'precise', env )
+    def __init__(self, env ):
+        super( BuildMaster, self ).__init__( env, 'precise' )
 
     def create(self, *args, **kwargs):
         self.volume = self.get_or_create_volume( JENKINS_DATA_VOLUME_NAME,
