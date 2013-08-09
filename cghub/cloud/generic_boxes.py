@@ -13,7 +13,7 @@ class GenericCentos5Box( CentosBox ):
 
 class GenericCentos6Box( CentosBox ):
     def __init__(self, env):
-        super( GenericCentos5Box, self ).__init__( env, release='6.4' )
+        super( GenericCentos6Box, self ).__init__( env, release='6.4' )
 
     @staticmethod
     def role():
@@ -22,7 +22,7 @@ class GenericCentos6Box( CentosBox ):
 
 class GenericUbuntuPreciseBox( UbuntuBox ):
     def __init__(self, env):
-        super( GenericUbuntuPreciseBox, self ).__init__( env, 'precise' )
+        super( GenericUbuntuPreciseBox, self ).__init__( env, release='precise' )
 
     @staticmethod
     def role():

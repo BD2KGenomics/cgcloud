@@ -19,25 +19,22 @@ class Environment:
         instances into. The AWS region to operate in is implied by this parameter since the
         region is a prefix of the availability zone string
 
-        :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
-
-        :param ssh_key_name: The name of the SSH public key to inject into the instance
-
         :param namespace: An optional prefix for names of EC2 resources. Unless the namespace is
         None, all relative resource names will be prefixed with the given namespace,
         making them absolute. A relative name is a one that doesn't start with a slash. A
-        namespace of None disables the prefixing and the distinction between relative and
-        absolute names. If the namespace is not None, it should be a string starting and ending
-        in a slash, although those will be added automatically if they are missing. The part of
-        the namespace between the two slashes is referred to as the bare namespace. A bare
-        namespace may not start with an underscore.
+        namespace of '' or None disables the prefixing and the distinction between relative and
+        absolute names. If the namespace is not None or '', it should be a string starting and
+        ending in a slash, although those will be added automatically if they are missing. A
+        namespace may contain the '/' character in positions other than at the beginning or end
+        of the namespace.. The parts of the namespace in between the '/' are referred to as
+        components. Components may not start with an underscore. Empty components are removed.
 
 
         >>> Environment(namespace=None).namespace is None
         True
 
-        >>> Environment(namespace='').namespace
-        '/'
+        >>> Environment(namespace='').namespace is None
+        True
 
         >>> Environment(namespace='/').namespace
         '/'
@@ -51,15 +48,26 @@ class Environment:
         >>> Environment(namespace='/hannes/').namespace
         '/hannes/'
 
+        >>> Environment(namespace='//////').namespace
+        '/'
+
+        >>> Environment(namespace='h//a//n//n//e//s').namespace
+        '/h/a/n/n/e/s/'
+
         >>> Environment(namespace='/_hannes/').namespace
         Traceback (most recent call last):
         ....
-        RuntimeError: Bare namespace may not start with _
+        RuntimeError: Namespace component may not start with '_'
+
+        >>> Environment(namespace='/han/_nes/').namespace
+        Traceback (most recent call last):
+        ....
+        RuntimeError: Namespace component may not start with '_'
 
         >>> Environment(namespace='_hannes').namespace
         Traceback (most recent call last):
         ....
-        RuntimeError: Bare namespace may not start with _
+        RuntimeError: Namespace component may not start with '_'
         """
 
         self.availability_zone = availability_zone
@@ -68,12 +76,18 @@ class Environment:
             raise RuntimeError(
                 "Can't extract region from availability-zone '%s'" % availability_zone )
         self.region = m.group( 1 )
+        if namespace == '':
+            namespace = None
         if namespace is not None:
-            if namespace[ 0:1 ] != '/': namespace = '/' + namespace
-            if namespace[ -1: ] != '/': namespace += '/'
-            if namespace[ 1:2 ] == '_':
-                raise RuntimeError( 'Bare namespace may not start with _' )
+            namespace = self.__normalize_namespace( namespace )
         self.namespace = namespace
+
+    def __normalize_namespace(self, namespace):
+        components = [ c for c in namespace.split( '/' ) if c ]
+        if any( c[ 0:1 ] == '_' for c in components ):
+            raise RuntimeError( "Namespace component may not start with '_'" )
+        namespace = '/' + '/'.join( components ) + '/' if components else '/'
+        return namespace
 
     def is_absolute_name(self, name):
         return self.namespace is None or name[ 0:1 ] == '/'

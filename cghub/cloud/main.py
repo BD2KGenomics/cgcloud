@@ -1,4 +1,5 @@
 import logging
+import os
 import sys
 from operator import itemgetter
 
@@ -7,7 +8,6 @@ from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, Gene
 
 from devenv.build_master import BuildMaster
 
-from box import Box
 from util import Command, Application
 from environment import Environment
 
@@ -57,17 +57,20 @@ class EnvironmentCommand( Command ):
         defaults = Environment( )
         super( EnvironmentCommand, self ).__init__( application, **kwargs )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
-                     default=defaults.availability_zone, dest='availability_zone',
+                     default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
+                     dest='availability_zone',
                      help='The name of the EC2 availability zone to place EC2 resources into, '
                           'e.g. us-east-1a, us-west-1b or us-west-2c etc. This argument implies '
-                          'the AWS region to run in. ' )
+                          'the AWS region to run in. The value of the environment variable '
+                          'CGCLOUD_ZONE, if that variable is present, overrides the default.' )
 
         self.option( '--namespace', '-n', metavar='PREFIX',
-                     default=defaults.namespace,
+                     default=os.environ.get( 'CGCLOUD_NAMESPACE', defaults.namespace ),
                      help='Optional prefix for naming EC2 resource like instances, images, volumes, '
                           'etc. Use this option to create a separate namespace in order to avoid '
                           'collisions, e.g. when running tests. The default represents the root '
-                          'namespace.' )
+                          'namespace. The value of the environment variable CGCLOUD_NAMESPACE, if '
+                          'that variable is present, overrides the default.' )
 
     def run(self, options):
         env = Environment( availability_zone=options.availability_zone,
@@ -121,16 +124,21 @@ class CreateCommand( RoleCommand ):
                                                     'install OS and additional packages on it, '
                                                     'optionally create an AMI image of it, and/or '
                                                     'terminate it.' )
+        default_ssh_key_name = os.environ.get( 'CGCLOUD_KEY_NAME', None )
         self.option( '--ssh-key-name', '-k', metavar='KEY_NAME',
-                     required=True,
+                     required=default_ssh_key_name is None, default=default_ssh_key_name,
                      help='The name of the SSH public key to inject into the instance. The '
                           'corresponding public key must be registered in EC2 under the given name '
-                          'and a matching private key needs to be present locally.' )
+                          'and a matching private key needs to be present locally. The value of the '
+                          'environment variable CGCLOUD_KEY_NAME, if that variable is present, '
+                          'overrides the default.' )
 
         self.option( '--instance-type', '-t', metavar='TYPE',
-                     default='t1.micro',
+                     default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', 't1.micro' ),
                      help='The type of EC2 instance to launch for the box, e.g. of t1.micro, '
-                          'm1.small, m1.medium, or m1.large etc.' )
+                          'm1.small, m1.medium, or m1.large etc. The value of the environment '
+                          'variable CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides '
+                          'the default.' )
 
         self.option( '--image', '-I',
                      default=False, action='store_true',
@@ -261,4 +269,4 @@ class ShowCommand( InstanceCommand ):
 class ListBoxesCommand( RoleCommand ):
     def run_on_box(self, options, box):
         for instance in box.list( ):
-            print( '{role} {ordinal} {id} {created_at}'.format( **instance ) )
+            print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}'.format( **instance ) )

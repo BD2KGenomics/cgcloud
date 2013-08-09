@@ -74,6 +74,10 @@ class Box( object ):
     def create(self, instance_type, ssh_key_name):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
+
+        :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
+
+        :param ssh_key_name: The name of the SSH public key to inject into the instance
         """
         if self.instance_id is not None:
             raise RuntimeError( "Instance already adopted or created" )
@@ -114,7 +118,7 @@ class Box( object ):
         return [ dict( role=role,
                        ordinal=ordinal,
                        id=instance.id,
-                       ip=instance.public_dns_name,
+                       ip=instance.ip_address,
                        created_at=instance.launch_time )
             for ordinal, instance in enumerate( instances ) ]
 
