@@ -15,7 +15,8 @@ class CentosBox( Box ):
     account, just like on Canonical's Ubuntu AMIs. The instance is tagged with the name of the
     admin account such that we can look it up later.
     """
-    def __init__(self, env, release ):
+
+    def __init__(self, env, release):
         super( CentosBox, self ).__init__( env )
         self._username = None
         images = self.connection.get_all_images( owners='411009282317',
@@ -59,20 +60,25 @@ class CentosBox( Box ):
         if self.username( ) == 'root':
             self._execute( self.__create_admin )
             self._set_username( ADMIN_USER )
+            self._execute( self.__setup_admin )
         if update:
             self._execute( self._update )
             self.reboot( )
 
     def __create_admin(self):
+        # don't clear screen on logout, it's annoying
+        run( r"sed -i -r 's!^(/usr/bin/)?clear!# \0!' /etc/skel/.bash_logout ~/.bash_logout" )
         # Imitate the security model of Canonical's Ubuntu AMIs: Create an admin user that can sudo
         # without password and disable root logins via console and ssh.
         run( 'useradd -m {0}'.format( ADMIN_USER ) )
-        run( 'install -d ~{0}/.ssh -m 755 -o {0} -g {0}'.format( ADMIN_USER ) )
-        run( 'install ~/.ssh/authorized_keys ~{0}/.ssh -m 644 -o {0} -g {0}'.format( ADMIN_USER ) )
+        self._propagate_authorized_keys( ADMIN_USER )
         run( 'rm ~/.ssh/authorized_keys' )
         run( 'echo "{0}  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers'.format( ADMIN_USER ) )
         run( 'passwd -l root' )
         run( 'echo PermitRootLogin no >> /etc/ssh/sshd_config' )
 
+    def __setup_admin(self):
+        run( "echo 'export PATH=\"/usr/local/sbin:/usr/sbin:/sbin:$PATH\"' >> ~/.bash_profile" )
+
     def _update(self):
-        sudo( 'yum update -y' )
+        sudo( 'yum update -y -d 1' )

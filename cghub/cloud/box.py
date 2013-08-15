@@ -4,7 +4,8 @@ import socket
 import subprocess
 import time
 import sys
-
+from fabric.operations import sudo, run
+from cghub.cloud.environment import Environment
 from boto import ec2
 from fabric.api import execute
 
@@ -65,13 +66,15 @@ class Box( object ):
         Initialize an instance of this class. Before calling any of the methods on this object,
         you must ensure that a corresponding EC2 instance exists by calling either create() or
         adopt(). The former creates a new EC2 instance, the latter looks up an existing one.
+
+        :type env: Environment
         """
         self.env = env
         self.instance_id = None
         self.host_name = None
         self.connection = ec2.connect_to_region( env.region )
 
-    def create(self, instance_type, ssh_key_name):
+    def create(self, ssh_key_name, instance_type=None):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -81,6 +84,9 @@ class Box( object ):
         """
         if self.instance_id is not None:
             raise RuntimeError( "Instance already adopted or created" )
+
+        if instance_type is None:
+            instance_type = self.recommended_instance_type( )
 
         self._log( 'Creating instance, ... ', newline=False )
 
@@ -94,7 +100,7 @@ class Box( object ):
         self.__wait_ready( instance, { 'pending' } )
 
         self._log( 'Tagging instance.' )
-        instance.add_tag( 'Name', self.env.absolute_name( self.role( ) ) )
+        instance.add_tag( 'Name', self.absolute_role( ) )
 
     def adopt(self, ordinal=None, wait_ready=True):
         """
@@ -119,7 +125,8 @@ class Box( object ):
                        ordinal=ordinal,
                        id=instance.id,
                        ip=instance.ip_address,
-                       created_at=instance.launch_time )
+                       created_at=instance.launch_time,
+                       state=instance.state )
             for ordinal, instance in enumerate( instances ) ]
 
     def __list_instances(self):
@@ -129,7 +136,7 @@ class Box( object ):
         :return tuple of role name and list of instances
         :rtype: string, list of boto.ec2.instance.Instance
         """
-        name = self.env.absolute_name( self.role( ) )
+        name = self.absolute_role( )
         reservations = self.connection.get_all_instances( filters={ 'tag:Name': name } )
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
         instances.sort( key=attrgetter( 'launch_time' ) )
@@ -162,8 +169,7 @@ class Box( object ):
         self.__expect_state( 'stopped' )
 
         self._log( "Creating image, ... ", newline=False )
-        image_name = "%s %s" % ( self.role( ), time.strftime( '%Y-%m-%d %H-%M-%S' ) )
-        image_name = self.env.absolute_name( image_name )
+        image_name = "%s %s" % ( self.absolute_role( ), time.strftime( '%Y-%m-%d %H-%M-%S' ) )
         image_id = self.connection.create_image( self.instance_id, image_name )
         while True:
             try:
@@ -392,7 +398,7 @@ class Box( object ):
             raise RuntimeError( "Expected state of %s to be '%s' but got '%s'"
                                 % ( resource, to_state, state ) )
 
-    def _config_file_path(self, file_name, mkdir=False):
+    def _config_file_path(self, file_name, mkdir=False, role=None):
         """
         Returns the path to a role-specific config file.
 
@@ -400,12 +406,70 @@ class Box( object ):
         :param mkdir: ensure that the directies in the returned path exist
         :return: the absolute path of the config file
         """
-        return self.env.config_file_path( [ self.role( ), file_name ], mkdir=mkdir )
+        if role is None: role = self.role( )
+        return self.env.config_file_path( [ role, file_name ], mkdir=mkdir )
+
+
+    def _read_config_file(self, file_name, **kwargs):
+        """
+        Returns the contents of the given config file. Accepts the same parameters as
+        self._config_file_path() with the exception of 'mkdir' which must be omitted.
+        """
+        path = self._config_file_path( file_name, mkdir='False', **kwargs )
+        with open( path, 'r' ) as file:
+            return file.read( )
 
     @needs_instance
-    def ssh(self):
-        subprocess.call( self._ssh_args( ) )
+    def ssh(self, user=None):
+        subprocess.call( self._ssh_args( user ) )
 
-    def _ssh_args(self):
-        return [ 'ssh', '-l', self.username( ), self.host_name ]
+    def _ssh_args(self, user):
+        return [ 'ssh', '-l', user if user else self.username( ), self.host_name ]
+
+    def get_keys(self):
+        """
+        Download the public keys that identify users on the instance.
+        """
+        pass
+
+    def absolute_role(self):
+        return self.env.absolute_name( self.role( ) )
+
+    def _propagate_authorized_keys(self, user, group=None):
+        """
+        Ensure that the given user account accepts SSH connections for the same keys as the
+        current user. The current user must have sudo.
+
+        :param user:
+            the name of the user to propagate the current user's authorized keys to
+
+        :param group:
+            the name of the group that should own the files and directories that are created by
+            this method, defaults to the default group of the given user
+        """
+
+        if group is None:
+            group = run( "getent group $(getent passwd %s | cut -d : -f 4) "
+                         "| cut -d : -f 1" % user )
+        args = dict( src_user=self.username( ),
+                     dst_user=user,
+                     dst_group=group )
+        sudo( 'install -d ~{dst_user}/.ssh '
+              '-m 755 -o {dst_user} -g {dst_group}'.format( **args ) )
+        sudo( 'install -t ~{dst_user}/.ssh ~{src_user}/.ssh/authorized_keys '
+              '-m 644 -o {dst_user} -g {dst_group}'.format( **args ) )
+
+    def recommended_instance_type(self):
+        return 't1.micro'
+
+    def list_images(self):
+        role = self.role( )
+        image_name_pattern = '%s *' % self.absolute_role( )
+        images = self.connection.get_all_images( filters={ 'name': image_name_pattern } )
+        return [ dict( role=role,
+                       ordinal=ordinal,
+                       id=image.id,
+                       state=image.state )
+            for ordinal, image in enumerate( images ) ]
+
 

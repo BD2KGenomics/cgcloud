@@ -4,6 +4,7 @@ import sys
 from operator import itemgetter
 
 import boto
+from cghub.cloud.devenv.centos_genetorrent_build_server import CentosGenetorrentBuildServer
 from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericUbuntuPreciseBox
 
 from devenv.build_master import BuildMaster
@@ -17,6 +18,7 @@ DEBUG_LOG_FILE_NAME = 'cgcloud.log'
 # After adding a new box class, add its name to the source list in the generator expression below
 BOXES = dict( ( cls.role( ), cls) for cls in [
     BuildMaster,
+    CentosGenetorrentBuildServer,
     GenericCentos6Box,
     GenericCentos5Box,
     GenericUbuntuPreciseBox ] )
@@ -30,10 +32,12 @@ def main():
     app.add( StopCommand )
     app.add( RebootCommand )
     app.add( TerminateCommand )
+    app.add( CreateImageCommand )
     app.add( ShowCommand )
     app.add( SshCommand )
-    app.add( ListBoxesCommand )
-    app.add( GetJenkinsKeyCommand )
+    app.add( ListCommand )
+    app.add( GetKeysCommand )
+    app.add( ListImages )
     app.run( )
 
 
@@ -79,15 +83,30 @@ class EnvironmentCommand( Command ):
 
 
 class ListRolesCommand( Command ):
-    def __init__(self, app):
-        super( ListRolesCommand, self ).__init__( app, help='List available roles.' )
+    """
+    List available roles.
+    """
 
     def run(self, options):
         print '\n'.join( BOXES.iterkeys( ) )
 
 
 class RoleCommand( EnvironmentCommand ):
+    """
+    An abstract command that targets boxes of a particular role.  Note that there may be more
+    than one instance per role. To target one of those instances, InstanceCommand might be a
+    better choice.
+    """
+
     def run_on_box(self, options, box):
+        """
+        Execute this command using the specified parsed command line options on the specified box.
+
+        :param options: the parsed command line options
+        :type options: dict
+        :param box: the box to operate on
+        :type box: Box
+        """
         raise NotImplementedError( )
 
     def __init__(self, application, **kwargs):
@@ -118,12 +137,13 @@ class InstanceCommand( RoleCommand ):
 
 
 class CreateCommand( RoleCommand ):
+    """
+    Create an EC2 instance of the specified box, install OS and additional packages on it,
+    optionally create an AMI image of it, and/or terminate it.
+    """
+
     def __init__(self, application):
-        super( CreateCommand, self ).__init__( application,
-                                               help='Create an EC2 instance of the specified box, '
-                                                    'install OS and additional packages on it, '
-                                                    'optionally create an AMI image of it, and/or '
-                                                    'terminate it.' )
+        super( CreateCommand, self ).__init__( application )
         default_ssh_key_name = os.environ.get( 'CGCLOUD_KEY_NAME', None )
         self.option( '--ssh-key-name', '-k', metavar='KEY_NAME',
                      required=default_ssh_key_name is None, default=default_ssh_key_name,
@@ -134,11 +154,11 @@ class CreateCommand( RoleCommand ):
                           'overrides the default.' )
 
         self.option( '--instance-type', '-t', metavar='TYPE',
-                     default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', 't1.micro' ),
-                     help='The type of EC2 instance to launch for the box, e.g. of t1.micro, '
-                          'm1.small, m1.medium, or m1.large etc. The value of the environment '
-                          'variable CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides '
-                          'the default.' )
+                     default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
+                     help='The type of EC2 instance to launch for the box, e.g. t1.micro, m1.small, '
+                          'm1.medium, or m1.large etc. The value of the environment variable '
+                          'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
+                          'default, an instance type appropriate for the role.' )
 
         self.option( '--image', '-I',
                      default=False, action='store_true',
@@ -166,8 +186,7 @@ class CreateCommand( RoleCommand ):
 
     def run_on_box(self, options, box):
         try:
-            box.create( instance_type=options.instance_type,
-                        ssh_key_name=options.ssh_key_name )
+            box.create( ssh_key_name=options.ssh_key_name, instance_type=options.instance_type )
             box.setup( options.update )
             if options.image:
                 box.stop( )
@@ -183,56 +202,75 @@ class CreateCommand( RoleCommand ):
                 box.terminate( )
 
 
-class GetJenkinsKeyCommand( EnvironmentCommand ):
-    def __init__(self, application):
-        super( GetJenkinsKeyCommand, self ).__init__(
-            application,
-            help='Get a copy of the public key used by Jenkins to connect to slaves.' )
+class CreateImageCommand( InstanceCommand ):
+    """
+    Create an AMI image of the instance. The instance must be stopped.
+    """
 
-    def run_in_env(self, options, env):
-        box = BuildMaster( env )
-        box.adopt( ordinal=options.ordinal )
-        box.download_jenkins_key( )
+    def run_on_box(self, options, box):
+        box.adopt( ordinal=options.ordinal, wait_ready=False )
+        box.create_image( )
 
 
-class SshCommand( InstanceCommand ):
-    def __init__(self, application):
-        super( SshCommand, self ).__init__(
-            application,
-            help='Start an interactive SSH session with the host.' )
+class GetKeysCommand( InstanceCommand ):
+    """
+    Get a copy of the public keys that identify users on the instance.
+    """
 
     def run_on_box(self, options, box):
         box.adopt( ordinal=options.ordinal )
-        box.ssh( )
+        box.get_keys( )
+
+
+class SshCommand( InstanceCommand ):
+    """
+    Start an interactive SSH session with the host.
+    """
+
+    def __init__(self, application):
+        super( SshCommand, self ).__init__( application )
+        self.option( '--user', '--login', '-u', '-l', default=None,
+                     help="Name of user to login as." )
+
+    def run_on_box(self, options, box):
+        box.adopt( ordinal=options.ordinal )
+        box.ssh( user=options.user )
 
 
 class LifecycleCommand( InstanceCommand ):
-    def __init__(self, application, **kwargs):
-        super( LifecycleCommand, self ).__init__(
-            application,
-            help='Transition the box between states.' )
+    """
+    Transition an instance into a particular state.
+    """
 
     def run_on_box(self, options, box):
         box.adopt( ordinal=options.ordinal, wait_ready=False )
         getattr( box, self.name( ) )( )
 
 
-class StartCommand( LifecycleCommand ): pass
+class StartCommand( LifecycleCommand ):
+    """ Start the instance, ie. turn it on. """
+    pass
 
 
-class StopCommand( LifecycleCommand ): pass
+class StopCommand( LifecycleCommand ):
+    """ Stop the instance, ie. turn it off. """
+    pass
 
 
-class RebootCommand( LifecycleCommand ): pass
+class RebootCommand( LifecycleCommand ):
+    """ Reboot the instance. """
+    pass
 
 
-class TerminateCommand( LifecycleCommand ): pass
+class TerminateCommand( LifecycleCommand ):
+    """ Terminate the instance, ie. delete it. """
+    pass
 
 
 class ShowCommand( InstanceCommand ):
-    def __init__(self, application):
-        super( ShowCommand, self ).__init__( application,
-                                             help='Display the attributes of the EC2 instance' )
+    """
+    Display the attributes of the EC2 instance.
+    """
 
     def print_object(self, o, visited=set( ), depth=1):
         _id = id( o )
@@ -266,7 +304,22 @@ class ShowCommand( InstanceCommand ):
         self.print_object( box.get_instance( ) )
 
 
-class ListBoxesCommand( RoleCommand ):
+class ListCommand( RoleCommand ):
+    """
+    List the instances performing a particular role
+    """
+
     def run_on_box(self, options, box):
         for instance in box.list( ):
-            print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}'.format( **instance ) )
+            print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}\t{state}'.format( **instance ) )
+
+
+class ListImages( RoleCommand ):
+    """
+    List the AMI images that were create from instances performing a particular role
+    """
+
+    def run_on_box(self, options, box):
+        for image in box.list_images( ):
+            print('{role}\t{ordinal}\t{id}\t{state}'.format( **image ))
+

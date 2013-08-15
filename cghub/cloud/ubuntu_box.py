@@ -62,5 +62,5 @@ class UbuntuBox( Box ):
         """
         Bring package repository index up-to-date, install upgrades for installed packages.
         """
-        sudo( 'apt-get update' )
-        sudo( 'apt-get upgrade -y' )
+        sudo( 'apt-get -q update' )
+        sudo( 'apt-get -q -y upgrade' )

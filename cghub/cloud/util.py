@@ -108,6 +108,8 @@ class Application( object ):
         self.parser = argparse.ArgumentParser(
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
         )
+        self.parser._positionals.title = 'Commands'
+        self.parser._optionals.title = 'Global options'
         self.subparsers = self.parser.add_subparsers( help='Application commands',
                                                       dest='command_name' )
         self.commands = { }
@@ -160,10 +162,14 @@ class Command( object ):
         >>> cmd.
         """
         super( Command, self ).__init__( )
+        if not 'help' in kwargs:
+            kwargs['help'] = self.__class__.__doc__
         self.parser = application.subparsers.add_parser(
             self.name( ),
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
             **kwargs )
+        self.parser._positionals.title = 'Command arguments'
+        self.parser._optionals.title = 'Command options'
         self.group = None
 
     def option(self, *args, **kwargs):
@@ -191,6 +197,3 @@ class Command( object ):
 
     def end_mutex(self):
         self.group = None
-
-
-
