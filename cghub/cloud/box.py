@@ -1,15 +1,19 @@
 from __future__ import print_function
+from StringIO import StringIO
+from contextlib import closing
+from functools import partial
 from operator import attrgetter
 import socket
 import subprocess
 import time
 import sys
-from fabric.operations import sudo, run
-from cghub.cloud.environment import Environment
+
+from fabric.operations import sudo, run, get, put
 from boto import ec2
 from fabric.api import execute
 
-from util import unpack_singleton
+from cghub.cloud.environment import Environment
+from util import unpack_singleton, prepend_shell_script, camel_to_snake
 
 
 EC2_POLLING_INTERVAL = 5
@@ -23,6 +27,22 @@ def needs_instance(method):
 
     return wrapped_method
 
+# FIXME: not thread-safe
+
+wrapped = False
+
+def fabric_task(function):
+    def wrapper(box, *args, **kwargs):
+        global wrapped
+        if wrapped:
+            return function( box, *args, **kwargs )
+        else:
+            wrapped = True
+            try:
+                return box._execute( partial( function, box, *args, **kwargs ) )
+            finally:
+                wrapped = False
+    return wrapper
 
 class Box( object ):
     """
@@ -30,13 +50,13 @@ class Box( object ):
     instance) in EC2.
     """
 
-    @staticmethod
-    def role(self):
+    @classmethod
+    def role(cls):
         """
         The name of the role performed by instances of this class, or rather by the EC2 instances
         they represent.
         """
-        raise NotImplementedError( )
+        return camel_to_snake( cls.__name__, '-' )
 
     def username(self):
         """
@@ -303,7 +323,8 @@ class Box( object ):
         Execute the given Fabric task on the EC2 instance represented by this box
         """
         if not callable( task ): task = task( self )
-        execute( task, hosts=[ "%s@%s" % ( self.username( ), self.host_name ) ] )
+        host = "%s@%s" % ( self.username( ), self.host_name )
+        return execute( task, hosts=[ host ] )[ host ]
 
     def __expect_state(self, expected_state):
         """
@@ -435,6 +456,7 @@ class Box( object ):
     def absolute_role(self):
         return self.env.absolute_name( self.role( ) )
 
+    @fabric_task
     def _propagate_authorized_keys(self, user, group=None):
         """
         Ensure that the given user account accepts SSH connections for the same keys as the
@@ -466,10 +488,31 @@ class Box( object ):
         role = self.role( )
         image_name_pattern = '%s *' % self.absolute_role( )
         images = self.connection.get_all_images( filters={ 'name': image_name_pattern } )
+        images.sort( key=attrgetter( 'name' ) ) # that sorts by date, effectively
         return [ dict( role=role,
                        ordinal=ordinal,
+                       name=image.name,
                        id=image.id,
                        state=image.state )
             for ordinal, image in enumerate( images ) ]
+
+    @fabric_task
+    def _prepend_remote_shell_script(self, script, remote_path, **put_kwargs):
+        """
+        Insert the given script into the remote file at the given path before the first script
+        line. See prepend_shell_script() for a definition of script line.
+
+        :param script: the script to be inserted
+        :param remote_path: the path to the file on the remote host
+        :param put_kwargs: arguments passed to Fabric's put operation
+        """
+        with closing( StringIO( ) ) as out_file:
+            with closing( StringIO( ) ) as in_file:
+                get( remote_path=remote_path, local_path=in_file )
+                in_file.seek( 0 )
+                prepend_shell_script( '\n' + script, in_file, out_file )
+            out_file.seek( 0 )
+            put( remote_path=remote_path, local_path=out_file, **put_kwargs )
+
 
 

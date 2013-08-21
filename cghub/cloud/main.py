@@ -1,13 +1,14 @@
+from collections import OrderedDict
 import logging
 import os
 import sys
 from operator import itemgetter
 
 import boto
-from cghub.cloud.devenv.centos_genetorrent_build_server import CentosGenetorrentBuildServer
-from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericUbuntuPreciseBox
+from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, Ubuntu12GenetorrentJenkinsSlave, Ubuntu10GenetorrentJenkinsSlave, Ubuntu13GenetorrentJenkinsSlave, Ubuntu11GenetorrentJenkinsSlave
+from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericMaverickBox, GenericLucidBox, GenericOneiricBox, GenericNattyBox, GenericQuantalBox, GenericPreciseBox, GenericRaringBox, GenericSaucyBox
 
-from devenv.build_master import BuildMaster
+from devenv.jenkins_master import JenkinsMaster
 
 from util import Command, Application
 from environment import Environment
@@ -16,12 +17,25 @@ from environment import Environment
 DEBUG_LOG_FILE_NAME = 'cgcloud.log'
 
 # After adding a new box class, add its name to the source list in the generator expression below
-BOXES = dict( ( cls.role( ), cls) for cls in [
-    BuildMaster,
-    CentosGenetorrentBuildServer,
+BOXES = OrderedDict( ( cls.role( ), cls) for cls in [
     GenericCentos6Box,
     GenericCentos5Box,
-    GenericUbuntuPreciseBox ] )
+    GenericLucidBox,
+    GenericMaverickBox,
+    GenericNattyBox,
+    GenericOneiricBox,
+    GenericPreciseBox,
+    GenericQuantalBox,
+    GenericRaringBox,
+    GenericSaucyBox,
+    JenkinsMaster,
+    Ubuntu10GenetorrentJenkinsSlave,
+    Ubuntu11GenetorrentJenkinsSlave,
+    Ubuntu12GenetorrentJenkinsSlave,
+    Ubuntu13GenetorrentJenkinsSlave,
+    Centos5GenetorrentJenkinsSlave,
+    Centos6GenetorrentJenkinsSlave,
+] )
 
 
 def main():
@@ -321,5 +335,5 @@ class ListImages( RoleCommand ):
 
     def run_on_box(self, options, box):
         for image in box.list_images( ):
-            print('{role}\t{ordinal}\t{id}\t{state}'.format( **image ))
+            print('{name}\t{ordinal}\t{id}\t{state}'.format( **image ))
 

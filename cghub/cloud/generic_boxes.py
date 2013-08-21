@@ -3,27 +3,66 @@ from cghub.cloud.ubuntu_box import UbuntuBox
 
 
 class GenericCentos5Box( CentosBox ):
-    def __init__(self, env):
-        super( GenericCentos5Box, self ).__init__( env, release='5.8' )
-
-    @staticmethod
-    def role():
-        return 'generic-centos-5'
+    def release(self):
+        return '5.8 '
 
 
 class GenericCentos6Box( CentosBox ):
-    def __init__(self, env):
-        super( GenericCentos6Box, self ).__init__( env, release='6.4' )
+    def release(self):
+        return '6.4'
 
-    @staticmethod
-    def role():
-        return 'generic-centos-6'
+class GenericLucidBox( UbuntuBox ):
+    """
+    10.04
+    """
+    def release(self):
+        return 'lucid'
 
+class GenericMaverickBox( UbuntuBox ):
+    """
+    10.10
+    """
+    def release(self):
+        return 'maverick'
 
-class GenericUbuntuPreciseBox( UbuntuBox ):
-    def __init__(self, env):
-        super( GenericUbuntuPreciseBox, self ).__init__( env, release='precise' )
+class GenericNattyBox( UbuntuBox ):
+    """
+    11.04
+    """
+    def release(self):
+        return 'natty'
 
-    @staticmethod
-    def role():
-        return 'generic-ubuntu-precise'
+class GenericOneiricBox( UbuntuBox ):
+    """
+    11.10
+    """
+    def release(self):
+        return 'oneiric'
+
+class GenericPreciseBox( UbuntuBox ):
+    """
+    12.04
+    """
+    def release(self):
+        return 'precise'
+
+class GenericQuantalBox( UbuntuBox ):
+    """
+    12.10
+    """
+    def release(self):
+        return 'quantal'
+
+class GenericRaringBox( UbuntuBox ):
+    """
+    13.04
+    """
+    def release(self):
+        return 'raring'
+
+class GenericSaucyBox( UbuntuBox ):
+    """
+    13.10
+    """
+    def release(self):
+        return 'saucy'

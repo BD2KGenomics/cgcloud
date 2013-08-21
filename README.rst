@@ -47,16 +47,16 @@ Create access keys on `Amazon's IAM console <https://console.aws.amazon.com/iam/
 
 That's it.
 
-Now, let's say we want to create the ``build-master``, i.e. the machine that runs the
+Now, let's say we want to create the ``jenkins-master``, i.e. the machine that runs the
 Jenkins continuous integration server::
 
-   cgcloud create build-master -k YOUR_KEY_PAIR_NAME
+   cgcloud create jenkins-master -k YOUR_KEY_PAIR_NAME
 
 SSH into the build master::
 
-   cgcloud ssh build-master
+   cgcloud ssh jenkins-master
    
-This will SSH into the build master and setup a port forwarding to Jenkins' web UI. Point your
+This will SSH into the master and setup a port forwarding to Jenkins' web UI. Point your
 browser at http://localhost:8080/.
 
 Uninstallation

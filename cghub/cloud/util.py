@@ -1,3 +1,4 @@
+from StringIO import StringIO
 import argparse
 import os
 import re
@@ -60,6 +61,37 @@ def camel_to_snake(s, separator='_'):
     'r2_d2'
     """
     return re.sub( '([a-z0-9])([A-Z])', r'\1%s\2' % separator, s ).lower( )
+
+
+def abreviated_snake_case_class_name(cls, root_cls):
+    """
+    Returns the snake-case (with '-' instead of '_') version of the name of a given class with
+    the name of another class removed from the end.
+
+    :param cls: the class whose name to abreviate
+
+    :param root_cls: an ancestor of cls, whose name will be removed from the end of the name of cls
+
+    :return: cls.__name__ with root_cls.__name__ removed, converted to snake case with - as the
+    separator
+
+    >>> class Dog: pass
+    >>> abreviated_snake_case_class_name(Dog,Dog)
+    ''
+    >>> class BarkingDog(Dog): pass
+    >>> abreviated_snake_case_class_name(BarkingDog,Dog)
+    'barking'
+    >>> class SleepingGrowlingDog(Dog): pass
+    >>> abreviated_snake_case_class_name(SleepingGrowlingDog,Dog)
+    'sleeping-growling'
+    >>> class Lumpi(SleepingGrowlingDog): pass
+    >>> abreviated_snake_case_class_name(Lumpi,Dog)
+    'lumpi'
+    """
+    name = cls.__name__
+    suffix = root_cls.__name__
+    if name.endswith( suffix ): name = name[ :-len( suffix ) ]
+    return camel_to_snake( name, separator='-' )
 
 
 def mkdir_p(path):
@@ -163,7 +195,7 @@ class Command( object ):
         """
         super( Command, self ).__init__( )
         if not 'help' in kwargs:
-            kwargs['help'] = self.__class__.__doc__
+            kwargs[ 'help' ] = self.__class__.__doc__
         self.parser = application.subparsers.add_parser(
             self.name( ),
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -187,13 +219,86 @@ class Command( object ):
         >>> FooBarCommand(app).name()
         'foo-bar'
         """
-        name = self.__class__.__name__
-        suffix = Command.__name__
-        if name.endswith( suffix ): name = name[ :-len( suffix ) ]
-        return camel_to_snake( name, separator='-' )
+        return abreviated_snake_case_class_name( self.__class__, Command )
 
     def begin_mutex(self, **kwargs):
         self.group = self.parser.add_mutually_exclusive_group( **kwargs )
 
     def end_mutex(self):
         self.group = None
+
+
+empty_line_re = re.compile( r'^\s*(#.*)$' )
+
+
+def prepend_shell_script(script, in_file, out_file):
+    """
+    Writes all lines from the specified input to the specified output. Input and output are both
+    assumed to be file-like objects. Reading from the input as well as writing to the output
+    starts at the current position in the respective file-like object. Unless the given script is
+    empty or None, and before writing the first script line from the input, the given script
+    will be written to the output, followed by a new line.  A script line is a line that is not
+    empty. An empty line is a line that contains only whitespace, a comment or both.
+
+    >>> i,o = StringIO(''), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    'hello\\n'
+
+    >>> i,o = StringIO(''), StringIO()
+    >>> prepend_shell_script('',i,o)
+    >>> o.getvalue()
+    ''
+
+    >>> i,o = StringIO('\\n'), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    'hello\\n\\n'
+
+    >>> i,o = StringIO('#foo\\n'), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    '#foo\\nhello\\n'
+
+    >>> i,o = StringIO(' # foo \\nbar\\n'), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    ' # foo \\nhello\\nbar\\n'
+
+    >>> i,o = StringIO('bar\\n'), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    'hello\\nbar\\n'
+
+    >>> i,o = StringIO('#foo'), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    '#foo\\nhello\\n'
+
+    >>> i,o = StringIO('#foo\\nbar # bla'), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    '#foo\\nhello\\nbar # bla\\n'
+
+    >>> i,o = StringIO(' bar # foo'), StringIO()
+    >>> prepend_shell_script('hello',i,o)
+    >>> o.getvalue()
+    'hello\\n bar # foo\\n'
+    """
+
+    def write_line(line):
+        out_file.write( line )
+        if not line.endswith( '\n' ):
+            out_file.write( '\n' )
+
+    line = None
+    for line in in_file:
+        if not empty_line_re.match( line ): break
+        write_line( line )
+        line = None
+    if script: write_line( script )
+    if line: write_line( line )
+    for line in in_file:
+        write_line( line )
+
+

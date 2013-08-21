@@ -1,6 +1,8 @@
 from StringIO import StringIO
 from textwrap import dedent
-from fabric.operations import run, sudo, put, get, prompt
+from fabric.operations import run, sudo, put, get
+from cghub.cloud.box import fabric_task
+from cghub.cloud.devenv.source_control_client import SourceControlClient
 from cghub.cloud.ubuntu_box import UbuntuBox
 
 
@@ -68,35 +70,51 @@ class Jenkins:
 jenkins = Jenkins.__dict__
 
 
-class BuildMaster( UbuntuBox ):
+class JenkinsMaster( UbuntuBox, SourceControlClient ):
     """
     An instance of this class represents the build master in EC2
     """
 
-    @staticmethod
-    def role():
-        return 'build-master'
-
-    def __init__(self, env):
-        super( BuildMaster, self ).__init__( env, 'precise' )
+    def release(self):
+        return 'raring'
 
     def create(self, *args, **kwargs):
         self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
                                                  Jenkins.data_volume_size_gb )
-        super( BuildMaster, self ).create( *args, **kwargs )
+        super( JenkinsMaster, self ).create( *args, **kwargs )
         self.attach_volume( self.volume, Jenkins.data_device_ext )
 
-    def setup(self, update=False):
-        super( BuildMaster, self ).setup( update )
-        if False: self._execute( self._install_ec2_api_tools )
-        self._execute( self.setup_jenkins )
 
-    def _install_ec2_api_tools(self):
-        sudo( 'apt-add-repository -y ppa:awstools-dev/awstools' )
-        sudo( 'apt-get -q update' )
-        sudo( 'apt-get -q -y install ec2-api-tools' )
+    @fabric_task
+    def _setup_package_repos(self):
 
-    def setup_jenkins(self):
+        # Jenkins
+        #
+        super( JenkinsMaster, self )._setup_package_repos( )
+        run( "wget -q -O - 'http://pkg.jenkins-ci.org/debian/jenkins-ci.org.key' "
+             "| sudo apt-key add -" )
+        sudo( "echo deb http://pkg.jenkins-ci.org/debian binary/ "
+              "> /etc/apt/sources.list.d/jenkins.list" )
+
+        # Enable multiverse sources
+        #
+        sudo( 'apt-add-repository multiverse' )
+
+        return True
+
+    def _list_packages_to_install(self):
+        return super( JenkinsMaster, self )._list_packages_to_install( ) + [
+            'ec2-api-tools'
+        ]
+
+    @fabric_task
+    def _install_packages(self, packages):
+        super( JenkinsMaster, self )._install_packages( packages )
+        # Use confold so it doesn't get hung up on our pre-staged /etc/default/jenkins
+        sudo( 'apt-get -q -y -o Dpkg::Options::=--force-confold install jenkins' )
+
+    @fabric_task
+    def _pre_install_packages(self):
         #
         # Pre-stage the defaults file for Jenkins. It differs from the maintainer's version in the
         # following ways: (please document all changes in this comment)
@@ -133,7 +151,6 @@ class BuildMaster( UbuntuBox ):
         '''.format( **jenkins ) ) )
         put( etc_default_jenkins, '/etc/default/jenkins', use_sudo=True, mode=0644 )
         sudo( 'chown root:root /etc/default/jenkins' )
-
         #
         # Prepare data volume if necessary
         #
@@ -154,34 +171,20 @@ class BuildMaster( UbuntuBox ):
         sudo( "echo 'LABEL={data_volume_fs_label} {home} ext4 defaults 0 2' "
               ">> /etc/fstab".format( **jenkins ) )
         sudo( 'mount -a' )
-
         # in case the UID is different on the volume
         sudo( 'useradd -d {home} -g {group} -s /bin/bash {user}'.format( **jenkins ) )
         sudo( 'chown -R {user} {home}'.format( **jenkins ) )
 
-        #
-        # Install Jenkins and source control scripts
-        #
-        run( "wget -q -O - 'http://pkg.jenkins-ci.org/debian/jenkins-ci.org.key' "
-             "| sudo apt-key add -" )
-        sudo( "echo deb http://pkg.jenkins-ci.org/debian binary/ "
-              "> /etc/apt/sources.list.d/jenkins.list" )
-        sudo( 'apt-get -q update' )
-        # Use confold so it doesn't get hung up on our pre-staged /etc/default/jenkins
-        sudo( 'apt-get -q -y -o Dpkg::Options::=--force-confold install '
-              'jenkins git subversion mercurial' )
-
+    @fabric_task
+    def _post_install_packages(self):
         self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
-
         ec2_key_pair_name = '{user}@{host}'.format( user=Jenkins.user, host=self.absolute_role( ) )
         ec2_key_pair = self.connection.get_key_pair( ec2_key_pair_name )
         if ec2_key_pair is None:
             ec2_key_pair = self.connection.create_key_pair( ec2_key_pair_name )
             if not ec2_key_pair.material:
                 raise RuntimeError( "Created key pair but didn't get back private key" )
-
         key_file_exists = sudo( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
-
         #
         # Create an SSH key pair in Jenkin's home and download the public key to local config
         # directory the so we can inject it into the slave boxes. Note that this will prompt
@@ -196,7 +199,7 @@ class BuildMaster( UbuntuBox ):
             put( local_path=StringIO( ec2_key_pair.material ),
                  remote_path=Jenkins.key_path,
                  use_sudo=True )
-            assert ec2_key_pair.fingerprint == self.key_file_fingerprint( )
+            assert ec2_key_pair.fingerprint == self.__key_file_fingerprint( )
             sudo( 'chown {user}:{group} {key_path}'.format( **jenkins ) )
             # so get_keys can download the keys
             sudo( 'chmod go+rx {key_dir_path}'.format( **jenkins ),
@@ -208,7 +211,7 @@ class BuildMaster( UbuntuBox ):
                   user=Jenkins.user )
         else:
             if key_file_exists:
-                fingerprint = self.key_file_fingerprint( )
+                fingerprint = self.__key_file_fingerprint( )
                 if ec2_key_pair.fingerprint != fingerprint:
                     raise RuntimeError(
                         "The fingerprint {ec2_key_pair.fingerprint} of key pair {ec2_key_pair.name} "
@@ -227,9 +230,11 @@ class BuildMaster( UbuntuBox ):
         #
         # Store a copy of the public key locally
         #
-        self._get_jenkins_key( )
+        self.__get_jenkins_key( )
+        self.setup_repo_host_keys( user=Jenkins.user )
 
-    def key_file_fingerprint(self):
+    @fabric_task
+    def __key_file_fingerprint(self):
         fingerprint = sudo( "openssl pkcs8 -in {key_path} -nocrypt -topk8 -outform DER"
                             "| openssl sha1 -c"
                             "| sed -r 's/[^=]+= *//'".format( **jenkins ),
@@ -237,15 +242,16 @@ class BuildMaster( UbuntuBox ):
         return fingerprint
 
     def get_keys(self):
-        super( BuildMaster, self ).get_keys( )
-        self._execute( self._get_jenkins_key )
+        super( JenkinsMaster, self ).get_keys( )
+        self.__get_jenkins_key( )
 
-    def _get_jenkins_key(self):
+    @fabric_task
+    def __get_jenkins_key(self):
         get( remote_path='%s.pub' % Jenkins.key_path,
              local_path=self._config_file_path( Jenkins.pubkey_config_file, mkdir=True ) )
 
     def _ssh_args(self, user):
-        args = super( BuildMaster, self )._ssh_args( user )
+        args = super( JenkinsMaster, self )._ssh_args( user )
 
         # Add port forwarding to Jenkins' web UI
         args[ 1:1 ] = [ '-L localhost:8080:localhost:8080' ]
