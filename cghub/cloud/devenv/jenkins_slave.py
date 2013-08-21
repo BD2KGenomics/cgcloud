@@ -59,5 +59,5 @@ class JenkinsSlave( SourceControlClient ):
             # link ephemeral to ~/builds
             sudo( "ln -snf /mnt/ephemeral ~{user}/builds".format( **kwargs ), user=BUILD_USER )
         else:
-            # no ephemeral storage, just create the ~/builds directory
+            # No ephemeral storage, just create the ~/builds directory
             sudo( "mkdir ~{user}/builds".format( **kwargs ), user=BUILD_USER )
