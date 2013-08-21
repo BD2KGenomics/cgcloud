@@ -41,7 +41,7 @@ class UbuntuBox( UnixBox ):
                 'release', 'purpose', 'release_type', 'release_date',
                 'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
                 'dont_know', 'hypervisor' ] )
-        self._log( ", found %s." % self.base_image.id )
+        self._log( ", found %s." % self.image_id() )
 
     @staticmethod
     def __find_image(template, url, fields):
@@ -70,6 +70,11 @@ class UbuntuBox( UnixBox ):
 
     @fabric_task
     def wait_for_cloud_init_completion(self):
+        """
+        Wait for Ubuntu's cloud-init to finish its job such as to avoid getting in its way.
+        Without this, I've seen weird errors with 'apt-get install' not being able to find any
+        packages.
+        """
         run( 'echo -n "Waiting for cloud-init to finish ..." ; '
              'while [ ! -e /var/lib/cloud/instance/boot-finished ]; do '
              'echo -n "."; '
