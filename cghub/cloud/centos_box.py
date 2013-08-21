@@ -99,6 +99,7 @@ class CentosBox( UnixBox ):
     def _sync_package_repos(self):
         return False
 
+    @fabric_task
     def _install_packages(self, packages):
         # yum's error handling is a bit odd: If you pass two packages to install and one fails while
         # the other succeeds, yum exits with 0. To work around this, we need to invoke yum separately
