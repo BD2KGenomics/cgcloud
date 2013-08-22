@@ -125,13 +125,16 @@ class Box( object ):
                                                      instance_type=instance_type,
                                                      key_name=ssh_key_name,
                                                      placement=self.env.availability_zone,
-                                                     user_data=self.user_data() )
+                                                     user_data=self.user_data( ) )
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
 
+        self._post_instance_creation( instance )
+
         self.__wait_ready( instance, { 'pending' } )
 
-        self._log( 'Tagging instance.' )
+    def _post_instance_creation(self, instance):
+        self._log( 'tagging instance, ...', newline=False )
         instance.add_tag( 'Name', self.absolute_role( ) )
 
     def adopt(self, ordinal=None, wait_ready=True):
@@ -367,6 +370,7 @@ class Box( object ):
         Wait until the given instance transistions from stopped or pending state to being fully
         running and accessible via SSH.
         """
+        self._log( "waiting for instance, ... ", newline=False )
         self.__wait_transition( instance, from_states, 'running' )
         self._log( "running, ... ", newline=False )
         self.__wait_hostname_assigned( instance )
@@ -406,7 +410,7 @@ class Box( object ):
             finally:
                 s.close( )
 
-    class IgnorePolicy(MissingHostKeyPolicy):
+    class IgnorePolicy( MissingHostKeyPolicy ):
         def missing_host_key(self, client, hostname, key):
             pass
 
@@ -415,7 +419,7 @@ class Box( object ):
             client = SSHClient( )
             try:
                 client.load_system_host_keys( )
-                client.set_missing_host_key_policy( self.IgnorePolicy() )
+                client.set_missing_host_key_policy( self.IgnorePolicy( ) )
                 client.connect( hostname=self.host_name,
                                 username=self.username( ),
                                 timeout=EC2_POLLING_INTERVAL )
@@ -425,7 +429,7 @@ class Box( object ):
                     if line == 'hi\n':
                         return
                     else:
-                        raise RuntimeError()
+                        raise RuntimeError( )
                 finally:
                     stdin.close( )
                     stdout.close( )

@@ -56,8 +56,8 @@ class CentosBox( UnixBox ):
         self.base_image = base_image
         ':type: boto.ec2.image.Image'
 
-    def create(self, ssh_key_name, instance_type=None):
-        super( CentosBox, self ).create( ssh_key_name, instance_type )
+    def _post_instance_creation(self, instance):
+        super( CentosBox, self )._post_instance_creation( instance )
         self._set_username( 'root' ) # the default for RightScale images
 
     def username(self):
