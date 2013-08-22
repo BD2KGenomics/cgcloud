@@ -4,7 +4,7 @@ from cghub.cloud.ubuntu_box import UbuntuBox
 
 class GenericCentos5Box( CentosBox ):
     def release(self):
-        return '5.8 '
+        return '5.8'
 
 
 class GenericCentos6Box( CentosBox ):
