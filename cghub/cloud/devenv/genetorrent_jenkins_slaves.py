@@ -72,7 +72,26 @@ class Ubuntu10GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericLuc
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 10.04
     """
-    pass
+
+    def _list_packages_to_install(self):
+        packages = super( Ubuntu10GenetorrentJenkinsSlave, self )._list_packages_to_install( )
+        # Lucid doesn't have git, but git-core which was obsoleted in
+        # favor of git on newer releases
+        return [ 'git-core' if p == 'git' else p for p in packages ]
+
+    def _pre_install_packages(self):
+        super( Ubuntu10GenetorrentJenkinsSlave, self )._pre_install_packages( )
+        # On Lucid, somehow postfix gets pulled in as a dependency kicking the frontend into
+        # interactive mode.
+        self._debconf_set_selection(
+            "postfix postfix/main_mailer_type string 'No configuration'",
+            "postfix postfix/mailname string %s" % self.host_name
+        )
+
+    def _setup_package_repos(self):
+        super( Ubuntu10GenetorrentJenkinsSlave, self )._setup_package_repos( )
+        # The Lucid images are so old, we need to always run apt-get update
+        return True
 
 
 class Ubuntu11GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericOneiricBox ):

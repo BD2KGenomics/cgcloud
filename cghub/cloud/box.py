@@ -11,6 +11,8 @@ import sys
 from fabric.operations import sudo, run, get, put
 from boto import ec2
 from fabric.api import execute
+from paramiko import SSHClient
+from paramiko.client import MissingHostKeyPolicy
 
 from cghub.cloud.environment import Environment
 from util import unpack_singleton, prepend_shell_script, camel_to_snake
@@ -31,6 +33,7 @@ def needs_instance(method):
 
 wrapped = False
 
+
 def fabric_task(function):
     def wrapper(box, *args, **kwargs):
         global wrapped
@@ -42,7 +45,9 @@ def fabric_task(function):
                 return box._execute( partial( function, box, *args, **kwargs ) )
             finally:
                 wrapped = False
+
     return wrapper
+
 
 class Box( object ):
     """
@@ -94,6 +99,12 @@ class Box( object ):
         self.host_name = None
         self.connection = ec2.connect_to_region( env.region )
 
+    def user_data(self):
+        """
+        Return the EC2 user-data for instances represented by this box
+        """
+        return None
+
     def create(self, ssh_key_name, instance_type=None):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
@@ -113,7 +124,8 @@ class Box( object ):
         reservation = self.connection.run_instances( self.image_id( ),
                                                      instance_type=instance_type,
                                                      key_name=ssh_key_name,
-                                                     placement=self.env.availability_zone )
+                                                     placement=self.env.availability_zone,
+                                                     user_data=self.user_data() )
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
 
@@ -360,7 +372,9 @@ class Box( object ):
         self.__wait_hostname_assigned( instance )
         self._log( "hostname assigned, ... ", newline=False )
         self.__wait_ssh_port_open( )
-        self._log( "SSH open, done." )
+        self._log( "SSH port open, ... ", newline=False )
+        self.__wait_ssh_working( )
+        self._log( "SSH working, done." )
 
     def __wait_hostname_assigned(self, instance):
         """
@@ -391,6 +405,40 @@ class Box( object ):
                 pass
             finally:
                 s.close( )
+
+    class IgnorePolicy(MissingHostKeyPolicy):
+        def missing_host_key(self, client, hostname, key):
+            pass
+
+    def __wait_ssh_working(self):
+        while True:
+            client = SSHClient( )
+            try:
+                client.load_system_host_keys( )
+                client.set_missing_host_key_policy( self.IgnorePolicy() )
+                client.connect( hostname=self.host_name,
+                                username=self.username( ),
+                                timeout=EC2_POLLING_INTERVAL )
+                stdin, stdout, stderr = client.exec_command( 'echo hi' )
+                try:
+                    line = stdout.readline( )
+                    if line == 'hi\n':
+                        return
+                    else:
+                        raise RuntimeError()
+                finally:
+                    stdin.close( )
+                    stdout.close( )
+                    stderr.close( )
+            except RuntimeError:
+                raise
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                self._log( str( e ) )
+            finally:
+                client.close( )
+            time.sleep( EC2_POLLING_INTERVAL )
 
     def __wait_volume_transition(self, volume, from_states, to_state):
         """
@@ -513,6 +561,5 @@ class Box( object ):
                 prepend_shell_script( '\n' + script, in_file, out_file )
             out_file.seek( 0 )
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
-
 
 

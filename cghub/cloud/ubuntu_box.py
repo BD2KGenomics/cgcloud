@@ -1,5 +1,6 @@
 import contextlib
 import csv
+import textwrap
 import urllib2
 from fabric.operations import sudo, run
 from box import fabric_task
@@ -22,11 +23,11 @@ class UbuntuBox( UnixBox ):
         """
         :return: the code name of the Ubuntu release, e.g. "precise"
         """
-        raise NotImplementedError()
+        raise NotImplementedError( )
 
     def __init__(self, env):
         super( UbuntuBox, self ).__init__( env )
-        release = self.release()
+        release = self.release( )
         self._log( "Looking up AMI for Ubuntu release %s ..." % release, newline=False )
         self.base_image = self.__find_image(
             template=TemplateDict( release=release,
@@ -41,7 +42,7 @@ class UbuntuBox( UnixBox ):
                 'release', 'purpose', 'release_type', 'release_date',
                 'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
                 'dont_know', 'hypervisor' ] )
-        self._log( ", found %s." % self.image_id() )
+        self._log( ", found %s." % self.image_id( ) )
 
     @staticmethod
     def __find_image(template, url, fields):
@@ -65,32 +66,50 @@ class UbuntuBox( UnixBox ):
         return self.base_image[ 'ami_id' ]
 
     def setup(self, upgrade_installed_packages=False):
-        self.wait_for_cloud_init_completion()
+        self.__wait_for_cloud_init_completion( )
         super( UbuntuBox, self ).setup( upgrade_installed_packages )
 
+    def user_data(self):
+        return textwrap.dedent( """
+            #cloud-config
+            runcmd:
+                - [ touch, /tmp/cloud-init.done ]
+        """ )
+
     @fabric_task
-    def wait_for_cloud_init_completion(self):
+    def __wait_for_cloud_init_completion(self):
         """
         Wait for Ubuntu's cloud-init to finish its job such as to avoid getting in its way.
         Without this, I've seen weird errors with 'apt-get install' not being able to find any
         packages.
         """
+        # /var/lib/cloud/instance/boot-finished isn't being written all releases, e.g. Lucid. Must
+        # use our own file create by a runcmd, see user_data()
         run( 'echo -n "Waiting for cloud-init to finish ..." ; '
-             'while [ ! -e /var/lib/cloud/instance/boot-finished ]; do '
+             'while [ ! -e /tmp/cloud-init.done ]; do '
              'echo -n "."; '
              'sleep 1; '
              'done; '
              'echo ", done."' )
 
+    apt_get = 'DEBIAN_FRONTEND=readline apt-get -q -y'
+
     @fabric_task
     def _sync_package_repos(self):
-        sudo( 'apt-get -q update' )
+        sudo( '%s update' % self.apt_get )
 
     @fabric_task
     def _upgrade_installed_packages(self):
-        sudo( 'apt-get -q -y upgrade' )
+        sudo( '%s upgrade' % self.apt_get )
 
     @fabric_task
-    def _install_packages(self, packages ):
+    def _install_packages(self, packages):
         packages = " ".join( packages )
-        sudo( 'apt-get -q -y install ' + packages )
+        sudo( '%s install %s' % (self.apt_get, packages ) )
+
+    @fabric_task
+    def _debconf_set_selection(self, *debconf_selections):
+        for debconf_selection in debconf_selections:
+            if '"' in debconf_selection:
+                raise RuntimeError( 'Doubles quotes in debconf selections are not supported yet' )
+        sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ) )
