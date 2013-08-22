@@ -3,6 +3,7 @@ import csv
 import textwrap
 import urllib2
 from fabric.operations import sudo, run
+import yaml
 from box import fabric_task
 from cghub.cloud.unix_box import UnixBox
 
@@ -70,11 +71,24 @@ class UbuntuBox( UnixBox ):
         super( UbuntuBox, self ).setup( upgrade_installed_packages )
 
     def user_data(self):
-        return textwrap.dedent( """
-            #cloud-config
-            runcmd:
-                - [ touch, /tmp/cloud-init.done ]
-        """ )
+        user_data = { }
+        self._populate_cloud_config( user_data )
+        if user_data:
+            return '#cloud-config\n' + yaml.dump( user_data )
+        else:
+            return None
+
+    def _populate_cloud_config(self, user_data):
+        # see __wait_for_cloud_init_completion()
+        #
+        user_data.setdefault( 'runcmd', [] ).append( [ 'touch', '/tmp/cloud-init.done' ] )
+
+        # Lucid's and Oneiric's cloud-init mount ephemeral storage on /mnt instead of
+        # /mnt/ephemeral. To keep it consistent across releases we should be explicit.
+        #
+        user_data.setdefault( 'mounts', [ ] ).append(
+            [ 'ephemeral0', '/mnt/ephemeral', 'auto', 'defaults,nobootwait' ] )
+
 
     @fabric_task
     def __wait_for_cloud_init_completion(self):
@@ -113,3 +127,4 @@ class UbuntuBox( UnixBox ):
             if '"' in debconf_selection:
                 raise RuntimeError( 'Doubles quotes in debconf selections are not supported yet' )
         sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ) )
+

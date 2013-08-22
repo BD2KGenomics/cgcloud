@@ -1,3 +1,4 @@
+import textwrap
 from cghub.cloud.centos_box import CentosBox
 from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
 from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericLucidBox, GenericPreciseBox, GenericRaringBox, GenericOneiricBox
