@@ -26,10 +26,8 @@ class UnixBox( Box ):
     def _setup_package_repos(self):
         """
         Set up additional remote package repositories.
-
-        :return: True, if repositories were added.
         """
-        return False
+        pass
 
     def _list_packages_to_install(self):
         """
@@ -50,8 +48,7 @@ class UnixBox( Box ):
         pass
 
     def setup(self, upgrade_installed_packages=False):
-        if self._setup_package_repos( ) or upgrade_installed_packages:
-            self._sync_package_repos( )
+        self._sync_package_repos( )
         self._pre_install_packages( )
         packages = self._list_packages_to_install( )
         self._install_packages( packages )

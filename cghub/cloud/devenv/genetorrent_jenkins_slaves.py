@@ -89,11 +89,6 @@ class Ubuntu10GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericLuc
             "postfix postfix/mailname string %s" % self.host_name
         )
 
-    def _setup_package_repos(self):
-        super( Ubuntu10GenetorrentJenkinsSlave, self )._setup_package_repos( )
-        # The Lucid images are so old, we need to always run apt-get update
-        return True
-
 
 class Ubuntu11GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericOneiricBox ):
     """

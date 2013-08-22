@@ -87,7 +87,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
 
     @fabric_task
     def _setup_package_repos(self):
-
+        #
         # Jenkins
         #
         super( JenkinsMaster, self )._setup_package_repos( )
@@ -95,12 +95,10 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
              "| sudo apt-key add -" )
         sudo( "echo deb http://pkg.jenkins-ci.org/debian binary/ "
               "> /etc/apt/sources.list.d/jenkins.list" )
-
+        #
         # Enable multiverse sources
         #
         sudo( 'apt-add-repository multiverse' )
-
-        return True
 
     def _list_packages_to_install(self):
         return super( JenkinsMaster, self )._list_packages_to_install( ) + [
@@ -110,7 +108,9 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
     @fabric_task
     def _install_packages(self, packages):
         super( JenkinsMaster, self )._install_packages( packages )
+        #
         # Use confold so it doesn't get hung up on our pre-staged /etc/default/jenkins
+        #
         sudo( 'apt-get -q -y -o Dpkg::Options::=--force-confold install jenkins' )
 
     @fabric_task
