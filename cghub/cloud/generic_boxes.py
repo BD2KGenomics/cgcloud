@@ -1,6 +1,7 @@
 from fabric.operations import run, sudo
 from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox
+from cghub.cloud.fedora_box import FedoraBox
 from cghub.cloud.ubuntu_box import UbuntuBox
 
 
@@ -28,7 +29,6 @@ class GenericCentos5Box( CentosBox ):
     def _sync_package_repos(self):
         self.__update_sudo( )
         return super( GenericCentos5Box, self )._sync_package_repos( )
-
 
 
 class GenericCentos6Box( CentosBox ):
@@ -90,3 +90,15 @@ class GenericSaucyBox( UbuntuBox ):
     """
     def release(self):
         return 'saucy'
+
+class GenericFedora17Box( FedoraBox ):
+    def release(self):
+        return 17
+
+class GenericFedora18Box( FedoraBox ):
+    def release(self):
+        return 18
+
+class GenericFedora19Box( FedoraBox ):
+    def release(self):
+        return 19

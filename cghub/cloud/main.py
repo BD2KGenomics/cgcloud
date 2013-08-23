@@ -6,7 +6,7 @@ from operator import itemgetter
 
 import boto
 from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, Ubuntu12GenetorrentJenkinsSlave, Ubuntu10GenetorrentJenkinsSlave, Ubuntu13GenetorrentJenkinsSlave, Ubuntu11GenetorrentJenkinsSlave
-from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericMaverickBox, GenericLucidBox, GenericOneiricBox, GenericNattyBox, GenericQuantalBox, GenericPreciseBox, GenericRaringBox, GenericSaucyBox
+from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericMaverickBox, GenericLucidBox, GenericOneiricBox, GenericNattyBox, GenericQuantalBox, GenericPreciseBox, GenericRaringBox, GenericSaucyBox, GenericFedora17Box, GenericFedora18Box, GenericFedora19Box
 
 from devenv.jenkins_master import JenkinsMaster
 
@@ -28,6 +28,9 @@ BOXES = OrderedDict( ( cls.role( ), cls) for cls in [
     GenericQuantalBox,
     GenericRaringBox,
     GenericSaucyBox,
+    GenericFedora17Box,
+    GenericFedora18Box,
+    GenericFedora19Box,
     JenkinsMaster,
     Ubuntu10GenetorrentJenkinsSlave,
     Ubuntu11GenetorrentJenkinsSlave,
@@ -256,8 +259,11 @@ class LifecycleCommand( InstanceCommand ):
     Transition an instance into a particular state.
     """
 
-    def run_on_box(self, options, box):
+    def adopt(self, box, options):
         box.adopt( ordinal=options.ordinal, wait_ready=False )
+
+    def run_on_box(self, options, box):
+        self.adopt( box, options )
         getattr( box, self.name( ) )( )
 
 
@@ -278,7 +284,16 @@ class RebootCommand( LifecycleCommand ):
 
 class TerminateCommand( LifecycleCommand ):
     """ Terminate the instance, ie. delete it. """
-    pass
+
+    def __init__(self, application, **kwargs):
+        super( TerminateCommand, self ).__init__( application, **kwargs )
+        self.option( '--quick', '-q', default=False, action='store_true',
+                     help="Exit immediately after termination request has been made, don't wait "
+                          "until instance is actually terminated." )
+
+    def run_on_box(self, options, box):
+        self.adopt( box, options )
+        box.terminate( wait=not options.quick )
 
 
 class ShowCommand( InstanceCommand ):

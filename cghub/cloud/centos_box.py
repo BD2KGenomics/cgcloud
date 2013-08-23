@@ -1,16 +1,16 @@
 import re
 from distutils.version import LooseVersion
 
-from fabric.operations import run, sudo
+from fabric.operations import run
 
 from box import fabric_task
-from cghub.cloud.unix_box import UnixBox
+from cghub.cloud.yum_box import YumBox
 
 
 ADMIN_USER = 'admin'
 
 
-class CentosBox( UnixBox ):
+class CentosBox(YumBox ):
     """
     A box representing EC2 instances that boots of a RightScale CentOS AMI. Most of the
     complexity in this class stems from a workaround for RightScale's handling of the root
@@ -93,19 +93,10 @@ class CentosBox( UnixBox ):
     def __setup_admin(self):
         run( "echo 'export PATH=\"/usr/local/sbin:/usr/sbin:/sbin:$PATH\"' >> ~/.bash_profile" )
 
-    def _sync_package_repos(self):
-        return False
 
-    @fabric_task
-    def _install_packages(self, packages):
-        # yum's error handling is a bit odd: If you pass two packages to install and one fails while
-        # the other succeeds, yum exits with 0. To work around this, we need to invoke yum separately
-        # for every package.
-        for package in packages:
-            sudo( 'yum install -d 1 -y %s' % package )
 
-    @fabric_task
-    def _upgrade_installed_packages(self):
-        sudo( 'yum update -y -d 1' )
+
+
+
 
 
