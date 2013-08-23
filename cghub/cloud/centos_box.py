@@ -74,9 +74,9 @@ class CentosBox( UnixBox ):
 
     def setup(self, upgrade_installed_packages=False):
         if self.username( ) == 'root':
-            self._execute( self.__create_admin )
+            self.__create_admin()
             self._set_username( ADMIN_USER )
-            self._execute( self.__setup_admin )
+            self.__setup_admin()
         super( CentosBox, self ).setup( upgrade_installed_packages )
 
     @fabric_task

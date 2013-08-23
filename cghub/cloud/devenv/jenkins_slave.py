@@ -1,4 +1,4 @@
-from fabric.operations import sudo
+from cghub.fabric.operations import sudo
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.jenkins_master import Jenkins, JenkinsMaster
 from cghub.cloud.devenv.source_control_client import SourceControlClient
@@ -23,8 +23,9 @@ class JenkinsSlave( SourceControlClient ):
         Jenkins slave. All build-related files should go into that user's ~/builds directory.
         """
         kwargs = dict(
-            key=self._read_config_file( Jenkins.pubkey_config_file, role=JenkinsMaster.role( ) ),
-            user=BUILD_USER )
+            user=BUILD_USER,
+            key=self._read_config_file( Jenkins.pubkey_config_file,
+                                        role=JenkinsMaster.role( ) ).strip( ) )
 
         # Create the build user
         #
@@ -33,9 +34,9 @@ class JenkinsSlave( SourceControlClient ):
 
         # Ensure that jenkins@build-master can log into this box as the build user
         #
-        sudo( "echo '{key}' >> ~{user}/.ssh/authorized_keys"
-              .format( **kwargs ),
-              user=BUILD_USER )
+        sudo( "echo '{key}' >> ~/.ssh/authorized_keys".format( **kwargs ),
+              user=BUILD_USER,
+              sudo_args='-i' )
 
         self.setup_repo_host_keys( user=BUILD_USER )
 
@@ -52,12 +53,12 @@ class JenkinsSlave( SourceControlClient ):
             # prepend_remote_shell_script
             # doesn't work with symlinks
             self._prepend_remote_shell_script( script=chown_cmd,
-                                              remote_path=rc_local_path,
-                                              use_sudo=True,
-                                              mirror_local_mode=True )
+                                               remote_path=rc_local_path,
+                                               use_sudo=True,
+                                               mirror_local_mode=True )
             sudo( 'chmod +x %s' % rc_local_path )
             # link ephemeral to ~/builds
-            sudo( "ln -snf /mnt/ephemeral ~{user}/builds".format( **kwargs ), user=BUILD_USER )
+            sudo( 'ln -snf /mnt/ephemeral ~/builds', user=BUILD_USER, sudo_args='-i' )
         else:
             # No ephemeral storage, just create the ~/builds directory
-            sudo( "mkdir ~{user}/builds".format( **kwargs ), user=BUILD_USER )
+            sudo( 'mkdir ~/builds', user=BUILD_USER, sudo_args='-i' )
