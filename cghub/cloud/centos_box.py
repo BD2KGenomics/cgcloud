@@ -29,32 +29,7 @@ class CentosBox( UnixBox ):
     def __init__(self, env):
         super( CentosBox, self ).__init__( env )
         self._username = None
-        release = self.release( )
-        self._log( "Looking up AMI for CentOS release %s." % release )
-        images = self.connection.get_all_images( owners='411009282317',
-                                                 filters={
-                                                     'name': 'RightImage_CentOS_%s_x64*' % release,
-                                                     'root-device-type': 'ebs' } )
-        if not images:
-            raise RuntimeError( "Can't find any suitable AMIs for CentOS release %s" % release )
-
-        max_version = None
-        base_image = None
-        for image in images:
-            match = re.match( 'RightImage_CentOS_(\d+(?:\.\d+)*)_x64_v(\d+(?:\.\d+)*)_EBS',
-                              image.name )
-            if match:
-                assert match.group( 1 ) == release
-                version = LooseVersion( match.group( 2 ) )
-                if max_version is None or max_version < version:
-                    max_version = version
-                    base_image = image
-
-        if not base_image:
-            raise RuntimeError( "Can't find AMI matching CentOS %s" % release )
-
-        self.base_image = base_image
-        ':type: boto.ec2.image.Image'
+        self._image_id = None
 
     def _post_instance_creation(self, instance):
         super( CentosBox, self )._post_instance_creation( instance )
@@ -70,7 +45,29 @@ class CentosBox( UnixBox ):
         self.get_instance( ).add_tag( 'admin_user', admin_user )
 
     def image_id(self):
-        return self.base_image.id
+        if self._image_id is None:
+            release = self.release( )
+            images = self.connection.get_all_images( owners='411009282317',
+                                                     filters={
+                                                         'name': 'RightImage_CentOS_%s_x64*' % release,
+                                                         'root-device-type': 'ebs' } )
+            if not images:
+                raise RuntimeError( "Can't find any suitable AMIs for CentOS release %s" % release )
+            max_version = None
+            base_image = None
+            for image in images:
+                match = re.match( 'RightImage_CentOS_(\d+(?:\.\d+)*)_x64_v(\d+(?:\.\d+)*)_EBS',
+                                  image.name )
+                if match:
+                    assert match.group( 1 ) == release
+                    version = LooseVersion( match.group( 2 ) )
+                    if max_version is None or max_version < version:
+                        max_version = version
+                        base_image = image
+            if not base_image:
+                raise RuntimeError( "Can't find AMI matching CentOS %s" % release )
+            self._image_id = base_image.id
+        return self._image_id
 
     def setup(self, upgrade_installed_packages=False):
         if self.username( ) == 'root':

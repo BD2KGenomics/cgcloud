@@ -119,9 +119,11 @@ class Box( object ):
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
 
-        self._log( 'Creating instance, ... ', newline=False )
-
-        reservation = self.connection.run_instances( self.image_id( ),
+        self._log( "Looking up image, ... ", newline=False )
+        image_id = self.image_id( )
+        self._log( 'creating %s instance from %s, ... ' % ( instance_type, image_id ),
+                   newline=False )
+        reservation = self.connection.run_instances( image_id,
                                                      instance_type=instance_type,
                                                      key_name=ssh_key_name,
                                                      placement=self.env.availability_zone,

@@ -28,22 +28,7 @@ class UbuntuBox( UnixBox ):
 
     def __init__(self, env):
         super( UbuntuBox, self ).__init__( env )
-        release = self.release( )
-        self._log( "Looking up AMI for Ubuntu release %s ..." % release, newline=False )
-        self.base_image = self.__find_image(
-            template=TemplateDict( release=release,
-                                   purpose='server',
-                                   release_type='release',
-                                   storage_type='ebs',
-                                   arch='amd64',
-                                   region=env.region,
-                                   hypervisor='paravirtual' ),
-            url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
-            fields=[
-                'release', 'purpose', 'release_type', 'release_date',
-                'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
-                'dont_know', 'hypervisor' ] )
-        self._log( ", found %s." % self.image_id( ) )
+        self._image_id = None
 
     @staticmethod
     def __find_image(template, url, fields):
@@ -64,7 +49,23 @@ class UbuntuBox( UnixBox ):
         return 'ubuntu'
 
     def image_id(self):
-        return self.base_image[ 'ami_id' ]
+        if self._image_id is None:
+            release = self.release( )
+            base_image = self.__find_image(
+                template=TemplateDict( release=release,
+                                       purpose='server',
+                                       release_type='release',
+                                       storage_type='ebs',
+                                       arch='amd64',
+                                       region=self.env.region,
+                                       hypervisor='paravirtual' ),
+                url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
+                fields=[
+                    'release', 'purpose', 'release_type', 'release_date',
+                    'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
+                    'dont_know', 'hypervisor' ] )
+            self._image_id = base_image[ 'ami_id' ]
+        return self._image_id
 
     def setup(self, upgrade_installed_packages=False):
         self.__wait_for_cloud_init_completion( )
