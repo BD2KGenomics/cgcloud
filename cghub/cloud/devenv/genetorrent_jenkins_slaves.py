@@ -1,4 +1,3 @@
-import textwrap
 from fabric.operations import sudo
 from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox

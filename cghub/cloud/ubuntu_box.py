@@ -1,9 +1,7 @@
 import contextlib
 import csv
-import textwrap
 import urllib2
-from fabric.operations import sudo, run
-import yaml
+from fabric.operations import sudo
 from box import fabric_task
 from cghub.cloud.cloud_init_box import CloudInitBox
 from cghub.cloud.unix_box import PackageManagerBox
