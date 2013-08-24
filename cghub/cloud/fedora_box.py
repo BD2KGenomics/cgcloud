@@ -1,8 +1,11 @@
+from cghub.cloud.cloud_init_box import CloudInitBox
 from cghub.cloud.yum_box import YumBox
 
 
-class FedoraBox( YumBox ):
-
+class FedoraBox( YumBox , CloudInitBox):
+    """
+    A box that boots of an official Fedora cloud AMI
+    """
     def release(self):
         """
         :return: the version number of the Fedora release, e.g. 17
@@ -15,7 +18,7 @@ class FedoraBox( YumBox ):
         self._image_id = None
 
     def username(self):
-        return "fedora" if self.release() >= 19 else "ec2-user"
+        return "fedora" if self.release( ) >= 19 else "ec2-user"
 
     def image_id(self):
         if self._image_id is None:

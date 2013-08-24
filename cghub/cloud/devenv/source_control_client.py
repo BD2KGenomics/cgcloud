@@ -1,9 +1,9 @@
 from cghub.fabric.operations import sudo
 from cghub.cloud.box import fabric_task
-from cghub.cloud.unix_box import UnixBox
+from cghub.cloud.unix_box import PackageManagerBox
 
 
-class SourceControlClient( UnixBox ):
+class SourceControlClient( PackageManagerBox ):
     """
     A box that uses source control software
     """

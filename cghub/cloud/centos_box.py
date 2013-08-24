@@ -31,8 +31,8 @@ class CentosBox(YumBox ):
         self._username = None
         self._image_id = None
 
-    def _post_instance_creation(self, instance):
-        super( CentosBox, self )._post_instance_creation( instance )
+    def _on_instance_created(self, instance):
+        super( CentosBox, self )._on_instance_created( instance )
         self._set_username( 'root' ) # the default for RightScale images
 
     def username(self):
@@ -69,12 +69,12 @@ class CentosBox(YumBox ):
             self._image_id = base_image.id
         return self._image_id
 
-    def setup(self, upgrade_installed_packages=False):
-        if self.username( ) == 'root':
+    def _on_instance_ready(self):
+        if self.is_new_instance and self.username( ) == 'root':
             self.__create_admin()
             self._set_username( ADMIN_USER )
             self.__setup_admin()
-        super( CentosBox, self ).setup( upgrade_installed_packages )
+        super( CentosBox, self )._on_instance_ready( )
 
     @fabric_task
     def __create_admin(self):

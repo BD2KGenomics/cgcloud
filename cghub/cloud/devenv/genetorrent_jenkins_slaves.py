@@ -1,7 +1,10 @@
 import textwrap
+from fabric.operations import sudo
+from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox
 from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
-from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericLucidBox, GenericPreciseBox, GenericRaringBox, GenericOneiricBox
+from cghub.cloud.fedora_box import FedoraBox
+from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericLucidBox, GenericPreciseBox, GenericRaringBox, GenericOneiricBox, GenericFedora19Box, GenericFedora18Box, GenericFedora17Box
 from cghub.cloud.ubuntu_box import UbuntuBox
 
 
@@ -110,5 +113,49 @@ class Ubuntu12GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericPre
 class Ubuntu13GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericRaringBox ):
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 13.04
+    """
+    pass
+
+
+class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
+    def _list_packages_to_install(self):
+        packages = super( FedoraGenetorrentJenkinsSlave, self )._list_packages_to_install( )
+        return packages + [
+            'gcc-c++',
+            'pkgconfig',
+            'xerces-c-devel',
+            'libcurl-devel',
+            'xqilla-devel',
+            'openssl-devel',
+            'boost-devel',
+            'make',
+            'rpm-build',
+            'redhat-rpm-config' ]
+
+
+    @fabric_task
+    def _get_rc_local_path(self):
+        rc_local_path = '/etc/rc.local'
+        sudo( 'test -f {f} || touch {f} && chmod +x {f}'.format( f=rc_local_path ) )
+        return rc_local_path
+
+
+class Fedora19GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFedora19Box ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora 19
+    """
+    pass
+
+
+class Fedora18GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFedora18Box ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora 18
+    """
+    pass
+
+
+class Fedora17GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFedora17Box ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora 17
     """
     pass

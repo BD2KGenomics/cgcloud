@@ -98,46 +98,62 @@ class Box( object ):
         self.instance_id = None
         self.host_name = None
         self.connection = ec2.connect_to_region( env.region )
+        self.is_new_instance = None
 
-    def user_data(self):
+    def _populate_instance_creation_args(self, kwargs):
         """
-        Return the EC2 user-data for instances represented by this box
+        Add, remove or modify the keyword arguments that will be passed to the EC2 run_instances
+        request.
+
+        :type kwargs: dict
         """
-        return None
+        pass
+
 
     def create(self, ssh_key_name, instance_type=None):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
         :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
+        :type instance_type: string
 
         :param ssh_key_name: The name of the SSH public key to inject into the instance
+        :type ssh_key_name: string
         """
         if self.instance_id is not None:
             raise RuntimeError( "Instance already adopted or created" )
-
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
-
         self._log( "Looking up image, ... ", newline=False )
         image_id = self.image_id( )
         self._log( 'creating %s instance from %s, ... ' % ( instance_type, image_id ),
                    newline=False )
-        reservation = self.connection.run_instances( image_id,
-                                                     instance_type=instance_type,
-                                                     key_name=ssh_key_name,
-                                                     placement=self.env.availability_zone,
-                                                     user_data=self.user_data( ) )
+
+        kwargs = dict( instance_type=instance_type,
+                       key_name=ssh_key_name,
+                       placement=self.env.availability_zone )
+        self._populate_instance_creation_args( kwargs )
+        reservation = self.connection.run_instances( image_id, **kwargs )
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
-
-        self._post_instance_creation( instance )
-
+        self.is_new_instance = True
+        self._on_instance_created( instance )
         self.__wait_ready( instance, { 'pending' } )
 
-    def _post_instance_creation(self, instance):
+    def _on_instance_created(self, instance):
+        """
+        Invoked right after an instance was created.
+
+        :type instance: boto.ec2.instance.Instance
+        """
         self._log( 'tagging instance, ...', newline=False )
         instance.add_tag( 'Name', self.absolute_role( ) )
+
+    def _on_instance_ready(self):
+        """
+        Invoked during creation or adoption, right after the instance became ready.
+        """
+        pass
 
     def adopt(self, ordinal=None, wait_ready=True):
         """
@@ -151,6 +167,7 @@ class Box( object ):
             self._log( 'Adopting instance, ... ', newline=False )
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
+            self.is_new_instance = False
             if wait_ready:
                 self.__wait_ready( instance, from_states={ 'pending' } )
             else:
@@ -381,6 +398,7 @@ class Box( object ):
         self._log( "SSH port open, ... ", newline=False )
         self.__wait_ssh_working( )
         self._log( "SSH working, done." )
+        self._on_instance_ready()
 
     def __wait_hostname_assigned(self, instance):
         """
@@ -567,5 +585,4 @@ class Box( object ):
                 prepend_shell_script( '\n' + script, in_file, out_file )
             out_file.seek( 0 )
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
-
 

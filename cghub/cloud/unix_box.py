@@ -1,7 +1,10 @@
 from cghub.cloud.box import Box
 
 
-class UnixBox( Box ):
+class PackageManagerBox( Box ):
+    """
+    A box that uses a package manager like apt-get or yum.
+    """
     def _sync_package_repos(self):
         """
         Update the cached package descriptions from remote package repositories,

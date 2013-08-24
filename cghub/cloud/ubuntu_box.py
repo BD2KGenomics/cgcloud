@@ -5,7 +5,8 @@ import urllib2
 from fabric.operations import sudo, run
 import yaml
 from box import fabric_task
-from cghub.cloud.unix_box import UnixBox
+from cghub.cloud.cloud_init_box import CloudInitBox
+from cghub.cloud.unix_box import PackageManagerBox
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 
@@ -15,7 +16,7 @@ class TemplateDict( dict ):
         return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
 
-class UbuntuBox( UnixBox ):
+class UbuntuBox( PackageManagerBox, CloudInitBox ):
     """
     A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """
@@ -67,45 +68,6 @@ class UbuntuBox( UnixBox ):
             self._image_id = base_image[ 'ami_id' ]
         return self._image_id
 
-    def setup(self, upgrade_installed_packages=False):
-        self.__wait_for_cloud_init_completion( )
-        super( UbuntuBox, self ).setup( upgrade_installed_packages )
-
-    def user_data(self):
-        user_data = { }
-        self._populate_cloud_config( user_data )
-        if user_data:
-            return '#cloud-config\n' + yaml.dump( user_data )
-        else:
-            return None
-
-    def _populate_cloud_config(self, user_data):
-        # see __wait_for_cloud_init_completion()
-        #
-        user_data.setdefault( 'runcmd', [] ).append( [ 'touch', '/tmp/cloud-init.done' ] )
-
-        # Lucid's and Oneiric's cloud-init mount ephemeral storage on /mnt instead of
-        # /mnt/ephemeral. To keep it consistent across releases we should be explicit.
-        #
-        user_data.setdefault( 'mounts', [ ] ).append(
-            [ 'ephemeral0', '/mnt/ephemeral', 'auto', 'defaults,nobootwait' ] )
-
-
-    @fabric_task
-    def __wait_for_cloud_init_completion(self):
-        """
-        Wait for Ubuntu's cloud-init to finish its job such as to avoid getting in its way.
-        Without this, I've seen weird errors with 'apt-get install' not being able to find any
-        packages.
-        """
-        # /var/lib/cloud/instance/boot-finished isn't being written all releases, e.g. Lucid. Must
-        # use our own file create by a runcmd, see user_data()
-        run( 'echo -n "Waiting for cloud-init to finish ..." ; '
-             'while [ ! -e /tmp/cloud-init.done ]; do '
-             'echo -n "."; '
-             'sleep 1; '
-             'done; '
-             'echo ", done."' )
 
     apt_get = 'DEBIAN_FRONTEND=readline apt-get -q -y'
 

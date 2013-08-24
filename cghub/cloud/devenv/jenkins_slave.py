@@ -17,6 +17,16 @@ class JenkinsSlave( SourceControlClient ):
         self.__setup_build_user( )
 
     @fabric_task
+    def _get_rc_local_path(self):
+        """
+        Return the canonical path to /etc/rc.local or an equivalent shell script that gets
+        executed during boot up. The last component in the path must not be be a symlink,
+        other components may be.
+        """
+        # might be a symlink but prepend_remote_shell_script doesn't work with symlinks
+        return sudo( 'readlink -f /etc/rc.local' )
+
+    @fabric_task
     def __setup_build_user(self):
         """
         Setup a user account that accepts SSH connections from Jenkins such that it can act as a
@@ -49,9 +59,7 @@ class JenkinsSlave( SourceControlClient ):
             # chown ephemeral storage now ...
             sudo( chown_cmd )
             # ... and every time instance boots
-            rc_local_path = sudo( 'readlink -f /etc/rc.local' ) # might be a symlink but
-            # prepend_remote_shell_script
-            # doesn't work with symlinks
+            rc_local_path = self._get_rc_local_path( )
             self._prepend_remote_shell_script( script=chown_cmd,
                                                remote_path=rc_local_path,
                                                use_sudo=True,

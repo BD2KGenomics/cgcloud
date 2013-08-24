@@ -1,11 +1,14 @@
 from fabric.operations import sudo
 from cghub.cloud.box import fabric_task
-from cghub.cloud.unix_box import UnixBox
+from cghub.cloud.unix_box import PackageManagerBox
 
 __author__ = 'hannes'
 
 
-class YumBox(UnixBox):
+class YumBox(PackageManagerBox):
+    """
+    A box that uses redhat's yum package manager
+    """
     def _sync_package_repos(self):
         return False
 

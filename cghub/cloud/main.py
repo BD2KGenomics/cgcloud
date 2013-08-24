@@ -5,7 +5,7 @@ import sys
 from operator import itemgetter
 
 import boto
-from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, Ubuntu12GenetorrentJenkinsSlave, Ubuntu10GenetorrentJenkinsSlave, Ubuntu13GenetorrentJenkinsSlave, Ubuntu11GenetorrentJenkinsSlave
+from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, Ubuntu12GenetorrentJenkinsSlave, Ubuntu10GenetorrentJenkinsSlave, Ubuntu13GenetorrentJenkinsSlave, Ubuntu11GenetorrentJenkinsSlave, Fedora19GenetorrentJenkinsSlave, Fedora18GenetorrentJenkinsSlave, Fedora17GenetorrentJenkinsSlave
 from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericMaverickBox, GenericLucidBox, GenericOneiricBox, GenericNattyBox, GenericQuantalBox, GenericPreciseBox, GenericRaringBox, GenericSaucyBox, GenericFedora17Box, GenericFedora18Box, GenericFedora19Box
 
 from devenv.jenkins_master import JenkinsMaster
@@ -38,6 +38,9 @@ BOXES = OrderedDict( ( cls.role( ), cls) for cls in [
     Ubuntu13GenetorrentJenkinsSlave,
     Centos5GenetorrentJenkinsSlave,
     Centos6GenetorrentJenkinsSlave,
+    Fedora17GenetorrentJenkinsSlave,
+    Fedora18GenetorrentJenkinsSlave,
+    Fedora19GenetorrentJenkinsSlave,
 ] )
 
 
