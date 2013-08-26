@@ -51,6 +51,7 @@ class PackageManagerBox( Box ):
         pass
 
     def setup(self, upgrade_installed_packages=False):
+        self._setup_package_repos()
         self._sync_package_repos( )
         self._pre_install_packages( )
         packages = self._list_packages_to_install( )

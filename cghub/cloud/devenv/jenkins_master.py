@@ -85,7 +85,6 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         super( JenkinsMaster, self ).create( *args, **kwargs )
         self.attach_volume( self.volume, Jenkins.data_device_ext )
 
-
     @fabric_task
     def _setup_package_repos(self):
         #
