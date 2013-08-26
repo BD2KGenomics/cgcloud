@@ -110,15 +110,19 @@ class Box( object ):
         pass
 
 
-    def create(self, ssh_key_name, instance_type=None):
+    def create(self, ec2_keypair_names, instance_type=None):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
         :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
+
         :type instance_type: string
 
-        :param ssh_key_name: The name of the SSH public key to inject into the instance
-        :type ssh_key_name: string
+        :param ec2_keypair_names: The names of EC2 keypairs whose public key is to be to injected
+         into the instance to facilitate SSH logins. For the first listed keypair a matching
+         private key needs to be present locally.
+
+        :type ec2_keypair_names: string
         """
         if self.instance_id is not None:
             raise RuntimeError( "Instance already adopted or created" )
@@ -130,13 +134,14 @@ class Box( object ):
                    newline=False )
 
         kwargs = dict( instance_type=instance_type,
-                       key_name=ssh_key_name,
+                       key_name=ec2_keypair_names[ 0 ],
                        placement=self.env.availability_zone )
         self._populate_instance_creation_args( kwargs )
         reservation = self.connection.run_instances( image_id, **kwargs )
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
         self.is_new_instance = True
+        self.ec2_keypair_names = ec2_keypair_names
         self._on_instance_created( instance )
         self.__wait_ready( instance, { 'pending' } )
 
@@ -153,7 +158,9 @@ class Box( object ):
         """
         Invoked during creation or adoption, right after the instance became ready.
         """
-        pass
+        if self.is_new_instance:
+            self.__inject_ssh_pubkeys( self.ec2_keypair_names[ 1: ] )
+
 
     def adopt(self, ordinal=None, wait_ready=True):
         """
@@ -398,7 +405,7 @@ class Box( object ):
         self._log( "SSH port open, ... ", newline=False )
         self.__wait_ssh_working( )
         self._log( "SSH working, done." )
-        self._on_instance_ready()
+        self._on_instance_ready( )
 
     def __wait_hostname_assigned(self, instance):
         """
@@ -527,6 +534,21 @@ class Box( object ):
 
     def absolute_role(self):
         return self.env.absolute_name( self.role( ) )
+
+    @fabric_task
+    def __inject_ssh_pubkeys(self, ec2_keypair_names):
+        with closing( StringIO( ) ) as authorized_keys:
+            get( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
+            authorized_keys.seek( 0 )
+            ssh_pubkeys = set( l.strip( ) for l in authorized_keys.readlines( ) )
+            for ec2_keypair_name in ec2_keypair_names:
+                ssh_pubkey = self.env.download_ssh_pubkey( ec2_keypair_name )
+                ssh_pubkeys.add( ssh_pubkey.strip( ) )
+            authorized_keys.seek( 0 )
+            authorized_keys.truncate( )
+            authorized_keys.write( '\n'.join( ssh_pubkeys ) )
+            put( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
+
 
     @fabric_task
     def _propagate_authorized_keys(self, user, group=None):

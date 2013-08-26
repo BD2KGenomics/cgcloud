@@ -47,9 +47,9 @@ class CloudInitBox( Box ):
             kwargs[ 'user_data' ] = user_data
 
     def _on_instance_ready(self):
+        super( CloudInitBox, self )._on_instance_ready( )
         if self.is_new_instance:
             self.__wait_for_cloud_init_completion( );
-        super( CloudInitBox, self )._on_instance_ready( )
 
     @fabric_task
     def __wait_for_cloud_init_completion(self):

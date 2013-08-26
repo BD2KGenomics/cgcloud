@@ -1,13 +1,20 @@
 # Not doing this as a dict or namedtuple such that I can document each required attribute
 import os
 import re
+from boto import ec2, s3
+from boto.exception import S3ResponseError
+from boto.s3.bucket import Bucket
+from boto.s3.connection import S3Connection
+from boto.s3.key import Key
 from cghub.cloud import config_file_path
+from cghub.cloud.util import ec2_keypair_fingerprint
 
 
 class Environment:
     """
     Encapsulates all EC2-specific settings used by components in this project
     """
+    s3_bucket_name = 'cghub-cloud-utils.cghub.ucsc.edu'
 
     availability_zone_re = re.compile( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$' )
 
@@ -191,3 +198,99 @@ class Environment:
             path_components[ 0:0 ] = [ '_namespaces' ]
         file_path = config_file_path( path_components, mkdir=mkdir )
         return file_path
+
+
+    def ssh_pubkey_s3_key(self, fingerprint):
+        return 'ssh_pubkey:%s' % fingerprint
+
+    def upload_ssh_pubkey(self, ec2_keypair_name, ssh_pubkey, force=False):
+        """
+        Import the given OpenSSH public key  as a 'key pair' into EC2. The term 'key pair' is
+        misleading since imported 'key pairs' are really just public keys. For generated EC2 key
+        pairs Amazon also stores the private key, so the name makes more sense for those.
+
+        There is no way to get to the actual public key once it has been imported to EC2.
+        Openstack lets you do that and I don't see why Amazon decided to omit this functionality.
+        To work around this, we store the public key in S3, identified by the public key's
+        fingerprint. As long as we always check the fingerprint of the downloaded public SSH key
+        against that of the EC2 keypair key, this method is resilient against malicious
+        modifications of the keys stored in S3.
+
+        :param ec2_keypair_name: the desired name of the EC2 key pair
+
+        :param ssh_pubkey: the SSH public key in OpenSSH's native format, i.e. format that is used in ~/
+        .ssh/authorized_keys
+
+        :param force: overwrite existing EC2 keypair of the given name
+        """
+        ec2_conn = ec2.connect_to_region( self.region )
+        try:
+            s3_conn = s3.connect_to_region( self.region )
+            try:
+                fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
+                ec2_keypair = ec2_conn.get_key_pair( ec2_keypair_name )
+                if ec2_keypair is not None:
+                    if ec2_keypair.name != ec2_keypair_name:
+                        raise AssertionError( "Key pair names don't match." )
+                    if ec2_keypair.fingerprint != fingerprint:
+                        if force:
+                            ec2_conn.delete_key_pair( ec2_keypair_name )
+                            ec2_keypair = None
+                        else:
+                            raise RuntimeError(
+                                "Key pair %s already exists in EC2, but its fingerprint %s is "
+                                "different from the fingerprint %s of the key to be imported. Use "
+                                "the force option to overwrite the existing key pair." %
+                                ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
+
+                bucket = s3_conn.lookup( self.s3_bucket_name )
+                if bucket is None:
+                    bucket = s3_conn.create_bucket( self.s3_bucket_name,
+                                                    location=self.region )
+                s3_entry = Key( bucket )
+                s3_entry.key = self.ssh_pubkey_s3_key( fingerprint )
+                s3_entry.set_contents_from_string( ssh_pubkey )
+
+                if ec2_keypair is None:
+                    ec2_keypair = ec2_conn.import_key_pair( ec2_keypair_name, ssh_pubkey )
+                assert ec2_keypair.fingerprint == fingerprint
+                return ec2_keypair
+            finally:
+                s3_conn.close( )
+        finally:
+            ec2_conn.close( )
+
+    def download_ssh_pubkey(self, ec2_keypair_name):
+        ec2_conn = ec2.connect_to_region( self.region )
+        try:
+            s3_conn = s3.connect_to_region( self.region )
+            try:
+                keypair = ec2_conn.get_key_pair( ec2_keypair_name )
+                if keypair is None:
+                    raise RuntimeError( "No such EC2 key pair: %s" % ec2_keypair_name )
+                if keypair.name != ec2_keypair_name:
+                    raise AssertionError( "Key pair names don't match." )
+                try:
+                    bucket = s3_conn.get_bucket( self.s3_bucket_name )
+                    s3_entry = Key( bucket )
+                    s3_entry.key = self.ssh_pubkey_s3_key( keypair.fingerprint )
+                    ssh_pubkey = s3_entry.get_contents_as_string( )
+                except S3ResponseError as e:
+                    if e.status == 404:
+                        raise RuntimeError(
+                            "There is no matching SSH pub key stored in S3 for EC2 key pair %s" %
+                            ec2_keypair_name )
+                    else:
+                        raise
+                fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
+                if keypair.fingerprint != fingerprint:
+                    raise RuntimeError(
+                        "Fingerprint mismatch for key %s! Expected %s but got %s. The EC2 keypair "
+                        "doesn't match the public key stored in S3." %
+                        ( keypair.name, keypair.fingerprint, fingerprint ) )
+                else:
+                    return ssh_pubkey
+            finally:
+                s3_conn.close( )
+        finally:
+            ec2_conn.close( )

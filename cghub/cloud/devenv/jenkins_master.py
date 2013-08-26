@@ -4,6 +4,7 @@ from fabric.operations import run, sudo, put, get
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.source_control_client import SourceControlClient
 from cghub.cloud.ubuntu_box import UbuntuBox
+from cghub.cloud.util import ec2_keypair_fingerprint
 
 
 class Jenkins:
@@ -179,10 +180,10 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
     def _post_install_packages(self):
         self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
         ec2_key_pair_name = '{user}@{host}'.format( user=Jenkins.user, host=self.absolute_role( ) )
-        ec2_key_pair = self.connection.get_key_pair( ec2_key_pair_name )
-        if ec2_key_pair is None:
-            ec2_key_pair = self.connection.create_key_pair( ec2_key_pair_name )
-            if not ec2_key_pair.material:
+        ec2_keypair = self.connection.get_key_pair( ec2_key_pair_name )
+        if ec2_keypair is None:
+            ec2_keypair = self.connection.create_key_pair( ec2_key_pair_name )
+            if not ec2_keypair.material:
                 raise RuntimeError( "Created key pair but didn't get back private key" )
         key_file_exists = sudo( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
         #
@@ -190,16 +191,16 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         # directory the so we can inject it into the slave boxes. Note that this will prompt
         # the user for a passphrase.
         #
-        if ec2_key_pair.material:
+        if ec2_keypair.material:
             if key_file_exists:
                 # TODO: make this more prominent, e.g. by displaying all warnings at the end
                 self._log( 'Warning: Overwriting private key with new one from EC2.' )
 
             # upload private key
-            put( local_path=StringIO( ec2_key_pair.material ),
+            put( local_path=StringIO( ec2_keypair.material ),
                  remote_path=Jenkins.key_path,
                  use_sudo=True )
-            assert ec2_key_pair.fingerprint == self.__key_file_fingerprint( )
+            assert ec2_keypair.fingerprint == ec2_keypair_fingerprint( ec2_keypair.material )
             sudo( 'chown {user}:{group} {key_path}'.format( **jenkins ) )
             # so get_keys can download the keys
             sudo( 'chmod go+rx {key_dir_path}'.format( **jenkins ),
@@ -211,35 +212,33 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                   user=Jenkins.user )
         else:
             if key_file_exists:
-                fingerprint = self.__key_file_fingerprint( )
-                if ec2_key_pair.fingerprint != fingerprint:
+                ssh_privkey = StringIO( )
+                try:
+                    get( local_path=ssh_privkey, remote_path=Jenkins.key_path, use_sudo=True )
+                    fingerprint = ec2_keypair_fingerprint( ssh_privkey.getvalue() )
+                finally:
+                    ssh_privkey.close()
+                    ssh_privkey = None
+                if ec2_keypair.fingerprint != fingerprint:
                     raise RuntimeError(
-                        "The fingerprint {ec2_key_pair.fingerprint} of key pair {ec2_key_pair.name} "
+                        "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} "
                         "doesn't match the fingerprint {fingerprint} of the private key file "
                         "currently present on the instance. "
                         "Please delete the key pair from EC2 before retrying."
-                        .format( key_pair=ec2_key_pair, fingerprint=fingerprint ) )
+                        .format( key_pair=ec2_keypair, fingerprint=fingerprint ) )
             else:
                 raise RuntimeError(
-                    "The key pair {ec2_key_pair.name} is registered in EC2 but the corresponding "
+                    "The key pair {ec2_keypair.name} is registered in EC2 but the corresponding "
                     "private key file {key_path} does not exist on the instance. In order to "
                     "create the private key file, the key pair must be created at the same time. "
                     "Please delete the key pair from EC2 before retrying."
-                    .format( key_pair=ec2_key_pair, **jenkins ) )
+                    .format( key_pair=ec2_keypair, **jenkins ) )
 
         #
         # Store a copy of the public key locally
         #
         self.__get_jenkins_key( )
         self.setup_repo_host_keys( user=Jenkins.user )
-
-    @fabric_task
-    def __key_file_fingerprint(self):
-        fingerprint = sudo( "openssl pkcs8 -in {key_path} -nocrypt -topk8 -outform DER"
-                            "| openssl sha1 -c"
-                            "| sed -r 's/[^=]+= *//'".format( **jenkins ),
-                            user=Jenkins.user )
-        return fingerprint
 
     def get_keys(self):
         super( JenkinsMaster, self ).get_keys( )

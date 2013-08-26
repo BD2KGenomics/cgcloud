@@ -5,5 +5,5 @@ setup(
     version="0.1",
     packages=find_packages( ),
     scripts=[ 'cgcloud' ],
-    install_requires=[ 'boto', 'Fabric', 'PyYAML'],
+    install_requires=[ 'boto', 'Fabric', 'PyYAML', 'Crypto'],
 )

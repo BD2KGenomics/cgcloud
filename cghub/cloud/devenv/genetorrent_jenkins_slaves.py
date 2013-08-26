@@ -117,6 +117,10 @@ class Ubuntu13GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericRar
 
 
 class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora
+    """
+
     def _list_packages_to_install(self):
         packages = super( FedoraGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         return packages + [

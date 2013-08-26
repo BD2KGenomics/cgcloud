@@ -70,11 +70,11 @@ class CentosBox(YumBox ):
         return self._image_id
 
     def _on_instance_ready(self):
+        super( CentosBox, self )._on_instance_ready( )
         if self.is_new_instance and self.username( ) == 'root':
             self.__create_admin()
             self._set_username( ADMIN_USER )
             self.__setup_admin()
-        super( CentosBox, self )._on_instance_ready( )
 
     @fabric_task
     def __create_admin(self):
