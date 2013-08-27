@@ -39,7 +39,7 @@ class JenkinsSlave( SourceControlClient ):
 
         # Create the build user
         #
-        sudo( 'useradd -m -s /bin/bash -g users {0}'.format( BUILD_USER ) )
+        sudo( 'useradd -m -s /bin/bash {0}'.format( BUILD_USER ) )
         self._propagate_authorized_keys( BUILD_USER )
 
         # Ensure that jenkins@build-master can log into this box as the build user
