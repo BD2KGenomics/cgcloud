@@ -42,10 +42,11 @@ def fabric_task(function):
         else:
             wrapped = True
             try:
-                return box._execute( partial( function, box, *args, **kwargs ) )
+                task = partial( function, box, *args, **kwargs )
+                task.name = function.__name__
+                return box._execute( task )
             finally:
                 wrapped = False
-
     return wrapper
 
 
