@@ -3,7 +3,7 @@ from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox
 from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
 from cghub.cloud.fedora_box import FedoraBox
-from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericLucidBox, GenericPreciseBox, GenericRaringBox, GenericFedora19Box, GenericFedora18Box, GenericFedora17Box, GenericNattyBox
+from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericLucidBox, GenericPreciseBox, GenericRaringBox, GenericOneiricBox, GenericFedora19Box, GenericFedora18Box, GenericFedora17Box
 from cghub.cloud.ubuntu_box import UbuntuBox
 
 
@@ -92,9 +92,12 @@ class Ubuntu10GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericLuc
         )
 
 
-class Ubuntu11GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericNattyBox ):
+class Ubuntu11GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericOneiricBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 11.04
+    A Jenkins slave for building GeneTorrent on Ubuntu 11.10
+
+    I'd rather use Natty as it is the LTS release but historically our Ubuntu 11 package had been
+    for 11.10, aka Oneiric.
     """
     pass
 
