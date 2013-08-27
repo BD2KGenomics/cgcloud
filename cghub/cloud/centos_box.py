@@ -82,7 +82,7 @@ class CentosBox(YumBox ):
         run( r"sed -i -r 's!^(/usr/bin/)?clear!# \0!' /etc/skel/.bash_logout ~/.bash_logout" )
         # Imitate the security model of Canonical's Ubuntu AMIs: Create an admin user that can sudo
         # without password and disable root logins via console and ssh.
-        run( 'useradd -m {0}'.format( ADMIN_USER ) )
+        run( 'useradd -m -s /bin/bash {0}'.format( ADMIN_USER ) )
         self._propagate_authorized_keys( ADMIN_USER )
         run( 'rm ~/.ssh/authorized_keys' )
         run( 'echo "{0}  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers'.format( ADMIN_USER ) )
