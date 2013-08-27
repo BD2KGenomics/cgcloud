@@ -5,8 +5,8 @@ import sys
 from operator import itemgetter
 
 import boto
-from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, Ubuntu12GenetorrentJenkinsSlave, Ubuntu10GenetorrentJenkinsSlave, Ubuntu13GenetorrentJenkinsSlave, Ubuntu11GenetorrentJenkinsSlave, Fedora19GenetorrentJenkinsSlave, Fedora18GenetorrentJenkinsSlave, Fedora17GenetorrentJenkinsSlave
-from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericMaverickBox, GenericLucidBox, GenericOneiricBox, GenericNattyBox, GenericQuantalBox, GenericPreciseBox, GenericRaringBox, GenericSaucyBox, GenericFedora17Box, GenericFedora18Box, GenericFedora19Box
+from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, UbuntuPreciseGenetorrentJenkinsSlave, UbuntuLucidGenetorrentJenkinsSlave, UbuntuRaringGenetorrentJenkinsSlave, UbuntuOneiricGenetorrentJenkinsSlave, Fedora19GenetorrentJenkinsSlave, Fedora18GenetorrentJenkinsSlave, Fedora17GenetorrentJenkinsSlave
+from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericUbuntuMaverickBox, GenericUbuntuLucidBox, GenericUbuntuOneiricBox, GenericUbuntuNattyBox, GenericUbuntuQuantalBox, GenericUbuntuPreciseBox, GenericUbuntuRaringBox, GenericUbuntuSaucyBox, GenericFedora17Box, GenericFedora18Box, GenericFedora19Box
 
 from devenv.jenkins_master import JenkinsMaster
 
@@ -20,22 +20,22 @@ DEBUG_LOG_FILE_NAME = 'cgcloud.log'
 BOXES = OrderedDict( ( cls.role( ), cls) for cls in [
     GenericCentos6Box,
     GenericCentos5Box,
-    GenericLucidBox,
-    GenericMaverickBox,
-    GenericNattyBox,
-    GenericOneiricBox,
-    GenericPreciseBox,
-    GenericQuantalBox,
-    GenericRaringBox,
-    GenericSaucyBox,
+    GenericUbuntuLucidBox,
+    GenericUbuntuMaverickBox,
+    GenericUbuntuNattyBox,
+    GenericUbuntuOneiricBox,
+    GenericUbuntuPreciseBox,
+    GenericUbuntuQuantalBox,
+    GenericUbuntuRaringBox,
+    GenericUbuntuSaucyBox,
     GenericFedora17Box,
     GenericFedora18Box,
     GenericFedora19Box,
     JenkinsMaster,
-    Ubuntu10GenetorrentJenkinsSlave,
-    Ubuntu11GenetorrentJenkinsSlave,
-    Ubuntu12GenetorrentJenkinsSlave,
-    Ubuntu13GenetorrentJenkinsSlave,
+    UbuntuLucidGenetorrentJenkinsSlave,
+    UbuntuOneiricGenetorrentJenkinsSlave,
+    UbuntuPreciseGenetorrentJenkinsSlave,
+    UbuntuRaringGenetorrentJenkinsSlave,
     Centos5GenetorrentJenkinsSlave,
     Centos6GenetorrentJenkinsSlave,
     Fedora17GenetorrentJenkinsSlave,

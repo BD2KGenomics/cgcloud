@@ -3,7 +3,7 @@ from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox
 from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
 from cghub.cloud.fedora_box import FedoraBox
-from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericLucidBox, GenericPreciseBox, GenericRaringBox, GenericOneiricBox, GenericFedora19Box, GenericFedora18Box, GenericFedora17Box
+from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericUbuntuLucidBox, GenericUbuntuPreciseBox, GenericUbuntuRaringBox, GenericUbuntuOneiricBox, GenericFedora19Box, GenericFedora18Box, GenericFedora17Box
 from cghub.cloud.ubuntu_box import UbuntuBox
 
 
@@ -71,19 +71,19 @@ class UbuntuGenetorrentJenkinsSlave( UbuntuBox, GenetorrentJenkinsSlave ):
             'python-support' ]
 
 
-class Ubuntu10GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericLucidBox ):
+class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuLucidBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 10.04
+    A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
     """
 
     def _list_packages_to_install(self):
-        packages = super( Ubuntu10GenetorrentJenkinsSlave, self )._list_packages_to_install( )
+        packages = super( UbuntuLucidGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         # Lucid doesn't have git, but git-core which was obsoleted in
         # favor of git on newer releases
         return [ 'git-core' if p == 'git' else p for p in packages ]
 
     def _pre_install_packages(self):
-        super( Ubuntu10GenetorrentJenkinsSlave, self )._pre_install_packages( )
+        super( UbuntuLucidGenetorrentJenkinsSlave, self )._pre_install_packages( )
         # On Lucid, somehow postfix gets pulled in as a dependency kicking the frontend into
         # interactive mode.
         self._debconf_set_selection(
@@ -92,26 +92,23 @@ class Ubuntu10GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericLuc
         )
 
 
-class Ubuntu11GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericOneiricBox ):
+class UbuntuOneiricGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuOneiricBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 11.10
-
-    I'd rather use Natty as it is the LTS release but historically our Ubuntu 11 package had been
-    for 11.10, aka Oneiric.
+    A Jenkins slave for building GeneTorrent on Ubuntu 11.10 (EOL May 2013)
     """
     pass
 
 
-class Ubuntu12GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericPreciseBox ):
+class UbuntuPreciseGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuPreciseBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 12.04
+    A Jenkins slave for building GeneTorrent on Ubuntu 12.04 LTS (EOL April 2017)
     """
     pass
 
 
-class Ubuntu13GenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericRaringBox ):
+class UbuntuRaringGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuRaringBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 13.04
+    A Jenkins slave for building GeneTorrent on Ubuntu 13.04 (EOL January 2014)
     """
     pass
 

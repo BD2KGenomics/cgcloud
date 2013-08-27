@@ -37,9 +37,9 @@ class GenericCentos6Box( CentosBox ):
         return '6.4'
 
 
-class GenericLucidBox( UbuntuBox ):
+class GenericUbuntuLucidBox( UbuntuBox ):
     """
-    10.04
+    10.04 LTS
     """
 
     def release(self):
@@ -55,12 +55,12 @@ class GenericLucidBox( UbuntuBox ):
         run( 'rm sudo_1.8.7-1_amd64.deb' )
 
     def _on_instance_ready(self):
-        super( GenericLucidBox, self )._on_instance_ready( )
+        super( GenericUbuntuLucidBox, self )._on_instance_ready( )
         if self.is_new_instance:
             self.__update_sudo( )
 
 
-class GenericMaverickBox( UbuntuBox ):
+class GenericUbuntuMaverickBox( UbuntuBox ):
     """
     10.10
     """
@@ -69,7 +69,7 @@ class GenericMaverickBox( UbuntuBox ):
         return 'maverick'
 
 
-class GenericNattyBox( UbuntuBox ):
+class GenericUbuntuNattyBox( UbuntuBox ):
     """
     11.04
     """
@@ -78,7 +78,7 @@ class GenericNattyBox( UbuntuBox ):
         return 'natty'
 
 
-class GenericOneiricBox( UbuntuBox ):
+class GenericUbuntuOneiricBox( UbuntuBox ):
     """
     11.10
     """
@@ -87,16 +87,16 @@ class GenericOneiricBox( UbuntuBox ):
         return 'oneiric'
 
 
-class GenericPreciseBox( UbuntuBox ):
+class GenericUbuntuPreciseBox( UbuntuBox ):
     """
-    12.04
+    12.04 LTS
     """
 
     def release(self):
         return 'precise'
 
 
-class GenericQuantalBox( UbuntuBox ):
+class GenericUbuntuQuantalBox( UbuntuBox ):
     """
     12.10
     """
@@ -105,7 +105,7 @@ class GenericQuantalBox( UbuntuBox ):
         return 'quantal'
 
 
-class GenericRaringBox( UbuntuBox ):
+class GenericUbuntuRaringBox( UbuntuBox ):
     """
     13.04
     """
@@ -114,7 +114,7 @@ class GenericRaringBox( UbuntuBox ):
         return 'raring'
 
 
-class GenericSaucyBox( UbuntuBox ):
+class GenericUbuntuSaucyBox( UbuntuBox ):
     """
     13.10
     """
