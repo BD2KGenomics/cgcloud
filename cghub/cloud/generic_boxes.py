@@ -26,78 +26,112 @@ class GenericCentos5Box( CentosBox ):
         sudo( 'yum -d 1 -y localupdate sudo-1.8.7-1.el5.x86_64.rpm --nogpgcheck' )
         run( 'rm sudo-1.8.7-1.el5.x86_64.rpm' )
 
-    def _sync_package_repos(self):
-        self.__update_sudo( )
-        return super( GenericCentos5Box, self )._sync_package_repos( )
+    def _on_instance_ready(self):
+        super( GenericCentos5Box, self )._on_instance_ready( )
+        if self.is_new_instance:
+            self.__update_sudo( )
 
 
 class GenericCentos6Box( CentosBox ):
     def release(self):
         return '6.4'
 
+
 class GenericLucidBox( UbuntuBox ):
     """
     10.04
     """
+
     def release(self):
         return 'lucid'
+
+    @fabric_task
+    def __update_sudo(self):
+        """
+        See GenericCentos5Box
+        """
+        run( 'wget ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.7-1_amd64.deb' )
+        sudo( 'sudo dpkg --force-confold -i sudo_1.8.7-1_amd64.deb' )
+        run( 'rm sudo_1.8.7-1_amd64.deb' )
+
+    def _on_instance_ready(self):
+        super( GenericLucidBox, self )._on_instance_ready( )
+        if self.is_new_instance:
+            self.__update_sudo( )
+
 
 class GenericMaverickBox( UbuntuBox ):
     """
     10.10
     """
+
     def release(self):
         return 'maverick'
+
 
 class GenericNattyBox( UbuntuBox ):
     """
     11.04
     """
+
     def release(self):
         return 'natty'
+
 
 class GenericOneiricBox( UbuntuBox ):
     """
     11.10
     """
+
     def release(self):
         return 'oneiric'
+
 
 class GenericPreciseBox( UbuntuBox ):
     """
     12.04
     """
+
     def release(self):
         return 'precise'
+
 
 class GenericQuantalBox( UbuntuBox ):
     """
     12.10
     """
+
     def release(self):
         return 'quantal'
+
 
 class GenericRaringBox( UbuntuBox ):
     """
     13.04
     """
+
     def release(self):
         return 'raring'
+
 
 class GenericSaucyBox( UbuntuBox ):
     """
     13.10
     """
+
     def release(self):
         return 'saucy'
+
 
 class GenericFedora17Box( FedoraBox ):
     def release(self):
         return 17
 
+
 class GenericFedora18Box( FedoraBox ):
     def release(self):
         return 18
+
 
 class GenericFedora19Box( FedoraBox ):
     def release(self):
