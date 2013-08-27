@@ -252,5 +252,5 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         args = super( JenkinsMaster, self )._ssh_args( user )
 
         # Add port forwarding to Jenkins' web UI
-        args[ 1:1 ] = [ '-L localhost:8080:localhost:8080' ]
+        args[ 1:1 ] = [ '-L', 'localhost:8080:localhost:8080' ]
         return args
