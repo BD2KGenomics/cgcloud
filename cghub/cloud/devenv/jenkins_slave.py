@@ -34,6 +34,7 @@ class JenkinsSlave( SourceControlClient ):
         """
         kwargs = dict(
             user=BUILD_USER,
+            ephemeral=self._ephemeral_mount_point(),
             key=self._read_config_file( Jenkins.pubkey_config_file,
                                         role=JenkinsMaster.role( ) ).strip( ) )
 
@@ -54,8 +55,9 @@ class JenkinsSlave( SourceControlClient ):
         # the ephemeral volume if available. Remember, the ephemeral volume comes back empty every
         # time the box starts.
         #
-        if sudo( 'test -d /mnt/ephemeral && mountpoint -q /mnt/ephemeral', quiet=True ).succeeded:
-            chown_cmd = "chown -R {user}:{user} /mnt/ephemeral".format( **kwargs )
+        if sudo( 'test -d {ephemeral} && mountpoint -q {ephemeral}'.format( **kwargs ),
+                 quiet=True ).succeeded:
+            chown_cmd = "chown -R {user}:{user} {ephemeral}".format( **kwargs )
             # chown ephemeral storage now ...
             sudo( chown_cmd )
             # ... and every time instance boots
@@ -66,7 +68,7 @@ class JenkinsSlave( SourceControlClient ):
                                                mirror_local_mode=True )
             sudo( 'chmod +x %s' % rc_local_path )
             # link ephemeral to ~/builds
-            sudo( 'ln -snf /mnt/ephemeral ~/builds', user=BUILD_USER, sudo_args='-i' )
+            sudo( 'ln -snf {ephemeral} ~/builds'.format(**kwargs), user=BUILD_USER, sudo_args='-i' )
         else:
             # No ephemeral storage, just create the ~/builds directory
             sudo( 'mkdir ~/builds', user=BUILD_USER, sudo_args='-i' )

@@ -11,6 +11,9 @@ class CloudInitBox( Box ):
     A box that uses Canonical's cloud-init to initialize the EC2 instance.
     """
 
+    def _ephemeral_mount_point(self):
+        return '/mnt/ephemeral'
+
     def _populate_cloud_config(self, user_data):
         """
         Populate cloud-init's configuration for injection into a newly created instance
@@ -28,7 +31,7 @@ class CloudInitBox( Box ):
         # releases and platforms we should be explicit.
         #
         user_data.setdefault( 'mounts', [ ] ).append(
-            [ 'ephemeral0', '/mnt/ephemeral', 'auto', 'defaults,nofail' ] )
+            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,nofail' ] )
 
     def _populate_instance_creation_args(self, kwargs):
         super( CloudInitBox, self )._populate_instance_creation_args( kwargs )

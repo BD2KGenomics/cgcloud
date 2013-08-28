@@ -89,6 +89,13 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
+    def _ephemeral_mount_point(self):
+        """
+        Returns the absolute path to the directory at which the ephemeral volume is mounted. This
+        depends on the platform, and even on the author of the image.
+        """
+        raise NotImplementedError( )
+
     def __init__(self, env):
         """
         Initialize an instance of this class. Before calling any of the methods on this object,
@@ -534,7 +541,7 @@ class Box( object ):
         subprocess.call( self._ssh_args( user ) )
 
     def _ssh_args(self, user):
-        return [ 'ssh', '-l', user if user else self.username( ), self.host_name ]
+        return [ 'ssh', '-A', '-l', user if user else self.username( ), self.host_name ]
 
     def get_keys(self):
         """

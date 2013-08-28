@@ -69,6 +69,9 @@ class CentosBox(YumBox ):
             self._image_id = base_image.id
         return self._image_id
 
+    def _ephemeral_mount_point(self):
+        return "/mnt"
+
     def _on_instance_ready(self,is_new_instance):
         super( CentosBox, self )._on_instance_ready( is_new_instance )
         if is_new_instance and self.username( ) == 'root':
