@@ -378,7 +378,8 @@ class Box( object ):
 
     def __assert_state(self, expected_state):
         """
-        Raises an exception if the instance represented by this object is not in the given state.
+        Raises a UserError if the instance represented by this object is not in the given state.
+
         :param expected_state: the expected state
         :return: the instance
         :rtype: boto.ec2.instance.Instance
@@ -386,7 +387,7 @@ class Box( object ):
         instance = self.get_instance( )
         actual_state = instance.state
         if actual_state != expected_state:
-            raise AssertionError( "Expected instance state %s but got %s"
+            raise UserError( "Expected instance state '%s' but got '%s'"
                                   % (expected_state, actual_state) )
         return instance
 
