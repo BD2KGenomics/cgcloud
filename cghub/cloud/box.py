@@ -170,7 +170,7 @@ class Box( object ):
         its creation
         """
         if is_new_instance:
-            self.__inject_ssh_pubkeys( self.ec2_keypair_names[ 1: ] )
+            self.__inject_authorized_keys( self.ec2_keypair_names[ 1: ] )
 
     def adopt(self, ordinal=None, wait_ready=True):
         """
@@ -554,7 +554,7 @@ class Box( object ):
         return self.env.absolute_name( self.role( ) )
 
     @fabric_task
-    def __inject_ssh_pubkeys(self, ec2_keypair_names):
+    def __inject_authorized_keys(self, ec2_keypair_names):
         with closing( StringIO( ) ) as authorized_keys:
             get( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
             authorized_keys.seek( 0 )
@@ -565,6 +565,7 @@ class Box( object ):
             authorized_keys.seek( 0 )
             authorized_keys.truncate( )
             authorized_keys.write( '\n'.join( ssh_pubkeys ) )
+            authorized_keys.write( '\n' )
             put( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
 
 
