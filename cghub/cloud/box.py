@@ -447,7 +447,6 @@ class Box( object ):
         while True:
             client = SSHClient( )
             try:
-                client.load_system_host_keys( )
                 client.set_missing_host_key_policy( self.IgnorePolicy( ) )
                 client.connect( hostname=self.host_name,
                                 username=self.username( ),
