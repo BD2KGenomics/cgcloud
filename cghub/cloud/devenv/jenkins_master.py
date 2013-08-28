@@ -1,5 +1,6 @@
 from StringIO import StringIO
 from textwrap import dedent
+from fabric.context_managers import settings, hide
 from fabric.operations import run, sudo, put, get
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.source_control_client import SourceControlClient
@@ -187,8 +188,8 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         key_file_exists = sudo( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
         #
         # Create an SSH key pair in Jenkin's home and download the public key to local config
-        # directory the so we can inject it into the slave boxes. Note that this will prompt
-        # the user for a passphrase.
+        # directory so we can inject it into the slave boxes. Note that this will prompt the user
+        # for a passphrase.
         #
         if ec2_keypair.material:
             if key_file_exists:
@@ -211,12 +212,13 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                   user=Jenkins.user )
         else:
             if key_file_exists:
-                ssh_privkey = StringIO( )
                 try:
-                    get( local_path=ssh_privkey, remote_path=Jenkins.key_path, use_sudo=True )
-                    fingerprint = ec2_keypair_fingerprint( ssh_privkey.getvalue() )
+                    # Must use sudo('cat') since get() doesn't support use_sudo
+                    # See https://github.com/fabric/fabric/issues/700
+                    with settings( hide( 'stdout' ) ):
+                        ssh_privkey = sudo( "cat %s" % Jenkins.key_path, user=Jenkins.user )
+                    fingerprint = ec2_keypair_fingerprint( ssh_privkey )
                 finally:
-                    ssh_privkey.close()
                     ssh_privkey = None
                 if ec2_keypair.fingerprint != fingerprint:
                     raise UserError(
@@ -232,7 +234,6 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                     "create the private key file, the key pair must be created at the same time. "
                     "Please delete the key pair from EC2 before retrying."
                     .format( key_pair=ec2_keypair, **jenkins ) )
-
         #
         # Store a copy of the public key locally
         #
