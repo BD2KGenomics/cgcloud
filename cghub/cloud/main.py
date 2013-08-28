@@ -14,7 +14,7 @@ from util import Command, Application
 from environment import Environment
 
 
-DEBUG_LOG_FILE_NAME = 'cgcloud.log'
+DEBUG_LOG_FILE_NAME = 'cgcloud.{pid}.log'
 
 # After adding a new box class, add its name to the source list in the generator expression below
 BOXES = OrderedDict( ( cls.role( ), cls) for cls in [
@@ -73,7 +73,8 @@ class Cgcloud( Application ):
 
     def prepare(self, options):
         if options.debug:
-            logging.basicConfig( filename=DEBUG_LOG_FILE_NAME, level=logging.DEBUG )
+            logging.basicConfig( filename=DEBUG_LOG_FILE_NAME.format( pid=os.getpid( ) ),
+                                 level=logging.DEBUG )
 
 
 class EnvironmentCommand( Command ):
