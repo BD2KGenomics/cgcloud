@@ -9,7 +9,7 @@ import time
 import sys
 
 from fabric.operations import sudo, run, get, put
-from boto import ec2
+from boto import ec2, logging
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
@@ -444,6 +444,15 @@ class Box( object ):
             pass
 
     def __wait_ssh_working(self):
+        """
+        >>> def f():
+        ...     try:
+        ...         raise RuntimeError
+        ...     except e:
+        ...         logging.info(e)
+        >>> f()
+        :return:
+        """
         while True:
             client = SSHClient( )
             try:
@@ -467,7 +476,7 @@ class Box( object ):
             except KeyboardInterrupt:
                 raise
             except Exception as e:
-                self._log( str( e ) )
+                logging.info( e )
             finally:
                 client.close( )
             time.sleep( EC2_POLLING_INTERVAL )
