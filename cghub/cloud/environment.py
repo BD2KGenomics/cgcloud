@@ -3,11 +3,9 @@ import os
 import re
 from boto import ec2, s3
 from boto.exception import S3ResponseError
-from boto.s3.bucket import Bucket
-from boto.s3.connection import S3Connection
 from boto.s3.key import Key
 from cghub.cloud import config_file_path
-from cghub.cloud.util import ec2_keypair_fingerprint
+from cghub.cloud.util import ec2_keypair_fingerprint, UserError
 
 
 class Environment:
@@ -80,8 +78,8 @@ class Environment:
         self.availability_zone = availability_zone
         m = self.availability_zone_re.match( availability_zone )
         if not m:
-            raise RuntimeError(
-                "Can't extract region from availability-zone '%s'" % availability_zone )
+            raise UserError( "Can't extract region from availability-zone '%s'"
+                             % availability_zone )
         self.region = m.group( 1 )
         if namespace == '':
             namespace = None
@@ -92,7 +90,7 @@ class Environment:
     def __normalize_namespace(self, namespace):
         components = [ c for c in namespace.split( '/' ) if c ]
         if any( c[ 0:1 ] == '_' for c in components ):
-            raise RuntimeError( "Namespace component may not start with '_'" )
+            raise UserError( "Namespace component may not start with '_'" )
         namespace = '/' + '/'.join( components ) + '/' if components else '/'
         return namespace
 
@@ -150,7 +148,7 @@ class Environment:
         RuntimeError: Resource names may not start with _
         """
         if name[ 0:1 ] == '_':
-            raise RuntimeError( 'Resource names may not start with _' )
+            raise UserError( 'Resource names may not start with _' )
         if self.is_absolute_name( name ):
             return name
         else:
@@ -237,7 +235,7 @@ class Environment:
                             ec2_conn.delete_key_pair( ec2_keypair_name )
                             ec2_keypair = None
                         else:
-                            raise RuntimeError(
+                            raise UserError(
                                 "Key pair %s already exists in EC2, but its fingerprint %s is "
                                 "different from the fingerprint %s of the key to be imported. Use "
                                 "the force option to overwrite the existing key pair." %
@@ -267,7 +265,7 @@ class Environment:
             try:
                 keypair = ec2_conn.get_key_pair( ec2_keypair_name )
                 if keypair is None:
-                    raise RuntimeError( "No such EC2 key pair: %s" % ec2_keypair_name )
+                    raise UserError( "No such EC2 key pair: %s" % ec2_keypair_name )
                 if keypair.name != ec2_keypair_name:
                     raise AssertionError( "Key pair names don't match." )
                 try:
@@ -277,14 +275,15 @@ class Environment:
                     ssh_pubkey = s3_entry.get_contents_as_string( )
                 except S3ResponseError as e:
                     if e.status == 404:
-                        raise RuntimeError(
-                            "There is no matching SSH pub key stored in S3 for EC2 key pair %s" %
+                        raise UserError(
+                            "There is no matching SSH pub key stored in S3 for EC2 key pair %s. "
+                            "Has it been uploaded using the upload-key command?" %
                             ec2_keypair_name )
                     else:
                         raise
                 fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
                 if keypair.fingerprint != fingerprint:
-                    raise RuntimeError(
+                    raise UserError(
                         "Fingerprint mismatch for key %s! Expected %s but got %s. The EC2 keypair "
                         "doesn't match the public key stored in S3." %
                         ( keypair.name, keypair.fingerprint, fingerprint ) )

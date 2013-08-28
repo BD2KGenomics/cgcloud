@@ -4,7 +4,7 @@ from fabric.operations import run, sudo, put, get
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.source_control_client import SourceControlClient
 from cghub.cloud.ubuntu_box import UbuntuBox
-from cghub.cloud.util import ec2_keypair_fingerprint
+from cghub.cloud.util import ec2_keypair_fingerprint, UserError
 
 
 class Jenkins:
@@ -163,7 +163,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
             # if the volume is not empty, verify the file system label
             label = sudo( 'e2label %s' % Jenkins.data_device_int )
             if label != Jenkins.data_volume_fs_label:
-                raise RuntimeError( "Unexpected volume label: '%s'" % label )
+                raise AssertionError( "Unexpected volume label: '%s'" % label )
 
         #
         # Mount data volume permanently
@@ -183,7 +183,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         if ec2_keypair is None:
             ec2_keypair = self.connection.create_key_pair( ec2_key_pair_name )
             if not ec2_keypair.material:
-                raise RuntimeError( "Created key pair but didn't get back private key" )
+                raise AssertionError( "Created key pair but didn't get back private key" )
         key_file_exists = sudo( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
         #
         # Create an SSH key pair in Jenkin's home and download the public key to local config
@@ -219,14 +219,14 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                     ssh_privkey.close()
                     ssh_privkey = None
                 if ec2_keypair.fingerprint != fingerprint:
-                    raise RuntimeError(
+                    raise UserError(
                         "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} "
                         "doesn't match the fingerprint {fingerprint} of the private key file "
                         "currently present on the instance. "
                         "Please delete the key pair from EC2 before retrying."
                         .format( key_pair=ec2_keypair, fingerprint=fingerprint ) )
             else:
-                raise RuntimeError(
+                raise UserError(
                     "The key pair {ec2_keypair.name} is registered in EC2 but the corresponding "
                     "private key file {key_path} does not exist on the instance. In order to "
                     "create the private key file, the key pair must be created at the same time. "

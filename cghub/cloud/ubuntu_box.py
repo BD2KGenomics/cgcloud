@@ -86,6 +86,6 @@ class UbuntuBox( PackageManagerBox, CloudInitBox ):
     def _debconf_set_selection(self, *debconf_selections):
         for debconf_selection in debconf_selections:
             if '"' in debconf_selection:
-                raise RuntimeError( 'Doubles quotes in debconf selections are not supported yet' )
+                raise RuntimeError( 'Double quotes in debconf selections are not supported yet' )
         sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ) )
 

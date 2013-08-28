@@ -3,6 +3,8 @@ import argparse
 import os
 import re
 import errno
+import sys
+
 from Crypto.Hash import MD5, SHA
 from Crypto.PublicKey import RSA
 
@@ -109,6 +111,9 @@ def mkdir_p(path):
             raise
 
 
+class UserError( RuntimeError ):
+    pass
+
 class Application( object ):
     """
     An attempt at modularizing command line parsing (argparse). This is an experiment. The
@@ -166,7 +171,12 @@ class Application( object ):
         options = self.parser.parse_args( args )
         self.prepare( options )
         command = self.commands[ options.command_name ]
-        command.run( options )
+        try:
+            command.run( options )
+        except UserError as e:
+            sys.stderr.write( e.message )
+            sys.stderr.write( '\n' )
+            exit( 1 )
 
     def prepare(self, options):
         pass
@@ -387,3 +397,5 @@ def ec2_keypair_fingerprint(ssh_key):
     hash = (SHA if rsa_key.has_private( ) else MD5).new( )
     hash.update( der_rsa_key )
     return ':'.join( partition_seq( hash.hexdigest( ), 2 ) )
+
+

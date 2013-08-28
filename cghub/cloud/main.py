@@ -7,6 +7,7 @@ from operator import itemgetter
 import boto
 from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, UbuntuPreciseGenetorrentJenkinsSlave, UbuntuLucidGenetorrentJenkinsSlave, UbuntuRaringGenetorrentJenkinsSlave, UbuntuOneiricGenetorrentJenkinsSlave, Fedora19GenetorrentJenkinsSlave, Fedora18GenetorrentJenkinsSlave, Fedora17GenetorrentJenkinsSlave
 from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericUbuntuMaverickBox, GenericUbuntuLucidBox, GenericUbuntuOneiricBox, GenericUbuntuNattyBox, GenericUbuntuQuantalBox, GenericUbuntuPreciseBox, GenericUbuntuRaringBox, GenericUbuntuSaucyBox, GenericFedora17Box, GenericFedora18Box, GenericFedora19Box
+from cghub.cloud.util import UserError
 
 from devenv.jenkins_master import JenkinsMaster
 
@@ -148,7 +149,7 @@ class RoleCommand( EnvironmentCommand ):
     def run_in_env(self, options, env):
         role = options.role
         box_cls = BOXES.get( role )
-        if box_cls is None: raise RuntimeError( "No such role: '%s'" % role )
+        if box_cls is None: raise UserError( "No such role: '%s'" % role )
         box = box_cls( env )
         return self.run_on_box( options, box )
 

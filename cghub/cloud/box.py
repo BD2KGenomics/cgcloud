@@ -15,6 +15,7 @@ from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
 from cghub.cloud.environment import Environment
+from cghub.cloud.util import UserError
 from util import unpack_singleton, prepend_shell_script, camel_to_snake
 
 
@@ -24,7 +25,7 @@ EC2_POLLING_INTERVAL = 5
 def needs_instance(method):
     def wrapped_method(self, *args, **kwargs):
         if self.instance_id is None:
-            raise RuntimeError( "Instance ID not set" )
+            raise AssertionError( "Instance ID not set" )
         return method( self, *args, **kwargs )
 
     return wrapped_method
@@ -126,7 +127,7 @@ class Box( object ):
         :type ec2_keypair_names: string
         """
         if self.instance_id is not None:
-            raise RuntimeError( "Instance already adopted or created" )
+            raise AssertionError( "Instance already adopted or created" )
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
         self._log( "Looking up image for role %s, ... " % self.role( ), newline=False )
@@ -213,11 +214,11 @@ class Box( object ):
         """
         role, instances = self.__list_instances( )
         if not instances:
-            raise RuntimeError( "No instance performing role '%s'" % role )
+            raise UserError( "No instance performing role '%s'" % role )
         if ordinal is None:
             if len( instances ) > 1:
-                raise RuntimeError( "More than one instance performing role '%s'. "
-                                    "Please specify an ordinal." % role )
+                raise UserError( "More than one instance performing role '%s'. "
+                                 "Please specify an ordinal." % role )
             ordinal = 0
         return instances[ ordinal ]
 
@@ -228,7 +229,7 @@ class Box( object ):
         The EC2 instance needs to use an EBS-backed root volume. The box must be stopped or
         an exception will be raised.
         """
-        self.__expect_state( 'stopped' )
+        self.__assert_state( 'stopped' )
 
         self._log( "Creating image, ... ", newline=False )
         image_name = "%s %s" % ( self.absolute_role( ), time.strftime( '%Y-%m-%d %H-%M-%S' ) )
@@ -250,7 +251,7 @@ class Box( object ):
         Stop the EC2 instance represented by this box. Stopped instances can be started later using
         :py:func:`Box.start`.
         """
-        instance = self.__expect_state( 'running' )
+        instance = self.__assert_state( 'running' )
         self._log( 'Stopping instance, ... ', newline=False )
         self.connection.stop_instances( [ instance.id ] )
         self.__wait_transition( instance,
@@ -263,7 +264,7 @@ class Box( object ):
         """
         Start the EC2 instance represented by this box
         """
-        instance = self.__expect_state( 'stopped' )
+        instance = self.__assert_state( 'stopped' )
         self._log( 'Starting instance, ... ', newline=False )
         self.connection.start_instances( [ self.instance_id ] )
         # Not 100% sure why from_states includes 'stopped' but I think I noticed that there is a
@@ -309,14 +310,14 @@ class Box( object ):
         name = self.env.absolute_name( name )
         volumes = self.connection.get_all_volumes( filters={ 'tag:Name': name } )
         if len( volumes ) < 1: return None
-        if len( volumes ) > 1: raise RuntimeError( "More than one EBS volume named %s" % name )
+        if len( volumes ) > 1: raise UserError( "More than one EBS volume named %s" % name )
         volume = volumes[ 0 ]
         if volume.status != 'available':
-            raise RuntimeError( "EBS volume %s is not available." % name )
+            raise UserError( "EBS volume %s is not available." % name )
         expected_zone = self.env.availability_zone
         if volume.zone != expected_zone:
-            raise RuntimeError( "Availability zone of EBS volume %s is %s but should be %s."
-                                % (name, volume.zone, expected_zone ) )
+            raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
+                             % (name, volume.zone, expected_zone ) )
         return volume
 
     def get_or_create_volume(self, name, size, **kwargs):
@@ -350,7 +351,7 @@ class Box( object ):
                                        device=device )
         self.__wait_volume_transition( volume, { 'available' }, 'in-use' )
         if volume.attach_data.instance_id != self.instance_id:
-            raise RuntimeError( "Volume %s is not attached to this instance." )
+            raise UserError( "Volume %s is not attached to this instance." )
 
     def _log(self, string, newline=True):
         if newline:
@@ -368,7 +369,7 @@ class Box( object ):
         host = "%s@%s" % ( self.username( ), self.host_name )
         return execute( task, hosts=[ host ] )[ host ]
 
-    def __expect_state(self, expected_state):
+    def __assert_state(self, expected_state):
         """
         Raises an exception if the instance represented by this object is not in the given state.
         :param expected_state: the expected state
@@ -378,8 +379,8 @@ class Box( object ):
         instance = self.get_instance( )
         actual_state = instance.state
         if actual_state != expected_state:
-            raise RuntimeError( "Expected instance state %s but got %s"
-                                % (expected_state, actual_state) )
+            raise AssertionError( "Expected instance state %s but got %s"
+                                  % (expected_state, actual_state) )
         return instance
 
     @needs_instance
@@ -457,12 +458,12 @@ class Box( object ):
                     if line == 'hi\n':
                         return
                     else:
-                        raise RuntimeError( )
+                        raise AssertionError( "Read unexpected line '%s'" % line )
                 finally:
                     stdin.close( )
                     stdout.close( )
                     stderr.close( )
-            except RuntimeError:
+            except AssertionError:
                 raise
             except KeyboardInterrupt:
                 raise
@@ -496,8 +497,8 @@ class Box( object ):
             resource.update( validate=True )
             state = state_getter( resource )
         if state != to_state:
-            raise RuntimeError( "Expected state of %s to be '%s' but got '%s'"
-                                % ( resource, to_state, state ) )
+            raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
+                                  % ( resource, to_state, state ) )
 
     def _config_file_path(self, file_name, mkdir=False, role=None):
         """
