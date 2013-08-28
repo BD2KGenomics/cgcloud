@@ -93,11 +93,10 @@ class EnvironmentCommand( Command ):
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                      default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
                      dest='availability_zone',
-                     help='The name of the EC2 availability zone to place EC2 resources into, '
-                          'e.g. us-east-1a, us-west-1b or us-west-2c etc. This argument implies '
-                          'the AWS region to run in. The value of the environment variable '
-                          'CGCLOUD_ZONE, if that variable is present, overrides the default.' )
-
+                     help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
+                          'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
+                          'run in. The value of the environment variable CGCLOUD_ZONE, '
+                          'if that variable is present, overrides the default.' )
         self.option( '--namespace', '-n', metavar='PREFIX',
                      default=os.environ.get( 'CGCLOUD_NAMESPACE', defaults.namespace ),
                      help='Optional prefix for naming EC2 resource like instances, images, volumes, '
@@ -114,7 +113,8 @@ class EnvironmentCommand( Command ):
 
 class ListRolesCommand( Command ):
     """
-    List available roles.
+    List available roles. A role is a template for a box. A box is a virtual machines in EC2,
+    also known as an instance.
     """
 
     def run(self, options):
@@ -124,8 +124,7 @@ class ListRolesCommand( Command ):
 class RoleCommand( EnvironmentCommand ):
     """
     An abstract command that targets boxes of a particular role.  Note that there may be more
-    than one instance per role. To target one of those instances, InstanceCommand might be a
-    better choice.
+    than one box per role. To target a specific box, BoxCommand might be a better choice.
     """
 
     def run_on_box(self, options, box):
@@ -143,8 +142,8 @@ class RoleCommand( EnvironmentCommand ):
         super( RoleCommand, self ).__init__( application, **kwargs )
         self.option( 'role',
                      metavar='ROLE',
-                     help="The role name of the box to perform this command on. "
-                          "Use the list command to show valid roles." )
+                     help="The name of the role. Use the list-roles command to show possible "
+                          "roles." )
 
     def run_in_env(self, options, env):
         role = options.role
@@ -154,22 +153,22 @@ class RoleCommand( EnvironmentCommand ):
         return self.run_on_box( options, box )
 
 
-class InstanceCommand( RoleCommand ):
+class BoxCommand( RoleCommand ):
     def __init__(self, application, **kwargs):
-        super( InstanceCommand, self ).__init__( application, **kwargs )
+        super( BoxCommand, self ).__init__( application, **kwargs )
         self.option( '--ordinal', '-o', default=None, type=int,
-                     help='Selects an individual box among the boxes performing the same role. '
-                          'The ordinal is an zero-based index into the list of all boxes performing '
-                          'the given role, sorted by creation time. This means that the ordinal of '
-                          'a box is not fixed, it may change if another box performing the same '
-                          'role is terminated. This option is only required if there are multiple '
-                          'boxes performing the same role.' )
+                     help='Selects an individual box from the list of boxes performing the '
+                          'specified role. The ordinal is a zero-based index into the list of all '
+                          'boxes performing the specified role, sorted by creation time. This '
+                          'means that the ordinal of a box is not fixed, it may change if another '
+                          'box performing the specified role is terminated. This option is only '
+                          'required if there are multiple boxes performing the specified role.' )
 
 
 class CreateCommand( RoleCommand ):
     """
-    Create an EC2 instance of the specified box, install OS and additional packages on it,
-    optionally create an AMI image of it, and/or terminate it.
+    Create a box performing the specified role, install an OS and additional packages on it and
+    optionally create an AMI image of it.
     """
 
     def __init__(self, application):
@@ -180,7 +179,7 @@ class CreateCommand( RoleCommand ):
                      required=not default_ec2_keypair_names,
                      default=default_ec2_keypair_names,
                      help='The names of EC2 keypairs whose public key is to be to injected into '
-                          'the instance to facilitate SSH logins. For the first listed keypair a '
+                          'the box to facilitate SSH logins. For the first listed keypair a '
                           'matching private key needs to be present locally. The value of the '
                           'environment variable CGCLOUD_KEYPAIRS, if that variable is present, '
                           'overrides the default.' )
@@ -235,9 +234,9 @@ class CreateCommand( RoleCommand ):
                 box.terminate( )
 
 
-class CreateImageCommand( InstanceCommand ):
+class CreateImageCommand( BoxCommand ):
     """
-    Create an AMI image of the instance. The instance must be stopped.
+    Create an AMI image of a box performing a given role. The box must be stopped.
     """
 
     def run_on_box(self, options, box):
@@ -245,9 +244,9 @@ class CreateImageCommand( InstanceCommand ):
         box.create_image( )
 
 
-class GetKeysCommand( InstanceCommand ):
+class GetKeysCommand( BoxCommand ):
     """
-    Get a copy of the public keys that identify users on the instance.
+    Get a copy of the public keys that identify users on the box.
     """
 
     def run_on_box(self, options, box):
@@ -255,9 +254,9 @@ class GetKeysCommand( InstanceCommand ):
         box.get_keys( )
 
 
-class SshCommand( InstanceCommand ):
+class SshCommand( BoxCommand ):
     """
-    Start an interactive SSH session with the host.
+    Start an interactive SSH session on a box.
     """
 
     def __init__(self, application):
@@ -270,9 +269,9 @@ class SshCommand( InstanceCommand ):
         box.ssh( user=options.user )
 
 
-class LifecycleCommand( InstanceCommand ):
+class LifecycleCommand( BoxCommand ):
     """
-    Transition an instance into a particular state.
+    Transition a box into a particular state.
     """
 
     def adopt(self, box, options):
@@ -284,37 +283,45 @@ class LifecycleCommand( InstanceCommand ):
 
 
 class StartCommand( LifecycleCommand ):
-    """ Start the instance, ie. turn it on. """
+    """
+    Start the box, ie. bring it from the stopped state to the running state.
+    """
     pass
 
 
 class StopCommand( LifecycleCommand ):
-    """ Stop the instance, ie. turn it off. """
+    """
+    Stop the box, ie. bring it from the running state to the stopped state.
+    """
     pass
 
 
 class RebootCommand( LifecycleCommand ):
-    """ Reboot the instance. """
+    """
+    Stop the box, then start it again.
+    """
     pass
 
 
 class TerminateCommand( LifecycleCommand ):
-    """ Terminate the instance, ie. delete it. """
+    """
+    Terminate the box, ie. delete it permanently.
+    """
 
     def __init__(self, application, **kwargs):
         super( TerminateCommand, self ).__init__( application, **kwargs )
         self.option( '--quick', '-q', default=False, action='store_true',
                      help="Exit immediately after termination request has been made, don't wait "
-                          "until instance is actually terminated." )
+                          "until the box is terminated." )
 
     def run_on_box(self, options, box):
         self.adopt( box, options )
         box.terminate( wait=not options.quick )
 
 
-class ShowCommand( InstanceCommand ):
+class ShowCommand( BoxCommand ):
     """
-    Display the attributes of the EC2 instance.
+    Display the EC2 attributes of the box.
     """
 
     def print_object(self, o, visited=set( ), depth=1):
@@ -351,17 +358,17 @@ class ShowCommand( InstanceCommand ):
 
 class ListCommand( RoleCommand ):
     """
-    List the instances performing a particular role
+    List the boxes performing a particular role.
     """
 
     def run_on_box(self, options, box):
-        for instance in box.list( ):
-            print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}\t{state}'.format( **instance ) )
+        for box in box.list( ):
+            print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}\t{state}'.format( **box ) )
 
 
 class ListImages( RoleCommand ):
     """
-    List the AMI images that were create from instances performing a particular role
+    List the AMI images that were created from boxes performing a particular role.
     """
 
     def run_on_box(self, options, box):
