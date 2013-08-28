@@ -129,10 +129,10 @@ class Box( object ):
             raise RuntimeError( "Instance already adopted or created" )
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
-        self._log( "Looking up image, ... ", newline=False )
+        self._log( "Looking up image for role %s, ... " % self.role( ), newline=False )
         image_id = self.image_id( )
-        self._log( 'creating %s instance from %s, ... ' % ( instance_type, image_id ),
-                   newline=False )
+        self._log( "found %s." % image_id )
+        self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
 
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypair_names[ 0 ],
