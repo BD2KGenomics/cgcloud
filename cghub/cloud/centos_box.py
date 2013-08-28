@@ -69,9 +69,9 @@ class CentosBox(YumBox ):
             self._image_id = base_image.id
         return self._image_id
 
-    def _on_instance_ready(self):
-        super( CentosBox, self )._on_instance_ready( )
-        if self.is_new_instance and self.username( ) == 'root':
+    def _on_instance_ready(self,is_new_instance):
+        super( CentosBox, self )._on_instance_ready( is_new_instance )
+        if is_new_instance and self.username( ) == 'root':
             self.__create_admin()
             self._set_username( ADMIN_USER )
             self.__setup_admin()
@@ -92,11 +92,3 @@ class CentosBox(YumBox ):
     @fabric_task
     def __setup_admin(self):
         run( "echo 'export PATH=\"/usr/local/sbin:/usr/sbin:/sbin:$PATH\"' >> ~/.bash_profile" )
-
-
-
-
-
-
-
-

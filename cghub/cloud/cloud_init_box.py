@@ -46,9 +46,11 @@ class CloudInitBox( Box ):
             user_data = '#cloud-config\n' + yaml.dump( cloud_config )
             kwargs[ 'user_data' ] = user_data
 
-    def _on_instance_ready(self):
-        super( CloudInitBox, self )._on_instance_ready( )
-        if self.is_new_instance:
+    def _on_instance_ready(self,is_new_instance):
+        super( CloudInitBox, self )._on_instance_ready( is_new_instance )
+        if is_new_instance:
+            # cloud-init is run on every boot, but only on the first run will it invoke the user
+            # script that signals completion
             self.__wait_for_cloud_init_completion( );
 
     @fabric_task

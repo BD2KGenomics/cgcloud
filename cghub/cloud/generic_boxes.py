@@ -26,9 +26,9 @@ class GenericCentos5Box( CentosBox ):
         sudo( 'yum -d 1 -y localupdate sudo-1.8.7-1.el5.x86_64.rpm --nogpgcheck' )
         run( 'rm sudo-1.8.7-1.el5.x86_64.rpm' )
 
-    def _on_instance_ready(self):
-        super( GenericCentos5Box, self )._on_instance_ready( )
-        if self.is_new_instance:
+    def _on_instance_ready(self, is_new_instance):
+        super( GenericCentos5Box, self )._on_instance_ready( is_new_instance )
+        if is_new_instance:
             self.__update_sudo( )
 
 
@@ -54,9 +54,9 @@ class GenericUbuntuLucidBox( UbuntuBox ):
         sudo( 'sudo dpkg --force-confold -i sudo_1.8.7-1_amd64.deb' )
         run( 'rm sudo_1.8.7-1_amd64.deb' )
 
-    def _on_instance_ready(self):
-        super( GenericUbuntuLucidBox, self )._on_instance_ready( )
-        if self.is_new_instance:
+    def _on_instance_ready(self, is_new_instance):
+        super( GenericUbuntuLucidBox, self )._on_instance_ready( is_new_instance )
+        if is_new_instance:
             self.__update_sudo( )
 
 

@@ -47,6 +47,7 @@ def fabric_task(function):
                 return box._execute( task )
             finally:
                 wrapped = False
+
     return wrapper
 
 
@@ -99,7 +100,6 @@ class Box( object ):
         self.instance_id = None
         self.host_name = None
         self.connection = ec2.connect_to_region( env.region )
-        self.is_new_instance = None
 
     def _populate_instance_creation_args(self, kwargs):
         """
@@ -141,10 +141,9 @@ class Box( object ):
         reservation = self.connection.run_instances( image_id, **kwargs )
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
-        self.is_new_instance = True
         self.ec2_keypair_names = ec2_keypair_names
         self._on_instance_created( instance )
-        self.__wait_ready( instance, { 'pending' } )
+        self.__wait_ready( instance, { 'pending' }, is_new_instance=True )
 
     def _on_instance_created(self, instance):
         """
@@ -155,13 +154,15 @@ class Box( object ):
         self._log( 'tagging instance, ...', newline=False )
         instance.add_tag( 'Name', self.absolute_role( ) )
 
-    def _on_instance_ready(self):
+    def _on_instance_ready(self, is_new_instance):
         """
-        Invoked during creation or adoption, right after the instance became ready.
-        """
-        if self.is_new_instance:
-            self.__inject_ssh_pubkeys( self.ec2_keypair_names[ 1: ] )
+        Invoked during creation, adoption or after start, right after the instance became ready.
 
+        :param is_new_instance: True if this is the first time the instance becomes ready after
+        its creation
+        """
+        if is_new_instance:
+            self.__inject_ssh_pubkeys( self.ec2_keypair_names[ 1: ] )
 
     def adopt(self, ordinal=None, wait_ready=True):
         """
@@ -175,7 +176,6 @@ class Box( object ):
             self._log( 'Adopting instance, ... ', newline=False )
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
-            self.is_new_instance = False
             if wait_ready:
                 self.__wait_ready( instance, from_states={ 'pending' } )
             else:
@@ -392,7 +392,7 @@ class Box( object ):
         reservations = self.connection.get_all_instances( self.instance_id )
         return unpack_singleton( unpack_singleton( reservations ).instances )
 
-    def __wait_ready(self, instance, from_states):
+    def __wait_ready(self, instance, from_states, is_new_instance=False):
         """
         Wait until the given instance transistions from stopped or pending state to being fully
         running and accessible via SSH.
@@ -406,7 +406,7 @@ class Box( object ):
         self._log( "SSH port open, ... ", newline=False )
         self.__wait_ssh_working( )
         self._log( "SSH working, done." )
-        self._on_instance_ready( )
+        self._on_instance_ready( is_new_instance )
 
     def __wait_hostname_assigned(self, instance):
         """
