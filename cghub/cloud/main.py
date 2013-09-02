@@ -179,10 +179,10 @@ class CreateCommand( RoleCommand ):
                      required=not default_ec2_keypair_names,
                      default=default_ec2_keypair_names,
                      help='The names of EC2 keypairs whose public key is to be to injected into '
-                          'the box to facilitate SSH logins. For the first listed keypair a '
-                          'matching private key needs to be present locally. The value of the '
-                          'environment variable CGCLOUD_KEYPAIRS, if that variable is present, '
-                          'overrides the default.' )
+                          'the box to facilitate SSH logins. For the first listed keypair, '
+                          'the so called primary keypair, a matching private key needs to be '
+                          'present locally. The value of the environment variable '
+                          'CGCLOUD_KEYPAIRS, if that variable is present, overrides the default.' )
 
         self.option( '--instance-type', '-t', metavar='TYPE',
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
@@ -378,17 +378,18 @@ class ListImages( RoleCommand ):
 
 class UploadKeyCommand( EnvironmentCommand ):
     """
-    Import an OpenSSH public key for future injection into boxes
+    Upload an OpenSSH public key for future injection into boxes. The public key will be imported
+    into EC2 as a keypair and stored verbatim in S3.
     """
 
     def __init__(self, application, **kwargs):
         super( UploadKeyCommand, self ).__init__( application, **kwargs )
+        self.option( 'ssh_public_key', metavar='KEY_FILE',
+                     help='A file containing the SSH public key to upload to the EC2 keypair.' )
         self.option( '--force', '-F', default=False, action='store_true',
                      help='Overwrite potentially existing EC2 key pair' )
         self.option( '--keypair', '-k', required=True, dest='ec2_keypair_name',
                      help='The desired name of the EC2 key pair.' )
-        self.option( '--ssh-public-key', '-f', required=True,
-                     help='A file containing the SSH public key to upload to the EC2 keypair.' )
 
     def run_in_env(self, options, env):
         with open( options.ssh_public_key ) as file:
