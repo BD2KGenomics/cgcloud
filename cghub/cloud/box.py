@@ -249,7 +249,7 @@ class Box( object ):
                 if e.error_code != 'InvalidAMIID.NotFound':
                     raise
         self.__wait_transition( image, { 'pending' }, 'available' )
-        self._log( "done." )
+        self._log( "done. Created image %s (%s)." % ( image.id, image.name ) )
         return image_id
 
     @needs_instance
