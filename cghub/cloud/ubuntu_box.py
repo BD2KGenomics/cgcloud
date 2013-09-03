@@ -25,10 +25,6 @@ class UbuntuBox( PackageManagerBox, CloudInitBox ):
         """
         raise NotImplementedError( )
 
-    def __init__(self, env):
-        super( UbuntuBox, self ).__init__( env )
-        self._image_id = None
-
     @staticmethod
     def __find_image(template, url, fields):
         matches = [ ]
@@ -47,25 +43,22 @@ class UbuntuBox( PackageManagerBox, CloudInitBox ):
     def username(self):
         return 'ubuntu'
 
-    def image_id(self):
-        if self._image_id is None:
-            release = self.release( )
-            base_image = self.__find_image(
-                template=TemplateDict( release=release,
-                                       purpose='server',
-                                       release_type='release',
-                                       storage_type='ebs',
-                                       arch='amd64',
-                                       region=self.env.region,
-                                       hypervisor='paravirtual' ),
-                url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
-                fields=[
-                    'release', 'purpose', 'release_type', 'release_date',
-                    'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
-                    'dont_know', 'hypervisor' ] )
-            self._image_id = base_image[ 'ami_id' ]
-        return self._image_id
-
+    def _default_image_id(self):
+        release = self.release( )
+        base_image = self.__find_image(
+            template=TemplateDict( release=release,
+                                   purpose='server',
+                                   release_type='release',
+                                   storage_type='ebs',
+                                   arch='amd64',
+                                   region=self.env.region,
+                                   hypervisor='paravirtual' ),
+            url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
+            fields=[
+                'release', 'purpose', 'release_type', 'release_date',
+                'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
+                'dont_know', 'hypervisor' ] )
+        return base_image[ 'ami_id' ]
 
     apt_get = 'DEBIAN_FRONTEND=readline apt-get -q -y'
 

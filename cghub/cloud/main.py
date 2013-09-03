@@ -50,6 +50,7 @@ def main():
     for c in [
         ListRolesCommand,
         CreateCommand,
+        RecreateCommand,
         StartCommand,
         StopCommand,
         RebootCommand,
@@ -165,14 +166,9 @@ class BoxCommand( RoleCommand ):
                           'required if there are multiple boxes performing the specified role.' )
 
 
-class CreateCommand( RoleCommand ):
-    """
-    Create a box performing the specified role, install an OS and additional packages on it and
-    optionally create an AMI image of it.
-    """
-
+class CreationCommand( RoleCommand ):
     def __init__(self, application):
-        super( CreateCommand, self ).__init__( application )
+        super( CreationCommand, self ).__init__( application )
         default_ec2_keypair_names = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
         self.option( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
                      dest='ec2_keypair_names', nargs='+',
@@ -191,16 +187,6 @@ class CreateCommand( RoleCommand ):
                           'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
                           'default, an instance type appropriate for the role.' )
 
-        self.option( '--image', '-I',
-                     default=False, action='store_true',
-                     help='Create an image of the box when setup is complete.' )
-
-        self.option( '--update', '-U',
-                     default=False, action='store_true',
-                     help="Bring the package repository as well as any installed packages up to "
-                          "date, i.e. do what on Ubuntu is achieved by doing "
-                          "'sudo apt-get update ; sudo apt-get upgrade'." )
-
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -215,16 +201,18 @@ class CreateCommand( RoleCommand ):
 
         self.end_mutex( )
 
+    def run_on_creation(self, box, options):
+        """
+        Run on the given box after it was created.
+        """
+        raise NotImplementedError( )
+
     def run_on_box(self, options, box):
         try:
             box.create( ec2_keypair_names=options.ec2_keypair_names,
-                        instance_type=options.instance_type )
-            box.setup( options.update )
-            if options.image:
-                box.stop( )
-                box.create_image( )
-                if options.terminate is not True:
-                    box.start( )
+                        instance_type=options.instance_type,
+                        image_id_or_ordinal=options.image )
+            self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
                 box.terminate( wait=False )
@@ -232,6 +220,53 @@ class CreateCommand( RoleCommand ):
         else:
             if options.terminate is True:
                 box.terminate( )
+
+
+class CreateCommand( CreationCommand ):
+    """
+    Create a box performing the specified role, install an OS and additional packages on it and
+    optionally create an AMI image of it.
+    """
+
+    def __init__(self, application):
+        super( CreateCommand, self ).__init__( application )
+        self.option( '--image', '-i', metavar='IMAGE_ID',
+                     help='An image ID (aka AMI ID) from which to create the box. This is argument '
+                          'optional and the default is determined automatically based on the role.' )
+        self.option( '--create-image', '-I',
+                     default=False, action='store_true',
+                     help='Create an image of the box when setup is complete.' )
+        self.option( '--update', '-U',
+                     default=False, action='store_true',
+                     help="Bring the package repository as well as any installed packages up to "
+                          "date, i.e. do what on Ubuntu is achieved by doing "
+                          "'sudo apt-get update ; sudo apt-get upgrade'." )
+
+    def run_on_creation(self, box, options):
+        box.setup( options.update )
+        if options.create_image:
+            box.stop( )
+            box.create_image( )
+            if options.terminate is not True:
+                box.start( )
+
+
+class RecreateCommand( CreationCommand ):
+    """
+    Recreate a box from an image that was taken from an earlier incarnation of the box
+    """
+
+    def __init__(self, application):
+        super( RecreateCommand, self ).__init__( application )
+        self.option( '--image', '-i', metavar='ORDINAL',
+                     required=True, type=int,
+                     help='An image ordinal, i.e. the index of an image in the list of images '
+                          'created from previous incarnations performing the given role, '
+                          'sorted by creation time. Use the list-images command to see a list of '
+                          'images.' )
+
+    def run_on_creation(self, box, options):
+        pass
 
 
 class CreateImageCommand( BoxCommand ):

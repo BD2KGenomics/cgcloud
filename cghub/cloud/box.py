@@ -72,9 +72,9 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    def image_id(self):
+    def _default_image_id(self):
         """
-        Returns the ID of the AMI to boot instances of this box from
+        Returns the AMI ID of the default image for boxes performing this role
         """
         raise NotImplementedError( )
 
@@ -106,6 +106,12 @@ class Box( object ):
         """
         self.env = env
         self.instance_id = None
+        self.generation = None
+        """
+        The number of previous generations of this box. When an instances is booted from a
+        stock AMI, generations is zero. After that instance is set up and imaged and another
+        instance is booted from the resulting AMI, generations will be one.
+        """
         self.host_name = None
         self.connection = ec2.connect_to_region( env.region )
 
@@ -119,7 +125,11 @@ class Box( object ):
         pass
 
 
-    def create(self, ec2_keypair_names, instance_type=None):
+    def __read_generation(self, image_id):
+        image = self.connection.get_image( image_id )
+        self.generation = int( image.tags.get( 'generation', '0' ) )
+
+    def create(self, ec2_keypair_names, instance_type=None, image_id_or_ordinal=None):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -137,11 +147,26 @@ class Box( object ):
             raise AssertionError( "Instance already adopted or created" )
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
-        self._log( "Looking up image for role %s, ... " % self.role( ), newline=False )
-        image_id = self.image_id( )
-        self._log( "found %s." % image_id )
-        self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
 
+        if image_id_or_ordinal is not None:
+            if isinstance( image_id_or_ordinal, int ):
+                images = self.list_images( )
+                ordinal = image_id_or_ordinal
+                try:
+                    image = images[ ordinal ]
+                except IndexError:
+                    raise UserError( "No image with ordinal %i" % ordinal )
+                image_id = image[ 'id' ]
+            else:
+                image_id = image_id_or_ordinal
+        else:
+            self._log( "Looking up default image for role %s, ... " % self.role( ), newline=False )
+            image_id = self._default_image_id( )
+            self._log( "found %s." % image_id )
+
+        self.__read_generation( image_id )
+
+        self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypair_names[ 0 ],
                        placement=self.env.availability_zone )
@@ -151,7 +176,7 @@ class Box( object ):
         self.instance_id = instance.id
         self.ec2_keypair_names = ec2_keypair_names
         self._on_instance_created( instance )
-        self.__wait_ready( instance, { 'pending' }, is_new_instance=True )
+        self.__wait_ready( instance, { 'pending' }, first_boot=True )
 
     def _on_instance_created(self, instance):
         """
@@ -162,14 +187,15 @@ class Box( object ):
         self._log( 'tagging instance, ...', newline=False )
         instance.add_tag( 'Name', self.absolute_role( ) )
 
-    def _on_instance_ready(self, is_new_instance):
+    def _on_instance_ready(self, first_boot):
         """
         Invoked during creation, adoption or after start, right after the instance became ready.
 
-        :param is_new_instance: True if this is the first time the instance becomes ready after
+
+        :param first_boot: True if this is the first time the instance becomes ready after
         its creation
         """
-        if is_new_instance:
+        if first_boot:
             self.__inject_authorized_keys( self.ec2_keypair_names[ 1: ] )
 
     def adopt(self, ordinal=None, wait_ready=True):
@@ -184,6 +210,7 @@ class Box( object ):
             self._log( 'Adopting instance, ... ', newline=False )
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
+            self.__read_generation( instance.image_id )
             if wait_ready:
                 self.__wait_ready( instance, from_states={ 'pending' } )
             else:
@@ -217,7 +244,8 @@ class Box( object ):
         Get the n-th instance that performs this box' role
 
         :param ordinal: the index of the instance based on the ordering by launch_time
-        :return:
+
+        :rtype: boto.ec2.instance.Instance
         """
         role, instances = self.__list_instances( )
         if not instances:
@@ -248,6 +276,7 @@ class Box( object ):
             except self.connection.ResponseError as e:
                 if e.error_code != 'InvalidAMIID.NotFound':
                     raise
+        image.add_tag( 'generation', self.generation + 1 )
         self.__wait_transition( image, { 'pending' }, 'available' )
         self._log( "done. Created image %s (%s)." % ( image.id, image.name ) )
         return image_id
@@ -388,7 +417,7 @@ class Box( object ):
         actual_state = instance.state
         if actual_state != expected_state:
             raise UserError( "Expected instance state '%s' but got '%s'"
-                                  % (expected_state, actual_state) )
+                             % (expected_state, actual_state) )
         return instance
 
     @needs_instance
@@ -401,10 +430,12 @@ class Box( object ):
         reservations = self.connection.get_all_instances( self.instance_id )
         return unpack_singleton( unpack_singleton( reservations ).instances )
 
-    def __wait_ready(self, instance, from_states, is_new_instance=False):
+    def __wait_ready(self, instance, from_states, first_boot=False):
         """
         Wait until the given instance transistions from stopped or pending state to being fully
         running and accessible via SSH.
+
+        :type instance: boto.ec2.instance.Instance
         """
         self._log( "waiting for instance, ... ", newline=False )
         self.__wait_transition( instance, from_states, 'running' )
@@ -415,7 +446,7 @@ class Box( object ):
         self._log( "SSH port open, ... ", newline=False )
         self.__wait_ssh_working( )
         self._log( "SSH working, done." )
-        self._on_instance_ready( is_new_instance )
+        self._on_instance_ready( first_boot )
 
     def __wait_hostname_assigned(self, instance):
         """
@@ -452,15 +483,6 @@ class Box( object ):
             pass
 
     def __wait_ssh_working(self):
-        """
-        >>> def f():
-        ...     try:
-        ...         raise RuntimeError
-        ...     except e:
-        ...         logging.info(e)
-        >>> f()
-        :return:
-        """
         while True:
             client = SSHClient( )
             try:

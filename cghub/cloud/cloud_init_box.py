@@ -49,10 +49,10 @@ class CloudInitBox( Box ):
             user_data = '#cloud-config\n' + yaml.dump( cloud_config )
             kwargs[ 'user_data' ] = user_data
 
-    def _on_instance_ready(self,is_new_instance):
-        super( CloudInitBox, self )._on_instance_ready( is_new_instance )
-        if is_new_instance:
-            # cloud-init is run on every boot, but only on the first run will it invoke the user
+    def _on_instance_ready(self, first_boot):
+        super( CloudInitBox, self )._on_instance_ready( first_boot )
+        if first_boot:
+            # cloud-init is run on every boot, but only on the first boot will it invoke the user
             # script that signals completion
             self.__wait_for_cloud_init_completion( );
 

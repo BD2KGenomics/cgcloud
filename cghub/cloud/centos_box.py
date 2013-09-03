@@ -29,52 +29,46 @@ class CentosBox(YumBox ):
     def __init__(self, env):
         super( CentosBox, self ).__init__( env )
         self._username = None
-        self._image_id = None
-
-    def _on_instance_created(self, instance):
-        super( CentosBox, self )._on_instance_created( instance )
-        self._set_username( 'root' ) # the default for RightScale images
 
     def username(self):
         if self._username is None:
-            self._username = self.get_instance( ).tags.get( 'admin_user', 'admin' )
+            default_username = 'root' if self.generation == 0 else 'admin'
+            self._username = self.get_instance( ).tags.get( 'admin_user', default_username )
         return self._username
 
     def _set_username(self, admin_user):
         self._username = admin_user
         self.get_instance( ).add_tag( 'admin_user', admin_user )
 
-    def image_id(self):
-        if self._image_id is None:
-            release = self.release( )
-            images = self.connection.get_all_images( owners='411009282317',
-                                                     filters={
-                                                         'name': 'RightImage_CentOS_%s_x64*' % release,
-                                                         'root-device-type': 'ebs' } )
-            if not images:
-                raise RuntimeError( "Can't find any suitable AMIs for CentOS release %s" % release )
-            max_version = None
-            base_image = None
-            for image in images:
-                match = re.match( 'RightImage_CentOS_(\d+(?:\.\d+)*)_x64_v(\d+(?:\.\d+)*)_EBS',
-                                  image.name )
-                if match:
-                    assert match.group( 1 ) == release
-                    version = LooseVersion( match.group( 2 ) )
-                    if max_version is None or max_version < version:
-                        max_version = version
-                        base_image = image
-            if not base_image:
-                raise RuntimeError( "Can't find AMI matching CentOS %s" % release )
-            self._image_id = base_image.id
-        return self._image_id
+    def _default_image_id(self):
+        release = self.release( )
+        images = self.connection.get_all_images( owners='411009282317',
+                                                 filters={
+                                                     'name': 'RightImage_CentOS_%s_x64*' % release,
+                                                     'root-device-type': 'ebs' } )
+        if not images:
+            raise RuntimeError( "Can't find any suitable AMIs for CentOS release %s" % release )
+        max_version = None
+        base_image = None
+        for image in images:
+            match = re.match( 'RightImage_CentOS_(\d+(?:\.\d+)*)_x64_v(\d+(?:\.\d+)*)_EBS',
+                              image.name )
+            if match:
+                assert match.group( 1 ) == release
+                version = LooseVersion( match.group( 2 ) )
+                if max_version is None or max_version < version:
+                    max_version = version
+                    base_image = image
+        if not base_image:
+            raise RuntimeError( "Can't find AMI matching CentOS %s" % release )
+        return base_image.id
 
     def _ephemeral_mount_point(self):
         return "/mnt"
 
-    def _on_instance_ready(self,is_new_instance):
-        super( CentosBox, self )._on_instance_ready( is_new_instance )
-        if is_new_instance and self.username( ) == 'root':
+    def _on_instance_ready(self,first_boot):
+        super( CentosBox, self )._on_instance_ready( first_boot )
+        if first_boot and self.username( ) == 'root':
             self.__create_admin()
             self._set_username( ADMIN_USER )
             self.__setup_admin()
