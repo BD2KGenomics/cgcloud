@@ -1,3 +1,6 @@
+import base64
+import textwrap
+from cghub.cloud.util import snake_to_camel
 from cghub.fabric.operations import sudo
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.jenkins_master import Jenkins, JenkinsMaster
@@ -34,7 +37,7 @@ class JenkinsSlave( SourceControlClient ):
         """
         kwargs = dict(
             user=BUILD_USER,
-            ephemeral=self._ephemeral_mount_point(),
+            ephemeral=self._ephemeral_mount_point( ),
             key=self._read_config_file( Jenkins.pubkey_config_file,
                                         role=JenkinsMaster.role( ) ).strip( ) )
 
@@ -68,7 +71,68 @@ class JenkinsSlave( SourceControlClient ):
                                                mirror_local_mode=True )
             sudo( 'chmod +x %s' % rc_local_path )
             # link ephemeral to ~/builds
-            sudo( 'ln -snf {ephemeral} ~/builds'.format(**kwargs), user=BUILD_USER, sudo_args='-i' )
+            sudo( 'ln -snf {ephemeral} ~/builds'.format( **kwargs ), user=BUILD_USER,
+                  sudo_args='-i' )
         else:
             # No ephemeral storage, just create the ~/builds directory
             sudo( 'mkdir ~/builds', user=BUILD_USER, sudo_args='-i' )
+
+    def __jenkins_labels(self):
+        labels = self.role( ).split( '-' )
+        return [ l for l in labels if l not in [ 'jenkins', 'slave' ] ]
+
+    def __build_jenkins_slave_template(self, image_id=None):
+        instance = self.get_instance( )
+        if image_id is None:
+            image_id = instance.image_id
+        user_data = instance.get_attribute( 'userData' )[ 'userData' ] # odd
+        user_data = '' if user_data is None else base64.b64decode( user_data )
+        kwargs = dict( image_id=image_id,
+                       role=self.role( ),
+                       zone=self.env.availability_zone,
+                       builds='%s/builds' % Jenkins.home,
+                       instance_type=snake_to_camel( self.recommended_instance_type( ),
+                                                     separator='.' ),
+                       labels=" ".join( self.__jenkins_labels( ) ),
+                       instance_name=self.absolute_role( ),
+                       user_data=user_data )
+        return textwrap.dedent( """
+            <hudson.plugins.ec2.SlaveTemplate>
+              <ami>{image_id}</ami>
+              <description>{role}</description>
+              <zone>{zone}</zone>
+              <securityGroups></securityGroups>
+              <remoteFS>{builds}</remoteFS>
+              <sshPort>22</sshPort>
+              <type>{instance_type}</type>
+              <labels>{labels}</labels>
+              <mode>EXCLUSIVE</mode>
+              <initScript>while ! touch {builds}/.writable; do sleep 1; done</initScript>
+              <userData><![CDATA[{user_data}]]></userData>
+              <numExecutors>1</numExecutors>
+              <remoteAdmin>jenkins</remoteAdmin>
+              <rootCommandPrefix></rootCommandPrefix>
+              <jvmopts></jvmopts>
+              <subnetId></subnetId>
+              <idleTerminationMinutes>30</idleTerminationMinutes>
+              <instanceCap>1</instanceCap>
+              <stopOnTerminate>false</stopOnTerminate>
+              <tags>
+                <hudson.plugins.ec2.EC2Tag>
+                  <name>Name</name>
+                  <value>{instance_name}</value>
+                </hudson.plugins.ec2.EC2Tag>
+              </tags>
+              <usePrivateDnsName>false</usePrivateDnsName>
+            </hudson.plugins.ec2.SlaveTemplate>
+        """ ).format( **kwargs )
+
+    def create_image(self):
+        image_id = super( JenkinsSlave, self ).create_image( )
+        self._log( 'In order to configure the Jenkins master to use this image for spawning '
+                   'slaves, paste the following XML fragment into %s/config.xml on the '
+                   'jenkins-master box. The fragment should be pasted as a child element of '
+                   '//hudson.plugins.ec2.EC2Cloud/templates, overwriting an existing child of '
+                   'the same description if such a child exists.' % Jenkins.home )
+        self._log( self.__build_jenkins_slave_template( image_id ) )
+        return image_id

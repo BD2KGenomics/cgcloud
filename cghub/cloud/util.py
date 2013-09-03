@@ -67,6 +67,28 @@ def camel_to_snake(s, separator='_'):
     return re.sub( '([a-z0-9])([A-Z])', r'\1%s\2' % separator, s ).lower( )
 
 
+def snake_to_camel(s, separator='_'):
+    """
+    Converts snake to camel case
+
+    >>> snake_to_camel('')
+    ''
+
+    >>> snake_to_camel('_x____yz')
+    'XYz'
+
+    >>> snake_to_camel('camel_case')
+    'CamelCase'
+
+    >>> snake_to_camel('r2_d2')
+    'R2D2'
+
+    >>> snake_to_camel('m1.small', '.')
+    'M1Small'
+    """
+    return ''.join( [ w.capitalize( ) for w in s.split( separator ) ] )
+
+
 def abreviated_snake_case_class_name(cls, root_cls):
     """
     Returns the snake-case (with '-' instead of '_') version of the name of a given class with
@@ -113,6 +135,7 @@ def mkdir_p(path):
 
 class UserError( RuntimeError ):
     pass
+
 
 class Application( object ):
     """
