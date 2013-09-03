@@ -70,3 +70,124 @@ Motivation
 ==========
 
 TODO
+
+Tutorial
+========
+
+In this tutorial we'll create an continuous integration environment for GeneTorrent consisting of a Jenkins master and several slaves, one slave for each target platform of GeneTorrent. The tutorial assumes that 
+
+* you completed the quick start
+* you have an account on Bitbucket
+* you registered your SSH public key on Bitbucket
+* your Bitbucket account is member of the *cghub* team on Bitbucket
+* have nothing listening on port 8080 locally
+
+Select a cgcloud namespace and list the SSH keys to be injected into the boxes::
+
+   export CGCLOUD_NAMESPACE=/
+   export CGCLOUD_KEYPAIRS="hannes cwilks markd"
+
+This means that we will be working in the root namespace and that we and our two esteemed colleagues should be able to SSH into the boxes. Our own key pair must be listed first, as the primary key pair. If you just want walk through this tutorial without affecting the root namespace, set CGCLOUD_NAMESPACE to an arbitrary value that is unlikely to be used by anyone else::
+
+   export CGCLOUD_NAMESPACE=hannes
+
+Creating the CI master
+----------------------
+
+Create the Jenkins master instance:
+
+   cgcloud create jenkins-master
+   
+For fun, SSH into the master as the administrative user::
+
+   cgcloud ssh jenkins-master
+   exit
+   
+The administrative user has ``sudo`` privileges. Its name varies from platform to platform but cgcloud keeps track of that for you. For even more fun, SSH into the master as the *jenkins* user::
+
+   cgcloud ssh jenkins-master -l jenkins
+   
+This is the user that the Jenkins server runs as. 
+
+This is possibly not the first time that a ``jenkins-master`` box is created in the root namespace. If a ``jenkins-master`` box existed in the root namespace before, the volume containing all of Jenkins' data (configurations, build plans, build output, etc.) will still be around unless someone deleted it of course. Creating a ``jenkins-master`` in a namespace will reuse the ``jenkins-data`` volume in that namespace if it already exists. If it doesn't, it will be automatically created. You may skip to :ref:`creating-slaves`.
+
+Setting Up Jenkins
+------------------
+
+Jenkins needs checkout access to the source code repositories so we need to tell BitBucket about the *jenkins* user's public key::
+
+   cat ~/.ssh/id_rsa.pub
+   exit
+   
+Paste the key as a *Deployment key* (under the repository settings) for the GeneTorrent, GeneTorrent Build and Jenkins Config repositories. Our recommended naming convention for deployment keys, and cgcloud keys in general, is ``user@namespace/role`` so we should use ``jenkins@/jenkins-master`` as the name of the deployment key in Bitbucket.
+
+Stop Jenkins and checkout the Jenkins configuration from Bitbucket::
+
+   cgcloud ssh jenkins-master
+   sudo /etc/init.d/jenkins stop
+   exit
+   cgcloud ssh jenkins-master -l jenkins
+   git init .
+   git remote add -t \* -f origin git@bitbucket.org:cghub/jenkins-config.git
+   git checkout -f master
+   exit
+
+We can't just use ``git clone`` since we want to merge the repository contents with the current local directory rather than completely wiping the local directory which ``git clone`` would have us do.
+
+If you skip this step, Jenkins will run with its default, empty configuration and you will have to configure the various build plans for GeneTorrent yourself. TODO: Setting up Jenkins from scratch should be documented, but somewhere else.
+
+Start Jenkins again::
+
+   cgcloud ssh jenkins-master
+   sudo /etc/init.d/jenkins start
+   exit
+
+.. _creating-slaves:
+
+Creating The Slaves
+-------------------
+
+SSH into the master as the ``jenkins`` user again::
+
+   cgcloud ssh jenkins-master -l jenkins
+   
+Then point your browser at Jenkins' web UI at http://localhost:8080/. The ``cgcloud ssh jenkins-master`` command automatically opens a local port forwarding to Jenkins' web server.
+
+Open a new shell window and create the first slave::
+
+   cgcloud list-roles
+   cgcloud create centos5-genetorrent-jenkins-slave
+   
+SSH into it and look around. Notice how the builds directory in the Jenkins user's home is symbolically linked to ephemeral storage::
+
+   cgcloud ssh centos5-genetorrent-jenkins-slave
+   sudo whoami
+   git --version
+   sudo ls -l ~jenkins
+   exit
+
+Now stop, image and terminate the box::
+
+   cgcloud stop centos5-genetorrent-jenkins-slave
+   cgcloud create-image centos5-genetorrent-jenkins-slave
+   cgcloud terminate centos5-genetorrent-jenkins-slave
+
+The ``create-image`` command prints the AMI ID of the newly created image. Paste that AMI ID into the AMI configuration for the slave. In the Jenkins web UI:
+
+1. Click *Manage Jenkins*
+2. Click *Configure System*
+3. Scroll down to the *Cloud* section
+4. Paste the AMI-ID into the AMI ID field of the AMI for this Jenkins slave. 
+
+The *Description* field of each AMI section should be set to the role name, e.g. ``centos5-genetorrent-jenkins-slave``. If this is a new slave role, say, for a new platform, add a new AMI to the Jenkins configuration using an existing AMI as the template. Make sure you click the *Advanced* button to reveal all fields.
+
+Repeat this for all other slaves
+
+   for slave in $(./cgcloud list-roles | grep jenkins-slave | grep -v centos5-genetorrent-jenkins-slave); do cgcloud create $slave --image --terminate ; done
+
+Note how the above command makes use of the ``--image`` and ``--terminate`` options to combine the creation of a box with image creation and termination into a single command.
+
+
+
+Image master, too
+

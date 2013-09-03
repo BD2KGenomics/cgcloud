@@ -60,6 +60,7 @@ class UbuntuGenetorrentJenkinsSlave( UbuntuBox, GenetorrentJenkinsSlave ):
     def _list_packages_to_install(self):
         packages = super( UbuntuGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         return packages + [
+            'autoconf',
             'g++',
             'pkg-config',
             'libxerces-c-dev',
@@ -133,6 +134,7 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
     def _list_packages_to_install(self):
         packages = super( FedoraGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         return packages + [
+            'autoconf',
             'gcc-c++',
             'pkgconfig',
             'xerces-c-devel',
