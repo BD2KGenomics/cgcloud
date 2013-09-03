@@ -25,6 +25,7 @@ class CentosGenetorrentJenkinsSlave( CentosBox, GenetorrentJenkinsSlave ):
     """
 
     def _list_packages_to_install(self):
+        # TODO: List JRE explicitly (it is already installed on RightScale CentOS images)
         return super( CentosGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             'gcc-c++',
             'pkgconfig',
@@ -68,7 +69,8 @@ class UbuntuGenetorrentJenkinsSlave( UbuntuBox, GenetorrentJenkinsSlave ):
             'make',
             'devscripts',
             'debhelper',
-            'python-support' ]
+            'python-support',
+            'openjdk-7-jre-headless' ]
 
 
 class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuLucidBox ):
@@ -76,11 +78,19 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
     A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
     """
 
-    def _list_packages_to_install(self):
-        packages = super( UbuntuLucidGenetorrentJenkinsSlave, self )._list_packages_to_install( )
-        # Lucid doesn't have git, but git-core which was obsoleted in
-        # favor of git on newer releases
-        return [ 'git-core' if p == 'git' else p for p in packages ]
+    def _populate_package_substitutions(self, map):
+        map.update( {
+            'git': 'git-core',
+            'openjdk-7-jre-headless': 'openjdk-6-jre'
+        } )
+        super( UbuntuLucidGenetorrentJenkinsSlave, self )._populate_package_substitutions( map )
+
+
+    def __substitute_package(self, package):
+        # Lucid doesn't have git, but git-core which was obsoleted in favor of git on newer
+        # releases
+        package = super( UbuntuLucidGenetorrentJenkinsSlave, self ).__substitute_package( package )
+        return self.substitutions.get( package, package )
 
     def _pre_install_packages(self):
         super( UbuntuLucidGenetorrentJenkinsSlave, self )._pre_install_packages( )
@@ -92,14 +102,16 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
         )
 
 
-class UbuntuOneiricGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuOneiricBox ):
+class UbuntuOneiricGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave,
+                                            GenericUbuntuOneiricBox ):
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 11.10 (EOL May 2013)
     """
     pass
 
 
-class UbuntuPreciseGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuPreciseBox ):
+class UbuntuPreciseGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave,
+                                            GenericUbuntuPreciseBox ):
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 12.04 LTS (EOL April 2017)
     """
@@ -130,7 +142,8 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
             'boost-devel',
             'make',
             'rpm-build',
-            'redhat-rpm-config' ]
+            'redhat-rpm-config',
+            'java' ]
 
 
     @fabric_task
