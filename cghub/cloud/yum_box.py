@@ -1,6 +1,6 @@
 from fabric.operations import sudo
 from cghub.cloud.box import fabric_task
-from cghub.cloud.unix_box import PackageManagerBox
+from cghub.cloud.package_manager_box import PackageManagerBox
 
 __author__ = 'hannes'
 
