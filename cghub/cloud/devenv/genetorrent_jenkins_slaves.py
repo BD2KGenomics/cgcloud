@@ -61,6 +61,7 @@ class UbuntuGenetorrentJenkinsSlave( UbuntuBox, GenetorrentJenkinsSlave ):
         packages = super( UbuntuGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         return packages + [
             'autoconf',
+            'libtool',
             'g++',
             'pkg-config',
             'libxerces-c-dev',
@@ -135,6 +136,7 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
         packages = super( FedoraGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         return packages + [
             'autoconf',
+            'libtool',
             'gcc-c++',
             'pkgconfig',
             'xerces-c-devel',
