@@ -52,7 +52,8 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
         self._rpm_localupdate(
             'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/autoconf-2.63-4.2.crt0.noarch.rpm',
             'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/x86_64/m4-1.4.11-1.8.crt0.x86_64.rpm',
-            'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/automake-1.11.1-1.5.crt0.noarch.rpm')
+            'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/automake-1.11.1-1.5.crt0.noarch.rpm',
+            'http://dl.atrpms.net/el5-x86_64/atrpms/testing/libtool-2.2.6-15.5.el5.1.x86_64.rpm' )
 
 
 class Centos6GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCentos6Box ):
