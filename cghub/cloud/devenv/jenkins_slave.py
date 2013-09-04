@@ -90,7 +90,7 @@ class JenkinsSlave( SourceControlClient ):
         kwargs = dict( image_id=image_id,
                        role=self.role( ),
                        zone=self.env.availability_zone,
-                       builds='%s/builds' % Jenkins.home,
+                       builds='/home/jenkins/builds',
                        instance_type=snake_to_camel( self.recommended_instance_type( ),
                                                      separator='.' ),
                        labels=" ".join( self.__jenkins_labels( ) ),

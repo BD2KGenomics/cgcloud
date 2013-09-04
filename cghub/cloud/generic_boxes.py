@@ -1,4 +1,5 @@
-from fabric.operations import run, sudo
+from urlparse import urlparse
+from fabric.operations import run, sudo, os
 from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox
 from cghub.cloud.fedora_box import FedoraBox
@@ -6,10 +7,13 @@ from cghub.cloud.ubuntu_box import UbuntuBox
 
 
 class GenericCentos5Box( CentosBox ):
+    """
+    Good ole CentOS 5 from 1995, more or less
+    """
+
     def release(self):
         return '5.8'
 
-    @fabric_task
     def __update_sudo(self):
         """
         5.8 has sudo 1.7.2p1 whose -i switch is horribly broken. For example,
@@ -22,19 +26,27 @@ class GenericCentos5Box( CentosBox ):
 
         This method should to be invoked early on during setup.
         """
-        run( 'wget ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.7-1.el5.x86_64.rpm' )
-        sudo( 'yum -d 1 -y localupdate sudo-1.8.7-1.el5.x86_64.rpm --nogpgcheck' )
-        run( 'rm sudo-1.8.7-1.el5.x86_64.rpm' )
+        self._rpm_localupdate(
+            'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.7-1.el5.x86_64.rpm' )
 
     def _on_instance_ready(self, first_boot):
         super( GenericCentos5Box, self )._on_instance_ready( first_boot )
         if self.generation == 0 and first_boot:
             self.__update_sudo( )
 
+    def _ephemeral_mount_point(self):
+        return "/mnt"
+
 
 class GenericCentos6Box( CentosBox ):
+    """
+    The slightly newer CentOS 6 from 1999 ;-)
+    """
     def release(self):
         return '6.4'
+
+    def _ephemeral_mount_point(self):
+        return "/mnt/ephemeral"
 
 
 class GenericUbuntuLucidBox( UbuntuBox ):

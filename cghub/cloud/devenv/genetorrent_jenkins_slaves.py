@@ -42,7 +42,17 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     """
     A Jenkins slave for building GeneTorrent on CentOS 5
     """
-    pass
+
+    def _post_install_packages(self):
+        """
+        CentOS 5's autoconf is too old for building genetorrent so we dug up this RPM to replace
+        it, the m4 RPM is a dependency of the autoconf RPM.
+        """
+        super( Centos5GenetorrentJenkinsSlave, self )._post_install_packages( )
+        self._rpm_localupdate(
+            'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/autoconf-2.63-4.2.crt0.noarch.rpm',
+            'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/x86_64/m4-1.4.11-1.8.crt0.x86_64.rpm',
+            'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/automake-1.11.1-1.5.crt0.noarch.rpm')
 
 
 class Centos6GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCentos6Box ):
@@ -143,6 +153,7 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
             'libcurl-devel',
             'xqilla-devel',
             'openssl-devel',
+            'openssl',
             'boost-devel',
             'make',
             'rpm-build',
@@ -152,8 +163,8 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
 
     @fabric_task
     def _get_rc_local_path(self):
-        rc_local_path = '/etc/rc.local'
-        sudo( 'test -f {f} || touch {f} && chmod +x {f}'.format( f=rc_local_path ) )
+        rc_local_path = '/etc/rc.d/rc.local'
+        sudo( 'test -f {f} || echo "#!/bin/sh" > {f} && chmod +x {f}'.format( f=rc_local_path ) )
         return rc_local_path
 
 

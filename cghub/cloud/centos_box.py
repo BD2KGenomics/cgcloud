@@ -1,7 +1,9 @@
+import os.path
 import re
 from distutils.version import LooseVersion
+from urlparse import urlparse
 
-from fabric.operations import run
+from fabric.operations import run, sudo
 
 from box import fabric_task
 from cghub.cloud.yum_box import YumBox
@@ -63,8 +65,6 @@ class CentosBox(YumBox ):
             raise RuntimeError( "Can't find AMI matching CentOS %s" % release )
         return base_image.id
 
-    def _ephemeral_mount_point(self):
-        return "/mnt"
 
     def _on_instance_ready(self,first_boot):
         super( CentosBox, self )._on_instance_ready( first_boot )
@@ -89,3 +89,5 @@ class CentosBox(YumBox ):
     @fabric_task
     def __setup_admin(self):
         run( "echo 'export PATH=\"/usr/local/sbin:/usr/sbin:/sbin:$PATH\"' >> ~/.bash_profile" )
+
+

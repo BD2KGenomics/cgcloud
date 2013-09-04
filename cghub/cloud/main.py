@@ -259,7 +259,7 @@ class RecreateCommand( CreationCommand ):
     def __init__(self, application):
         super( RecreateCommand, self ).__init__( application )
         self.option( '--image', '-i', metavar='ORDINAL',
-                     required=True, type=int,
+                     type=int, default=-1, # default to the last one
                      help='An image ordinal, i.e. the index of an image in the list of images '
                           'created from previous incarnations performing the given role, '
                           'sorted by creation time. Use the list-images command to see a list of '
