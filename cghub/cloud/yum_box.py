@@ -17,11 +17,21 @@ class YumBox( PackageManagerBox ):
 
     @fabric_task
     def _install_packages(self, packages):
-        # yum's error handling is a bit odd: If you pass two packages to install and one fails while
-        # the other succeeds, yum exits with 0. To work around this, we need to invoke yum separately
-        # for every package.
+        """
+        yum's error handling is a bit odd: If you pass two packages to install and one fails
+        while the other succeeds, yum exits with 0. To work around this, we need to invoke yum
+        separately for every package. It gets worse, some older yums exit with 0 even if the
+        package doesn't exist:
+
+        $ sudo yum install jasdgjhsadgajshd && echo yes
+        $ yes
+
+        :param packages: a list of package names
+        """
         for package in packages:
             sudo( 'yum install -d 1 -y %s' % package )
+            # make sure it is really installed
+            run( 'rpm -q %s' % package )
 
     @fabric_task
     def _upgrade_installed_packages(self):

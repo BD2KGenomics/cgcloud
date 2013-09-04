@@ -43,6 +43,10 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     A Jenkins slave for building GeneTorrent on CentOS 5
     """
 
+    def _populate_package_substitutions(self, map):
+        map['libcurl-devel'] = 'curl-devel'
+        super( Centos5GenetorrentJenkinsSlave, self )._populate_package_substitutions( map )
+
     def _post_install_packages(self):
         """
         CentOS 5's autoconf is too old for building genetorrent so we dug up this RPM to replace
