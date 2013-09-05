@@ -6,6 +6,7 @@ from operator import itemgetter
 
 import boto
 from cghub.cloud.devenv.genetorrent_jenkins_slaves import Centos6GenetorrentJenkinsSlave, Centos5GenetorrentJenkinsSlave, UbuntuPreciseGenetorrentJenkinsSlave, UbuntuLucidGenetorrentJenkinsSlave, UbuntuRaringGenetorrentJenkinsSlave, UbuntuOneiricGenetorrentJenkinsSlave, Fedora19GenetorrentJenkinsSlave, Fedora18GenetorrentJenkinsSlave, Fedora17GenetorrentJenkinsSlave
+from cghub.cloud.devenv.rpmbuild_jenkins_slaves import Centos5RpmbuildJenkinsSlave
 from cghub.cloud.generic_boxes import GenericCentos6Box, GenericCentos5Box, GenericUbuntuMaverickBox, GenericUbuntuLucidBox, GenericUbuntuOneiricBox, GenericUbuntuNattyBox, GenericUbuntuQuantalBox, GenericUbuntuPreciseBox, GenericUbuntuRaringBox, GenericUbuntuSaucyBox, GenericFedora17Box, GenericFedora18Box, GenericFedora19Box
 from cghub.cloud.util import UserError
 
@@ -42,6 +43,7 @@ BOXES = OrderedDict( ( cls.role( ), cls) for cls in [
     Fedora17GenetorrentJenkinsSlave,
     Fedora18GenetorrentJenkinsSlave,
     Fedora19GenetorrentJenkinsSlave,
+    Centos5RpmbuildJenkinsSlave
 ] )
 
 
