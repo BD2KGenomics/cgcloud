@@ -51,5 +51,5 @@ class YumBox( PackageManagerBox ):
                   % ( 'localupdate' if is_update else 'localinstall', rpm ) )
             # extract package name from RPM, then check if package is actually installed
             # since we can't rely on yum to report errors
-            run( "rpm -q $$(rpm -qp --queryformat '%%{N}' '%s')" % rpm )
+            run( "rpm -q $(rpm -qp --queryformat '%%{N}' '%s')" % rpm )
             run( "rm '%s'" % rpm )
