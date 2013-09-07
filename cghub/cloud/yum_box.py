@@ -38,15 +38,18 @@ class YumBox( PackageManagerBox ):
         sudo( 'yum update -y -d 1' )
 
     @fabric_task
-    def _rpm_localupdate(self, *rpm_urls):
+    def _yum_local(self, is_update, rpm_urls ):
         """
         Download the RPM at the given URL and run 'yum localupdate' on it.
 
         :param rpm_url: An HTTP or FTP URL ending in a valid RPM file name.
         """
-        quoted_rpms = ' '.join( "'%s'" % os.path.basename( urlparse( rpm_url ).path )
-            for rpm_url in rpm_urls )
         for rpm_url in rpm_urls:
             run( "wget '%s'" % rpm_url )
-        sudo( 'yum -d 1 -y localupdate %s --nogpgcheck' % quoted_rpms )
-        run( 'rm %s' % quoted_rpms )
+            rpm = os.path.basename( urlparse( rpm_url ).path )
+            sudo( "yum -d 1 -y %s '%s' --nogpgcheck"
+                  % ( 'localupdate' if is_update else 'localinstall', rpm ) )
+            # extract package name from RPM, then check if package is actually installed
+            # since we can't rely on yum to report errors
+            run( "rpm -q $$(rpm -qp --queryformat '%%{N}' '%s')" % rpm )
+            run( "rm '%s'" % rpm )

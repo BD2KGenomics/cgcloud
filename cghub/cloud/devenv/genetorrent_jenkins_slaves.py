@@ -44,7 +44,7 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     """
 
     def _populate_package_substitutions(self, map):
-        map['libcurl-devel'] = 'curl-devel'
+        map[ 'libcurl-devel' ] = 'curl-devel'
         super( Centos5GenetorrentJenkinsSlave, self )._populate_package_substitutions( map )
 
     def _post_install_packages(self):
@@ -53,11 +53,15 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
         it, the m4 RPM is a dependency of the autoconf RPM.
         """
         super( Centos5GenetorrentJenkinsSlave, self )._post_install_packages( )
-        self._rpm_localupdate(
+        self._yum_local( is_update=True, rpm_urls=[
             'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/autoconf-2.63-4.2.crt0.noarch.rpm',
             'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/x86_64/m4-1.4.11-1.8.crt0.x86_64.rpm',
             'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/automake-1.11.1-1.5.crt0.noarch.rpm',
-            'http://dl.atrpms.net/el5-x86_64/atrpms/testing/libtool-2.2.6-15.5.el5.1.x86_64.rpm' )
+            'http://dl.atrpms.net/el5-x86_64/atrpms/testing/libtool-2.2.6-15.5.el5.1.x86_64.rpm'
+        ] )
+        self._yum_local( is_update=False, rpm_urls=[
+            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-2.7.2-cghub.x86_64.rpm'
+        ] )
 
 
 class Centos6GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCentos6Box ):

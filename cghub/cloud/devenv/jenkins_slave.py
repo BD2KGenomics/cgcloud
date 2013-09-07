@@ -17,7 +17,7 @@ class JenkinsSlave( SourceControlClient ):
 
     def _post_install_packages(self):
         super( JenkinsSlave, self )._post_install_packages( )
-        self.__setup_build_user( )
+        self._setup_build_user( )
 
     @fabric_task
     def _get_rc_local_path(self):
@@ -30,7 +30,7 @@ class JenkinsSlave( SourceControlClient ):
         return sudo( 'readlink -f /etc/rc.local' )
 
     @fabric_task
-    def __setup_build_user(self):
+    def _setup_build_user(self):
         """
         Setup a user account that accepts SSH connections from Jenkins such that it can act as a
         Jenkins slave. All build-related files should go into that user's ~/builds directory.
