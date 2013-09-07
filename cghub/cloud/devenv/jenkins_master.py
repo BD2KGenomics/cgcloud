@@ -234,7 +234,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                     "create the private key file, the key pair must be created at the same time. "
                     "Please delete the key pair from EC2 before retrying."
                     .format( key_pair=ec2_keypair, **jenkins ) )
-        #
+
         # Store a copy of the public key locally
         #
         self.__get_jenkins_key( )
@@ -249,9 +249,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         get( remote_path='%s.pub' % Jenkins.key_path,
              local_path=self._config_file_path( Jenkins.pubkey_config_file, mkdir=True ) )
 
-    def _ssh_args(self, user):
-        args = super( JenkinsMaster, self )._ssh_args( user )
-
+    def _ssh_args(self, options, user, command ):
         # Add port forwarding to Jenkins' web UI
-        args[ 1:1 ] = [ '-L', 'localhost:8080:localhost:8080' ]
-        return args
+        options += ( '-L', 'localhost:8080:localhost:8080' )
+        return super( JenkinsMaster, self )._ssh_args( options, user, command )

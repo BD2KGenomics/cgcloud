@@ -1,3 +1,4 @@
+import argparse
 from collections import OrderedDict
 import logging
 import os
@@ -159,13 +160,15 @@ class RoleCommand( EnvironmentCommand ):
 class BoxCommand( RoleCommand ):
     def __init__(self, application, **kwargs):
         super( BoxCommand, self ).__init__( application, **kwargs )
-        self.option( '--ordinal', '-o', default=None, type=int,
+        self.option( '--ordinal', '-o', default=-1, type=int,
                      help='Selects an individual box from the list of boxes performing the '
                           'specified role. The ordinal is a zero-based index into the list of all '
                           'boxes performing the specified role, sorted by creation time. This '
                           'means that the ordinal of a box is not fixed, it may change if another '
-                          'box performing the specified role is terminated. This option is only '
-                          'required if there are multiple boxes performing the specified role.' )
+                          'box performing the specified role is terminated. If the ordinal is '
+                          'negative, it will be converted to a positive ordinal by adding the '
+                          'number of boxes performing the specified role. Passing -1, for example, '
+                          'selects the most recently created box.' )
 
 
 class CreationCommand( RoleCommand ):
@@ -265,7 +268,13 @@ class RecreateCommand( CreationCommand ):
                      help='An image ordinal, i.e. the index of an image in the list of images '
                           'created from previous incarnations performing the given role, '
                           'sorted by creation time. Use the list-images command to see a list of '
-                          'images.' )
+                          'images. If the ordinal is negative, it will be converted to a positive '
+                          'ordinal by adding number of images created from boxes performing the '
+                          'specified role. Passing -1, for example, selects the most recently '
+                          'created box.If the image ordinal is negative, it will be subtracted '
+                          'from the number of images created from boxes performing the specified '
+                          'role. Passing -1, for example, selects image that was created most '
+                          'recently.' )
 
     def run_on_creation(self, box, options):
         pass
@@ -300,10 +309,15 @@ class SshCommand( BoxCommand ):
         super( SshCommand, self ).__init__( application )
         self.option( '--user', '--login', '-u', '-l', default=None,
                      help="Name of user to login as." )
+        self.option( '--command', '-c', nargs=argparse.REMAINDER, default=[],
+                     help="Additional arguments to pass to ssh. This can be anything that you "
+                          "would pass to SSH with the exception of user name or host." )
 
     def run_on_box(self, options, box):
         box.adopt( ordinal=options.ordinal )
-        box.ssh( user=options.user )
+        i = next( ( i for i,v in enumerate( options.command ) if not v.startswith('-') ),
+                  len( options.command ) )
+        box.ssh( options=options.command[ :i ], user=options.user, command=options.command[ i: ] )
 
 
 class LifecycleCommand( BoxCommand ):

@@ -255,7 +255,10 @@ class Box( object ):
                 raise UserError( "More than one instance performing role '%s'. "
                                  "Please specify an ordinal." % role )
             ordinal = 0
-        return instances[ ordinal ]
+        try:
+            return instances[ ordinal ]
+        except IndexError:
+            raise UserError('No box with ordinal %i' % ordinal )
 
     @needs_instance
     def create_image(self):
@@ -560,11 +563,16 @@ class Box( object ):
             return file.read( )
 
     @needs_instance
-    def ssh(self, user=None):
-        subprocess.call( self._ssh_args( user ) )
+    def ssh(self, options=[ ], user=None, command=[ ]):
+        subprocess.call( self._ssh_args( options, user, command ) )
 
-    def _ssh_args(self, user):
-        return [ 'ssh', '-A', '-l', user if user else self.username( ), self.host_name ]
+    def _ssh_args(self, options, user, command):
+        if user is None:
+            user = self.username( )
+        args = [ 'ssh', '-A' ] + options
+        args.append( '%s@%s' % ( user, self.host_name ) )
+        args += command
+        return args
 
     def get_keys(self):
         """
