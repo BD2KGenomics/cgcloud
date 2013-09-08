@@ -58,7 +58,7 @@ def main():
         StopCommand,
         RebootCommand,
         TerminateCommand,
-        CreateImageCommand,
+        ImageCommand,
         ShowCommand,
         SshCommand,
         ListCommand,
@@ -216,7 +216,7 @@ class CreationCommand( RoleCommand ):
         try:
             box.create( ec2_keypair_names=options.ec2_keypair_names,
                         instance_type=options.instance_type,
-                        image_id_or_ordinal=options.image )
+                        boot_image=options.boot_image )
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
@@ -235,10 +235,10 @@ class CreateCommand( CreationCommand ):
 
     def __init__(self, application):
         super( CreateCommand, self ).__init__( application )
-        self.option( '--image', '-i', metavar='IMAGE_ID',
+        self.option( '--boot-image', '-i', metavar='IMAGE_ID',
                      help='An image ID (aka AMI ID) from which to create the box. This is argument '
                           'optional and the default is determined automatically based on the role.' )
-        self.option( '--create-image', '-I',
+        self.option( '--image', '-I',
                      default=False, action='store_true',
                      help='Create an image of the box when setup is complete.' )
         self.option( '--update', '-U',
@@ -249,9 +249,9 @@ class CreateCommand( CreationCommand ):
 
     def run_on_creation(self, box, options):
         box.setup( options.update )
-        if options.create_image:
+        if options.image:
             box.stop( )
-            box.create_image( )
+            box.image( )
             if options.terminate is not True:
                 box.start( )
 
@@ -263,7 +263,7 @@ class RecreateCommand( CreationCommand ):
 
     def __init__(self, application):
         super( RecreateCommand, self ).__init__( application )
-        self.option( '--image', '-i', metavar='ORDINAL',
+        self.option( '--boot-image', '-i', metavar='ORDINAL',
                      type=int, default=-1, # default to the last one
                      help='An image ordinal, i.e. the index of an image in the list of images '
                           'created from previous incarnations performing the given role, '
@@ -280,14 +280,14 @@ class RecreateCommand( CreationCommand ):
         pass
 
 
-class CreateImageCommand( BoxCommand ):
+class ImageCommand( BoxCommand ):
     """
     Create an AMI image of a box performing a given role. The box must be stopped.
     """
 
     def run_on_box(self, options, box):
         box.adopt( ordinal=options.ordinal, wait_ready=False )
-        box.create_image( )
+        box.image( )
 
 
 class GetKeysCommand( BoxCommand ):

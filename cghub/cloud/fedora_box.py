@@ -17,7 +17,7 @@ class FedoraBox( YumBox, CloudInitBox ):
     def username(self):
         return "fedora" if self.release( ) >= 19 else "ec2-user"
 
-    def _default_image_id(self):
+    def _boot_image_id(self):
         release = self.release( )
         images = self.connection.get_all_images( owners='125523088429',
                                                  filters={

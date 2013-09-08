@@ -127,8 +127,8 @@ class JenkinsSlave( SourceControlClient ):
             </hudson.plugins.ec2.SlaveTemplate>
         """ ).format( **kwargs )
 
-    def create_image(self):
-        image_id = super( JenkinsSlave, self ).create_image( )
+    def image(self):
+        image_id = super( JenkinsSlave, self ).image( )
         self._log( 'In order to configure the Jenkins master to use this image for spawning '
                    'slaves, paste the following XML fragment into %s/config.xml on the '
                    'jenkins-master box. The fragment should be pasted as a child element of '

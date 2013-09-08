@@ -42,7 +42,7 @@ class CentosBox(YumBox ):
         self._username = admin_user
         self.get_instance( ).add_tag( 'admin_user', admin_user )
 
-    def _default_image_id(self):
+    def _boot_image_id(self):
         release = self.release( )
         images = self.connection.get_all_images( owners='411009282317',
                                                  filters={

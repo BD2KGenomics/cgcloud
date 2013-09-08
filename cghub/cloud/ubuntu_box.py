@@ -43,7 +43,7 @@ class UbuntuBox( PackageManagerBox, CloudInitBox ):
     def username(self):
         return 'ubuntu'
 
-    def _default_image_id(self):
+    def _boot_image_id(self):
         release = self.release( )
         base_image = self.__find_image(
             template=TemplateDict( release=release,

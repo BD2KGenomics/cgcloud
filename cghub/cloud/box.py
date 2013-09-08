@@ -72,7 +72,7 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    def _default_image_id(self):
+    def _boot_image_id(self):
         """
         Returns the AMI ID of the default image for boxes performing this role
         """
@@ -129,7 +129,7 @@ class Box( object ):
         image = self.connection.get_image( image_id )
         self.generation = int( image.tags.get( 'generation', '0' ) )
 
-    def create(self, ec2_keypair_names, instance_type=None, image_id_or_ordinal=None):
+    def create(self, ec2_keypair_names, instance_type=None, boot_image=None):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -141,27 +141,29 @@ class Box( object ):
          into the instance to facilitate SSH logins. For the first listed keypair a matching
          private key needs to be present locally.
 
-        :type ec2_keypair_names: string
+        :type ec2_keypair_names: list of strings
+
+        :param boot_image: the ordinal or AMI ID of the image to boot from. If None,
+        the return value of self._boot_image_id() will be used.
         """
         if self.instance_id is not None:
             raise AssertionError( "Instance already adopted or created" )
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
 
-        if image_id_or_ordinal is not None:
-            if isinstance( image_id_or_ordinal, int ):
+        if boot_image is not None:
+            if isinstance( boot_image, int ):
                 images = self.list_images( )
-                ordinal = image_id_or_ordinal
                 try:
-                    image = images[ ordinal ]
+                    image = images[ boot_image ]
                 except IndexError:
-                    raise UserError( "No image with ordinal %i" % ordinal )
+                    raise UserError( "No image with ordinal %i" % boot_image )
                 image_id = image[ 'id' ]
             else:
-                image_id = image_id_or_ordinal
+                image_id = boot_image
         else:
             self._log( "Looking up default image for role %s, ... " % self.role( ), newline=False )
-            image_id = self._default_image_id( )
+            image_id = self._boot_image_id( )
             self._log( "found %s." % image_id )
 
         self.__read_generation( image_id )
@@ -190,7 +192,6 @@ class Box( object ):
     def _on_instance_ready(self, first_boot):
         """
         Invoked during creation, adoption or after start, right after the instance became ready.
-
 
         :param first_boot: True if this is the first time the instance becomes ready after
         its creation
@@ -261,7 +262,7 @@ class Box( object ):
             raise UserError('No box with ordinal %i' % ordinal )
 
     @needs_instance
-    def create_image(self):
+    def image(self):
         """
         Create an image (AMI) of the EC2 instance represented by this box and return its ID.
         The EC2 instance needs to use an EBS-backed root volume. The box must be stopped or
