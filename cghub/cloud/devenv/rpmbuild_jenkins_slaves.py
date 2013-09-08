@@ -29,6 +29,7 @@ class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):
         super( CentosRpmbuildJenkinsSlave, self )._setup_build_user( )
         # Some RPM builds depend on the product of other RPM builds to be installed so we need to
         # be able to run rpm in between RPM builds
+        sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
         sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /bin/rpm' >> /etc/sudoers" )
 
 
