@@ -214,4 +214,16 @@ class Fedora17GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFed
     """
     A Jenkins slave for building GeneTorrent on Fedora 17
     """
-    pass
+
+    def _list_packages_to_install(self):
+        return super( Fedora17GenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            # This isn't pre-installed on Fedora 17 and without it, autoreconf says things like
+            # "libtoolize: can not copy `/usr/share/aclocal/libtool.m4' to `m4/'" since
+            # apparently it's using tar to copy files but doesn't deem the user worthy being
+            # informed about the absence of a vital prerequisite.
+            #
+            # http://lists.gnu.org/archive/html/libtool/2009-07/msg00030.html
+            #
+            # Of course, tar is need for other build steps too, so we would have found out anyhow.
+            "tar"
+        ]
