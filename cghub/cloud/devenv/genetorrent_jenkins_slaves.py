@@ -47,6 +47,16 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
         map[ 'libcurl-devel' ] = 'curl-devel'
         super( Centos5GenetorrentJenkinsSlave, self )._populate_package_substitutions( map )
 
+    def _list_packages_to_install(self):
+        return super( Centos5GenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            # On CentOS 6 this is installed automatically but on 5 it is missing. It is needed
+            # for the %{dist} tag in .spec files. Without it, the CentOS 5 RPM build fails in
+            # obscure ways since the release-specific conditionals in the genetorrent.spec file
+            # don't get executed.
+            "buildsys-macros"
+        ]
+
+
     def _post_install_packages(self):
         """
         CentOS 5's autoconf is too old for building genetorrent so we dug up this RPM to replace
