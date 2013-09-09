@@ -148,14 +148,21 @@ class UbuntuPreciseGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave,
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 12.04 LTS (EOL April 2017)
     """
-    pass
+
+    def _list_packages_to_install(self):
+        return super( UbuntuPreciseGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            "libboost1.48-dev"
+        ]
 
 
 class UbuntuRaringGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuRaringBox ):
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 13.04 (EOL January 2014)
     """
-    pass
+    def _list_packages_to_install(self):
+        return super( UbuntuRaringGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            "libboost-dev"
+        ]
 
 
 class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
