@@ -119,12 +119,6 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
         super( UbuntuLucidGenetorrentJenkinsSlave, self )._populate_package_substitutions( map )
 
 
-    def __substitute_package(self, package):
-        # Lucid doesn't have git, but git-core which was obsoleted in favor of git on newer
-        # releases
-        package = super( UbuntuLucidGenetorrentJenkinsSlave, self ).__substitute_package( package )
-        return self.substitutions.get( package, package )
-
     def _pre_install_packages(self):
         super( UbuntuLucidGenetorrentJenkinsSlave, self )._pre_install_packages( )
         # On Lucid, somehow postfix gets pulled in as a dependency kicking the frontend into
@@ -151,17 +145,25 @@ class UbuntuPreciseGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave,
 
     def _list_packages_to_install(self):
         return super( UbuntuPreciseGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
-            "libboost1.48-dev"
-        ]
+            'libboost1.48-dev',
+            'libboost-filesystem1.48-dev',
+            'libboost-system1.48-dev',
+            'libboost-program-options1.48-dev',
+            'libboost-regex1.48-dev' ]
 
 
 class UbuntuRaringGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuRaringBox ):
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 13.04 (EOL January 2014)
     """
+
     def _list_packages_to_install(self):
         return super( UbuntuRaringGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
-            "libboost-dev"
+            'libboost1.49-dev',
+            'libboost-filesystem1.49-dev',
+            'libboost-system1.49-dev',
+            'libboost-program-options1.49-dev',
+            'libboost-regex1.49-dev',
         ]
 
 
@@ -186,7 +188,7 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
             'make',
             'rpm-build',
             'redhat-rpm-config',
-            'java' ]
+            'java-1.7.0-openjdk' ]
 
 
     @fabric_task
