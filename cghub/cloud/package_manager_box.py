@@ -51,7 +51,7 @@ class PackageManagerBox( Box ):
         """
         pass
 
-    def _get_package_substitutions(self, substitutions):
+    def _get_package_substitutions(self):
         """
         Return a list of package substitutions. Each substitution is a tuple of two elements. The
         first element, the original, is the name of a package to be installed,
@@ -66,7 +66,7 @@ class PackageManagerBox( Box ):
         substitution for a particular original, all but the last one will be ignored. For example,
         [ ('o','s1'), ('o'),('s2') ]  is equivalent to [ ('o'),('s2') ].
         """
-        return []
+        return [ ]
 
     def setup(self, upgrade_installed_packages=False):
         self._setup_package_repos( )

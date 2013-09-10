@@ -56,7 +56,7 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
             "buildsys-macros"
         ]
 
-
+    @fabric_task
     def _post_install_packages(self):
         """
         CentOS 5's autoconf is too old for building genetorrent so we dug up this RPM to replace
@@ -74,6 +74,10 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
             'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-devel-2.7.2-cghub.x86_64.rpm',
             'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-setuptools-0.6c11-cghub.noarch.rpm'
         ] )
+        # Make 2.7 the default
+        sudo( 'ln -snf /usr/bin/python2.7 /usr/bin/python' )
+        sudo( 'ln -snf /usr/bin/easy_install-2.7 /usr/bin/easy_install' )
+        sudo( 'mv /usr/bin/pydoc /usr/bin/pydoc2.4' )
 
 
 class Centos6GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCentos6Box ):
@@ -111,7 +115,7 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
     A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
     """
 
-    def _get_package_substitutions(self, map):
+    def _get_package_substitutions(self):
         return super( UbuntuLucidGenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
             ('openjdk-7-jre-headless', 'openjdk-6-jre'),
             ('git', 'git-core') ]
