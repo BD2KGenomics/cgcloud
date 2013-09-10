@@ -43,9 +43,9 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     A Jenkins slave for building GeneTorrent on CentOS 5
     """
 
-    def _populate_package_substitutions(self, map):
-        map[ 'libcurl-devel' ] = 'curl-devel'
-        super( Centos5GenetorrentJenkinsSlave, self )._populate_package_substitutions( map )
+    def _get_package_substitutions(self):
+        return super( Centos5GenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
+            ( 'libcurl-devel', 'curl-devel' ) ]
 
     def _list_packages_to_install(self):
         return super( Centos5GenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
@@ -111,13 +111,10 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
     A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
     """
 
-    def _populate_package_substitutions(self, map):
-        map.update( {
-            'git': 'git-core',
-            'openjdk-7-jre-headless': 'openjdk-6-jre'
-        } )
-        super( UbuntuLucidGenetorrentJenkinsSlave, self )._populate_package_substitutions( map )
-
+    def _get_package_substitutions(self, map):
+        return super( UbuntuLucidGenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
+            ('openjdk-7-jre-headless', 'openjdk-6-jre'),
+            ('git', 'git-core') ]
 
     def _pre_install_packages(self):
         super( UbuntuLucidGenetorrentJenkinsSlave, self )._pre_install_packages( )

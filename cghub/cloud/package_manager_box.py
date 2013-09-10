@@ -51,24 +51,28 @@ class PackageManagerBox( Box ):
         """
         pass
 
-    def _populate_package_substitutions(self, substitutions):
+    def _get_package_substitutions(self, substitutions):
         """
-        Populate the package substitution dictionary with entries. An entry's key is the name of
-        a package to be installed, the corresponding value is the name of the substitute package
-        that will be installed instead. The dictionary may contain cycles, None keys and None
-        value.  Note that substitutes are subjected to substitution, too. An entry with a None
-        value will cause the package referred to by the entry's key to be ignored. An entry with
-        a None key will cause any ignored packages to be substituted with the package referred to
-        by the entry's value, a less common scenario.
+        Return a list of package substitutions. Each substitution is a tuple of two elements. The
+        first element, the original, is the name of a package to be installed,
+        the second element, aka the substitute, is the name of the package that should be used
+        instead. The dictionary may contain cycles, None keys and None value.
+
+        Substitutes are subjected to substitution, too. An None substitute will cause original to
+        be ignored. A None original will cause any ignored packages to be replaced by the
+        corresponding substitute, a less common scenario.
+
+        The returned list will be passed to the dict() constructor. If there are more than one
+        substitution for a particular original, all but the last one will be ignored. For example,
+        [ ('o','s1'), ('o'),('s2') ]  is equivalent to [ ('o'),('s2') ].
         """
-        pass
+        return []
 
     def setup(self, upgrade_installed_packages=False):
         self._setup_package_repos( )
         self._sync_package_repos( )
         self._pre_install_packages( )
-        substitutions = { }
-        self._populate_package_substitutions( substitutions )
+        substitutions = dict( self._get_package_substitutions( ) )
         packages = self._list_packages_to_install( )
         packages = ( substitute_package( substitutions, p ) for p in packages )
         packages = [ p for p in packages if p is not None ]
