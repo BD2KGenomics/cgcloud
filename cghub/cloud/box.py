@@ -7,6 +7,7 @@ import socket
 import subprocess
 import time
 import sys
+from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 
 from fabric.operations import sudo, run, get, put
 from boto import ec2, logging
@@ -72,9 +73,12 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    def _boot_image_id(self):
+    def _base_image(self):
         """
-        Returns the AMI ID of the default image for boxes performing this role
+        Returns the default base image that boxes performing this role should be booted from
+        before they are being setup
+
+        :rtype boto.ec2.image.Image
         """
         raise NotImplementedError( )
 
@@ -115,14 +119,19 @@ class Box( object ):
         self.host_name = None
         self.connection = ec2.connect_to_region( env.region )
 
-    def _populate_instance_creation_args(self, kwargs):
+    def _populate_instance_creation_args(self, image, kwargs):
         """
         Add, remove or modify the keyword arguments that will be passed to the EC2 run_instances
         request.
 
+        :type image: boto.ec2.image.Image
         :type kwargs: dict
         """
-        pass
+        bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
+        root_bdt = image.block_device_mapping[ '/dev/sda1' ]
+        root_bdt.size = 10
+        bdm[ '/dev/sda1' ] = root_bdt
+        bdm[ '/dev/sdb' ] = BlockDeviceType( ephemeral_name='ephemeral0' )
 
 
     def __read_generation(self, image_id):
@@ -158,22 +167,21 @@ class Box( object ):
                     image = images[ boot_image ]
                 except IndexError:
                     raise UserError( "No image with ordinal %i" % boot_image )
-                image_id = image[ 'id' ]
             else:
-                image_id = boot_image
+                image = self.connection.get_image( boot_image )
         else:
             self._log( "Looking up default image for role %s, ... " % self.role( ), newline=False )
-            image_id = self._boot_image_id( )
-            self._log( "found %s." % image_id )
+            image = self._base_image( )
+            self._log( "found %s." % image.id )
 
-        self.__read_generation( image_id )
+        self.__read_generation( image.id )
 
         self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypair_names[ 0 ],
                        placement=self.env.availability_zone )
-        self._populate_instance_creation_args( kwargs )
-        reservation = self.connection.run_instances( image_id, **kwargs )
+        self._populate_instance_creation_args( image, kwargs )
+        reservation = self.connection.run_instances( image.id, **kwargs )
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
         self.ec2_keypair_names = ec2_keypair_names
@@ -259,7 +267,7 @@ class Box( object ):
         try:
             return instances[ ordinal ]
         except IndexError:
-            raise UserError('No box with ordinal %i' % ordinal )
+            raise UserError( 'No box with ordinal %i' % ordinal )
 
     @needs_instance
     def image(self):
@@ -629,6 +637,9 @@ class Box( object ):
         return 't1.micro'
 
     def list_images(self):
+        """
+        :rtype: list of boto.ec2.image.Image
+        """
         role = self.role( )
         image_name_pattern = '%s *' % self.absolute_role( )
         images = self.connection.get_all_images( filters={ 'name': image_name_pattern } )

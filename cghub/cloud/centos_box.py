@@ -42,7 +42,7 @@ class CentosBox(YumBox ):
         self._username = admin_user
         self.get_instance( ).add_tag( 'admin_user', admin_user )
 
-    def _boot_image_id(self):
+    def _base_image(self):
         release = self.release( )
         images = self.connection.get_all_images( owners='411009282317',
                                                  filters={
@@ -63,7 +63,7 @@ class CentosBox(YumBox ):
                     base_image = image
         if not base_image:
             raise RuntimeError( "Can't find AMI matching CentOS %s" % release )
-        return base_image.id
+        return base_image
 
 
     def _on_instance_ready(self,first_boot):

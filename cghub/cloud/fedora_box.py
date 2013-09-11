@@ -17,7 +17,7 @@ class FedoraBox( YumBox, CloudInitBox ):
     def username(self):
         return "fedora" if self.release( ) >= 19 else "ec2-user"
 
-    def _boot_image_id(self):
+    def _base_image(self):
         release = self.release( )
         images = self.connection.get_all_images( owners='125523088429',
                                                  filters={
@@ -28,4 +28,4 @@ class FedoraBox( YumBox, CloudInitBox ):
         if len( images ) > 1:
             raise RuntimeError( "Found more than one AMI for Fedora %i" % release )
 
-        return images[ 0 ].id
+        return images[ 0 ]

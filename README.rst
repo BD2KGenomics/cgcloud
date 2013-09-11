@@ -172,14 +172,30 @@ Now stop, image and terminate the box::
    cgcloud create-image centos5-genetorrent-jenkins-slave
    cgcloud terminate centos5-genetorrent-jenkins-slave
 
-The ``create-image`` command prints the AMI ID of the newly created image. Paste that AMI ID into the AMI configuration for the slave. In the Jenkins web UI:
+The ``create-image`` command prints an XML fragment of Jenkins configuration. Paste that fragment
+into Jenkins' ``config.xml``::
+
+    cgcloud ssh jenkins-master -l jenkins
+    vim config.xml
+
+Then in the Jenkins web UI, click *Manage Jenkins* and *Reload Configuration from Disk**.
+
+    ::
+
+        exit
+
+Alternatively, add the slave via the Jenkins UI directly, if, for example, you know that only the
+AMI ID has changed but the rest of the slave configuration stayed the same:
 
 1. Click *Manage Jenkins*
 2. Click *Configure System*
 3. Scroll down to the *Cloud* section
-4. Paste the AMI-ID into the AMI ID field of the AMI for this Jenkins slave. 
+4. Make the necessary changes interactively
 
-The *Description* field of each AMI section should be set to the role name, e.g. ``centos5-genetorrent-jenkins-slave``. If this is a new slave role, say, for a new platform, add a new AMI to the Jenkins configuration using an existing AMI as the template. Make sure you click the *Advanced* button to reveal all fields.
+The *Description* field of each AMI section should be set to the role name, e.g.
+``centos5-genetorrent-jenkins-slave``. If this is a new slave role, say, for a new platform, add a
+new AMI to the Jenkins configuration using an existing AMI as the template. Make sure you click the
+*Advanced* button to reveal all fields.
 
 Repeat this for all other slaves
 

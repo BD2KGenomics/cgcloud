@@ -33,14 +33,12 @@ class CloudInitBox( Box ):
         user_data.setdefault( 'mounts', [ ] ).append(
             [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,nofail' ] )
 
-    def _populate_instance_creation_args(self, kwargs):
-        super( CloudInitBox, self )._populate_instance_creation_args( kwargs )
+    def _populate_instance_creation_args(self, image, kwargs):
+        super( CloudInitBox, self )._populate_instance_creation_args( image, kwargs )
         #
         # Setup instance storage. Since some AMI', e.g. Fedora, omit the block device mapping for
         # instance storage, we force one here, such that cloud-init can mount it.
         #
-        block_device_map = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
-        block_device_map[ '/dev/sdb' ] = BlockDeviceType( ephemeral_name='ephemeral0' )
         cloud_config = { }
         self._populate_cloud_config( cloud_config )
         if cloud_config:

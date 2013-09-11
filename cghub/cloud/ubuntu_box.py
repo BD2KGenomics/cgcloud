@@ -43,9 +43,9 @@ class UbuntuBox( PackageManagerBox, CloudInitBox ):
     def username(self):
         return 'ubuntu'
 
-    def _boot_image_id(self):
+    def _base_image(self):
         release = self.release( )
-        base_image = self.__find_image(
+        image_info = self.__find_image(
             template=TemplateDict( release=release,
                                    purpose='server',
                                    release_type='release',
@@ -58,7 +58,8 @@ class UbuntuBox( PackageManagerBox, CloudInitBox ):
                 'release', 'purpose', 'release_type', 'release_date',
                 'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
                 'dont_know', 'hypervisor' ] )
-        return base_image[ 'ami_id' ]
+        image_id = image_info[ 'ami_id' ]
+        return self.connection.get_image( image_id )
 
     apt_get = 'DEBIAN_FRONTEND=readline apt-get -q -y'
 
