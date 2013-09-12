@@ -12,6 +12,7 @@ from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from fabric.operations import sudo, run, get, put
 from boto import ec2, logging
 from fabric.api import execute
+import itertools
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
@@ -454,10 +455,15 @@ class Box( object ):
         self._log( "running, ... ", newline=False )
         self.__wait_hostname_assigned( instance )
         self._log( "hostname assigned, ... ", newline=False )
-        self.__wait_ssh_port_open( )
+        num_connect_failures = self.__wait_ssh_port_open( )
         self._log( "SSH port open, ... ", newline=False )
-        self.__wait_ssh_working( )
-        self._log( "SSH working, done." )
+        # We observed sshd on Lucid to accept connections on port 22 during boot, but not follow
+        # through with the SSH connection setup. To ensure that SSH is actually functional,
+        # we go through the whole process of executing a command via SSH. We only do it if we
+        # actually witnessed port 22 going from closed to open while we are waiting on it.
+        if num_connect_failures > 0:
+            self.__wait_ssh_working( )
+            self._log( "SSH working, done." )
         self._on_instance_ready( first_boot )
 
     def __wait_hostname_assigned(self, instance):
@@ -476,13 +482,16 @@ class Box( object ):
     def __wait_ssh_port_open(self):
         """
         Wait until the instance represented by this box is accessible via SSH.
+
+        :return: the number of unsuccessful attempts to connect to the port before a the first
+        success
         """
-        while True:
+        for i in itertools.count():
             s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
             try:
                 s.settimeout( EC2_POLLING_INTERVAL )
                 s.connect( (self.host_name, 22) )
-                return
+                return i
             except socket.error:
                 pass
             except socket.timeout:
