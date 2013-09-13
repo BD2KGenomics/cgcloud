@@ -1,5 +1,4 @@
-from urlparse import urlparse
-from fabric.operations import run, sudo, os
+from fabric.operations import run, sudo
 from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox
 from cghub.cloud.fedora_box import FedoraBox

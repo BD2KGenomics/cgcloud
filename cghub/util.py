@@ -137,6 +137,10 @@ class UserError( RuntimeError ):
     pass
 
 
+def app_name():
+    return os.path.splitext( os.path.basename( sys.argv[ 0 ] ) )[ 0 ]
+
+
 class Application( object ):
     """
     An attempt at modularizing command line parsing (argparse). This is an experiment. The
@@ -226,6 +230,7 @@ class Command( object ):
         :param kwargs: optional arguments to the argparse's add_parser() method
         """
         super( Command, self ).__init__( )
+        self.application = application
         if not 'help' in kwargs:
             kwargs[ 'help' ] = self.__class__.__doc__
         self.parser = application.subparsers.add_parser(
@@ -420,5 +425,4 @@ def ec2_keypair_fingerprint(ssh_key):
     hash = (SHA if rsa_key.has_private( ) else MD5).new( )
     hash.update( der_rsa_key )
     return ':'.join( partition_seq( hash.hexdigest( ), 2 ) )
-
 

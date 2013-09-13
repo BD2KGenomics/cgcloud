@@ -1,4 +1,3 @@
-from boto.ec2.blockdevicemapping import BlockDeviceMapping, BlockDeviceType
 from fabric.operations import run
 import yaml
 from cghub.cloud.box import Box, fabric_task

@@ -1,9 +1,7 @@
-import os.path
 import re
 from distutils.version import LooseVersion
-from urlparse import urlparse
 
-from fabric.operations import run, sudo
+from fabric.operations import run
 
 from box import fabric_task
 from cghub.cloud.yum_box import YumBox

@@ -7,18 +7,17 @@ import socket
 import subprocess
 import time
 import sys
-from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
+import itertools
 
+from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from fabric.operations import sudo, run, get, put
 from boto import ec2, logging
 from fabric.api import execute
-import itertools
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
 from cghub.cloud.environment import Environment
-from cghub.cloud.util import UserError
-from util import unpack_singleton, prepend_shell_script, camel_to_snake
+from cghub.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
 
 
 EC2_POLLING_INTERVAL = 5

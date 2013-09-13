@@ -197,9 +197,11 @@ The *Description* field of each AMI section should be set to the role name, e.g.
 new AMI to the Jenkins configuration using an existing AMI as the template. Make sure you click the
 *Advanced* button to reveal all fields.
 
-Repeat this for all other slaves
+Repeat this for all other slaves::
 
-   for slave in $(./cgcloud list-roles | grep jenkins-slave | grep -v centos5-genetorrent-jenkins-slave); do cgcloud create $slave --image --terminate ; done
+   for slave in $(./cgcloud list-roles | grep jenkins-slave | grep -v centos5-genetorrent-jenkins-slave); do
+       cgcloud create $slave --image --terminate
+   done
 
 Note how the above command makes use of the ``--image`` and ``--terminate`` options to combine the creation of a box with image creation and termination into a single command.
 

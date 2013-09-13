@@ -1,6 +1,6 @@
 import base64
 import textwrap
-from cghub.cloud.util import snake_to_camel
+from cghub.util import snake_to_camel
 from cghub.fabric.operations import sudo
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.jenkins_master import Jenkins, JenkinsMaster

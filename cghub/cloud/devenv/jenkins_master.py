@@ -5,7 +5,7 @@ from fabric.operations import run, sudo, put, get
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.source_control_client import SourceControlClient
 from cghub.cloud.ubuntu_box import UbuntuBox
-from cghub.cloud.util import ec2_keypair_fingerprint, UserError
+from cghub.util import ec2_keypair_fingerprint, UserError
 
 
 class Jenkins:
