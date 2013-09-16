@@ -3,34 +3,32 @@ Compute Cloud. Each virtual machine (*box*) is automatically provisioned with op
 application software such that it can function in one of several predefined *roles*, e.g. as a
 continuous integration server, for running tests or as a build server for creating
 platform-specific builds of CGHub's client applications. Multiple boxes performing a variety of
-roles can collaborate with each other inside a *namespace*. Cloud resources such as EC2
-instances, volumes and images can be isolated from each other by using separate namespaces.
+roles can collaborate with each other inside a *namespace*. Cloud resources such as EC2 instances,
+volumes and images can be isolated from each other by using separate namespaces.
 
 Quickstart
 ==========
 
-To install cghub-cloud-utils, you need Python 2.7.x and `pip <http://www.pip-installer.org/en/latest/installing.html#installing-globally>`_::
+To install cghub-cloud-utils, you need Python 2.7.x and
+`pip <http://www.pip-installer.org/en/latest/installing.html#installing-globally>`_.
+
+Once those are installed, use pip to install cghub-cloud-utils::
 
    sudo pip install hg+https://bitbucket.org/cghub/cghub-cloud-utils/
 
-At the moment, the project is hosted in a private repository on Bitbucket and you will be prompted
-to enter your Bitbucket credentials.
+At the moment, the project is hosted in a *private* repository on Bitbucket, meaning that you will
+be asked to enter your Bitbucket credentials.
 
-The installer places the ``cgcloud`` executable on your PATH so should be able to invoke it now::
+The installer places the ``cgcloud`` executable on your PATH. You should be able to invoke it now::
 
    cgcloud --help
 
-Next, log into `Amazon's EC2 console
-<https://console.aws.amazon.com/ec2/home?region=us-west-1#s=KeyPairs>`_ and register your SSH key
-pair in a region of your choice (at the moment, CGHub uses the us-west-1 region). Ask your a CGHub
-EC2 admin (Hannes or Paul) to setup an account in AWS for you. If you don't have a key pair yet,
-create one using ``ssh-keygen`` and paste the contents of ``~/.ssh/id_rsa.pub into`` the EC2
-console. As the name of the key pair, use your login name or the the part before the ``@`` in your
-UCSC email address.
+Ask your EC2 admin to setup an IAM account in AWS for you and log into `Amazon's EC2 console
+<https://console.aws.amazon.com/ec2/>`
 
 Create access keys on `Amazon's IAM console <https://console.aws.amazon.com/iam/home?#users>`_:
 
-1. Select the row that represents yourself
+1. Select the row representing your IAM account
 2. Click the *Security Credentials* tab
 3. Click *Manage Access Keys*
 4. Click *Create Access Key*
@@ -45,19 +43,29 @@ Create access keys on `Amazon's IAM console <https://console.aws.amazon.com/iam/
 
 7. Click *Close Window*
 
+Register your SSH key in EC2 by running::
+
+    cgcloud upload-key -k $(whoami) ~/.ssh/id_rsa.pub
+
+Note that the above command uses your current login to name the key pair. You might want to
+substitute ``$(whoami)``with a different name. Consider using the local part of your email address,
+i.e. the part before the ``@``. Please be aware that in addition to uploading your SSH public key to EC2, the above command also creates an S3 key in a bucket that is readable to all admins in the CGHub AWS account as well as the IAM account used by Jenkins.
+
 That's it.
 
 Now, let's say we want to create the ``jenkins-master``, i.e. the machine that runs the
 Jenkins continuous integration server::
 
-   cgcloud create jenkins-master -k YOUR_KEY_PAIR_NAME
+   export CGCLOUD_NAMESPACE=$(whoami)
+   export CGCLOUD_KEYPAIRS=$(whoami)
+   cgcloud create jenkins-master
 
 SSH into the build master::
 
    cgcloud ssh jenkins-master
-   
+
 This will SSH into the master and setup a port forwarding to Jenkins' web UI. Point your
-browser at http://localhost:8080/.
+browser at http://localhost:8080/ and start exploring Jenkins.
 
 Uninstallation
 ==============
@@ -76,40 +84,50 @@ Tutorial
 
 In this tutorial we'll create an continuous integration environment for GeneTorrent consisting of a Jenkins master and several slaves, one slave for each target platform of GeneTorrent. The tutorial assumes that 
 
-* you completed the quick start
-* you have an account on Bitbucket
-* you registered your SSH public key on Bitbucket
-* your Bitbucket account is member of the *cghub* team on Bitbucket
-* have nothing listening on port 8080 locally
+* You completed the quick start
+* You have an account on Bitbucket
+* You registered your SSH public key on Bitbucket
+* Your Bitbucket account is member of the *cghub* team on Bitbucket
+* You have nothing listening on port 8080 locally
 
 Select a cgcloud namespace and list the SSH keys to be injected into the boxes::
 
    export CGCLOUD_NAMESPACE=/
    export CGCLOUD_KEYPAIRS="hannes cwilks markd"
 
-This means that we will be working in the root namespace and that we and our two esteemed colleagues should be able to SSH into the boxes. Our own key pair must be listed first, as the primary key pair. If you just want walk through this tutorial without affecting the root namespace, set CGCLOUD_NAMESPACE to an arbitrary value that is unlikely to be used by anyone else::
+This means that we will be working in the root namespace and that we and our two esteemed
+colleagues should be able to SSH into the boxes. The name of our own key pair must be listed first,
+as the primary key pair. If you'd rather walk through this tutorial without affecting the root
+namespace (and thereby risking interference with other team members), set ``CGCLOUD_NAMESPACE`` to a value unlikely to be used by anyone else::
 
-   export CGCLOUD_NAMESPACE=hannes
+   export CGCLOUD_NAMESPACE=$(whoami)
 
-Creating the CI master
-----------------------
+Creating The Continuous Integration Master
+------------------------------------------
 
-Create the Jenkins master instance:
+Create the Jenkins master instance::
 
    cgcloud create jenkins-master
    
-For fun, SSH into the master as the administrative user::
+As a test, SSH into the master as the administrative user::
 
    cgcloud ssh jenkins-master
    exit
    
-The administrative user has ``sudo`` privileges. Its name varies from platform to platform but cgcloud keeps track of that for you. For even more fun, SSH into the master as the *jenkins* user::
+The administrative user has ``sudo`` privileges. Its name varies from platform to platform but
+cgcloud keeps track of that for you. For yet another test, SSH into the master as the *jenkins*
+user::
 
    cgcloud ssh jenkins-master -l jenkins
    
 This is the user that the Jenkins server runs as. 
 
-This is possibly not the first time that a ``jenkins-master`` box is created in the root namespace. If a ``jenkins-master`` box existed in the root namespace before, the volume containing all of Jenkins' data (configurations, build plans, build output, etc.) will still be around unless someone deleted it of course. Creating a ``jenkins-master`` in a namespace will reuse the ``jenkins-data`` volume in that namespace if it already exists. If it doesn't, it will be automatically created. You may skip to :ref:`creating-slaves`.
+This is possibly not the first time that a ``jenkins-master`` box is created in the
+$CGCLOUD_NAMESPACE namespace. If a ``jenkins-master`` box existed in that namespace before, the
+volume containing all of Jenkins' data (configurations, build plans, build output, etc.) will still
+be around. That is, unless someone deleted it, of course. Creating a ``jenkins-master`` in a
+namespace will reuse the ``jenkins-data`` volume from that namespace if it already exists. If it
+doesn't, it will be automatically created and you will have to setup Jenkins from scratch. Otherwisem, you should skip ahead to :ref:`creating-slaves`.
 
 Setting Up Jenkins
 ------------------
@@ -132,9 +150,13 @@ Stop Jenkins and checkout the Jenkins configuration from Bitbucket::
    git checkout -f master
    exit
 
-We can't just use ``git clone`` since we want to merge the repository contents with the current local directory rather than completely wiping the local directory which ``git clone`` would have us do.
+We can't just use ``git clone`` since we want to merge the repository contents with the current
+local directory rather than completely wiping the local directory as ``git clone`` would have us do.
 
-If you skip this step, Jenkins will run with its default, empty configuration and you will have to configure the various build plans for GeneTorrent yourself. TODO: Setting up Jenkins from scratch should be documented, but somewhere else.
+If you skip this step, Jenkins will run with its default, empty configuration and you will have to
+configure the various build plans for GeneTorrent yourself.
+
+TODO: Setting up Jenkins from scratch should be documented, but somewhere else.
 
 Start Jenkins again::
 
@@ -144,58 +166,58 @@ Start Jenkins again::
 
 .. _creating-slaves:
 
-Creating The Slaves
--------------------
+Creating The Continuous Integration Slaves
+------------------------------------------
 
-SSH into the master as the ``jenkins`` user again::
+A slave is a box that is used by the master to run builds on. GeneTorrent needs to be built on various platforms, for each of which we will have to create a slave.
+
+SSH into the master as the ``jenkins`` user::
 
    cgcloud ssh jenkins-master -l jenkins
    
-Then point your browser at Jenkins' web UI at http://localhost:8080/. The ``cgcloud ssh jenkins-master`` command automatically opens a local port forwarding to Jenkins' web server.
+Then point your browser at Jenkins' web UI at http://localhost:8080/. The ``cgcloud ssh
+jenkins-master`` command automatically opens a local port forwarding to Jenkins' web server.
 
 Open a new shell window and create the first slave::
 
    cgcloud list-roles
    cgcloud create centos5-genetorrent-jenkins-slave
    
-SSH into it and look around. Notice how the builds directory in the Jenkins user's home is symbolically linked to ephemeral storage::
+SSH into it::
 
    cgcloud ssh centos5-genetorrent-jenkins-slave
-   sudo whoami
-   git --version
-   sudo ls -l ~jenkins
-   exit
+
+Notice that 
+
+ * The admin user has sudo rights::
+ 
+    sudo whoami
+ 
+ * The builds directory in the Jenkins user's home is symbolically linked to ephemeral
+   storage::
+   
+         sudo ls -l ~jenkins
+   
+ * git is installed::
+   
+      git --version
+      exit
 
 Now stop, image and terminate the box::
 
    cgcloud stop centos5-genetorrent-jenkins-slave
-   cgcloud create-image centos5-genetorrent-jenkins-slave
+   cgcloud image centos5-genetorrent-jenkins-slave
    cgcloud terminate centos5-genetorrent-jenkins-slave
+   cgcloud register-slaves jenkins-master centos5-genetorrent-jenkins-slave
 
-The ``create-image`` command prints an XML fragment of Jenkins configuration. Paste that fragment
-into Jenkins' ``config.xml``::
+The ``register-slaves`` command adds a section to Jenkins' config.xml that tells Jenkins how to
+spawn an instance of this slave from the image we just created. To put that change into effect,
 
-    cgcloud ssh jenkins-master -l jenkins
-    vim config.xml
+::
+   
+      cgcloud ssh jenkins-master -l jenkins
 
-Then in the Jenkins web UI, click *Manage Jenkins* and *Reload Configuration from Disk**.
-
-    ::
-
-        exit
-
-Alternatively, add the slave via the Jenkins UI directly, if, for example, you know that only the
-AMI ID has changed but the rest of the slave configuration stayed the same:
-
-1. Click *Manage Jenkins*
-2. Click *Configure System*
-3. Scroll down to the *Cloud* section
-4. Make the necessary changes interactively
-
-The *Description* field of each AMI section should be set to the role name, e.g.
-``centos5-genetorrent-jenkins-slave``. If this is a new slave role, say, for a new platform, add a
-new AMI to the Jenkins configuration using an existing AMI as the template. Make sure you click the
-*Advanced* button to reveal all fields.
+and click *Manage Jenkins* in the Jenkins web UI and *Reload Configuration from Disk**.
 
 Repeat this for all other slaves::
 
@@ -204,8 +226,3 @@ Repeat this for all other slaves::
    done
 
 Note how the above command makes use of the ``--image`` and ``--terminate`` options to combine the creation of a box with image creation and termination into a single command.
-
-
-
-Image master, too
-
