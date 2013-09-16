@@ -17,5 +17,5 @@ BOXES = [
     Centos5RpmbuildJenkinsSlave ]
 
 COMMANDS = [
-    GetKeysCommand,
-    RegisterSlavesWithMasterCommand ]
+    GetKeys,
+    RegisterSlaves ]

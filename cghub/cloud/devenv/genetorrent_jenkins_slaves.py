@@ -43,6 +43,10 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     A Jenkins slave for building GeneTorrent on CentOS 5
     """
 
+    def recommended_instance_type(self):
+        return 'm1.medium'
+
+
     def _get_package_substitutions(self):
         return super( Centos5GenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
             ( 'libcurl-devel', 'curl-devel' ) ]

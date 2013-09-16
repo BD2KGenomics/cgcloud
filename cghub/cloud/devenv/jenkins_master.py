@@ -1,5 +1,6 @@
 from StringIO import StringIO
 from textwrap import dedent
+from lxml import etree
 from fabric.context_managers import settings, hide
 from fabric.operations import run, sudo, put, get
 from cghub.cloud.box import fabric_task
@@ -249,7 +250,42 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         get( remote_path='%s.pub' % Jenkins.key_path,
              local_path=self._config_file_path( Jenkins.pubkey_config_file, mkdir=True ) )
 
-    def _ssh_args(self, options, user, command ):
+    def _ssh_args(self, options, user, command):
         # Add port forwarding to Jenkins' web UI
         options += ( '-L', 'localhost:8080:localhost:8080' )
         return super( JenkinsMaster, self )._ssh_args( options, user, command )
+
+    @fabric_task( user=Jenkins.user )
+    def register_slaves(self, slave_clss):
+        jenkins_config_file = StringIO( )
+        jenkins_config_path = '~/config.xml'
+        get( local_path=jenkins_config_file,
+             remote_path=jenkins_config_path )
+        jenkins_config_file.seek( 0 )
+        parser = etree.XMLParser(remove_blank_text=True)
+        jenkins_config = etree.parse( jenkins_config_file, parser )
+        for slave_cls in slave_clss:
+            slave = slave_cls( self.env )
+            images = slave.list_images( )
+            try:
+                image = images[ -1 ]
+            except IndexError:
+                raise UserError( "No images for '%s'" % slave_cls.role( ) )
+            new_template = slave.slave_config_template( image )
+            description = new_template.find( 'description' ).text
+            for old_template in jenkins_config.findall( './/hudson.plugins.ec2.SlaveTemplate' ):
+                if old_template.find( 'description' ).text == description:
+                    replace( old_template, new_template )
+        jenkins_config_file.truncate( 0 )
+        jenkins_config.write( jenkins_config_file,
+                              encoding=jenkins_config.docinfo.encoding,
+                              xml_declaration=True,
+                              pretty_print=True )
+        put( local_path=jenkins_config_file,
+             remote_path=jenkins_config_path )
+
+
+def replace(old_element, new_element):
+    parent = old_element.getparent( )
+    i = parent.index( old_element )
+    parent[ i ] = new_element

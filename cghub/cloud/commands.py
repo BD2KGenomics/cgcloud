@@ -219,8 +219,9 @@ class ListImages( RoleCommand ):
     """
 
     def run_on_box(self, options, box):
-        for image in box.list_images( ):
-            print('{name}\t{ordinal}\t{id}\t{state}'.format( **image ))
+        for ordinal, image in enumerate( box.list_images( ) ):
+            print( '{name}\t{ordinal}\t{id}\t{state}'.format( ordinal=ordinal,
+                                                              **image.__dict__ ) )
 
 
 class CreationCommand( RoleCommand ):

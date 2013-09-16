@@ -1,7 +1,7 @@
 from __future__ import print_function
 from StringIO import StringIO
 from contextlib import closing
-from functools import partial
+from functools import partial, wraps
 from operator import attrgetter
 import socket
 import subprocess
@@ -31,26 +31,31 @@ def needs_instance(method):
 
     return wrapped_method
 
-# FIXME: not thread-safe
 
-wrapped = False
+class fabric_task:
+    # FIXME: not thread-safe
 
+    user_stack = [ ]
 
-def fabric_task(function):
-    def wrapper(box, *args, **kwargs):
-        global wrapped
-        if wrapped:
-            return function( box, *args, **kwargs )
-        else:
-            wrapped = True
-            try:
-                task = partial( function, box, *args, **kwargs )
-                task.name = function.__name__
-                return box._execute( task )
-            finally:
-                wrapped = False
+    def __init__(self, user=None):
+        self.user = user
 
-    return wrapper
+    def __call__(self, function):
+        @wraps( function )
+        def wrapper(box, *args, **kwargs):
+            user = box.username( ) if self.user is None else self.user
+            if self.user_stack and self.user_stack[ -1 ] == user:
+                return function( box, *args, **kwargs )
+            else:
+                self.user_stack.append( user )
+                try:
+                    task = partial( function, box, *args, **kwargs )
+                    task.name = function.__name__
+                    return box._execute_task( task, self.user )
+                finally:
+                    assert self.user_stack.pop( ) == user
+
+        return wrapper
 
 
 class Box( object ):
@@ -116,7 +121,7 @@ class Box( object ):
         stock AMI, generations is zero. After that instance is set up and imaged and another
         instance is booted from the resulting AMI, generations will be one.
         """
-        self.host_name = None
+        self.ip_address = None
         self.connection = ec2.connect_to_region( env.region )
 
     def _populate_instance_creation_args(self, image, kwargs):
@@ -127,11 +132,15 @@ class Box( object ):
         :type image: boto.ec2.image.Image
         :type kwargs: dict
         """
-        bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
-        root_bdt = image.block_device_mapping[ '/dev/sda1' ]
-        root_bdt.size = 10
-        bdm[ '/dev/sda1' ] = root_bdt
-        bdm[ '/dev/sdb' ] = BlockDeviceType( ephemeral_name='ephemeral0' )
+        for root_device in ( '/dev/sda1', '/dev/sda' ):
+            root_bdt = image.block_device_mapping.get( root_device )
+            if root_bdt:
+                root_bdt.size = 10
+                bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
+                bdm[ '/dev/sda1' ] = root_bdt
+                bdm[ '/dev/sdb' ] = BlockDeviceType( ephemeral_name='ephemeral0' )
+                return
+        raise RuntimeError( "Can't determine root volume from image" )
 
 
     def __read_generation(self, image_id):
@@ -409,12 +418,13 @@ class Box( object ):
             sys.stderr.flush( )
 
     @needs_instance
-    def _execute(self, task):
+    def _execute_task(self, task, user):
         """
         Execute the given Fabric task on the EC2 instance represented by this box
         """
         if not callable( task ): task = task( self )
-        host = "%s@%s" % ( self.username( ), self.host_name )
+        # using IP instead of host name yields more compact log lines
+        host = "%s@%s" % ( user, self.ip_address )
         return execute( task, hosts=[ host ] )[ host ]
 
     def __assert_state(self, expected_state):
@@ -452,7 +462,7 @@ class Box( object ):
         self._log( "waiting for instance, ... ", newline=False )
         self.__wait_transition( instance, from_states, 'running' )
         self._log( "running, ... ", newline=False )
-        self.__wait_hostname_assigned( instance )
+        self.__wait_public_ip_assigned( instance )
         self._log( "hostname assigned, ... ", newline=False )
         num_connect_failures = self.__wait_ssh_port_open( )
         self._log( "SSH port open, ... ", newline=False )
@@ -463,19 +473,24 @@ class Box( object ):
         if num_connect_failures > 0:
             self.__wait_ssh_working( )
             self._log( "SSH working, done." )
+        else:
+            self._log( "done." )
         self._on_instance_ready( first_boot )
 
-    def __wait_hostname_assigned(self, instance):
+    def __wait_public_ip_assigned(self, instance):
         """
-        Wait until the instances has a public host name assigned to it. Returns a dictionary with
-         one entry per instance, mapping its instance ID to its public hostname.
+        Wait until the instances has a public IP address assigned to it.
+
+        :type instance: boto.ec2.instance.Instance
         """
         while True:
+            ip_address = instance.ip_address
             host_name = instance.public_dns_name
-            if host_name is not None and len( host_name ) > 0: break
+            if ip_address and host_name: break
             time.sleep( EC2_POLLING_INTERVAL )
             instance.update( )
 
+        self.ip_address = ip_address
         self.host_name = host_name
 
     def __wait_ssh_port_open(self):
@@ -485,11 +500,11 @@ class Box( object ):
         :return: the number of unsuccessful attempts to connect to the port before a the first
         success
         """
-        for i in itertools.count():
+        for i in itertools.count( ):
             s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
             try:
                 s.settimeout( EC2_POLLING_INTERVAL )
-                s.connect( (self.host_name, 22) )
+                s.connect( (self.ip_address, 22) )
                 return i
             except socket.error:
                 pass
@@ -507,7 +522,7 @@ class Box( object ):
             client = SSHClient( )
             try:
                 client.set_missing_host_key_policy( self.IgnorePolicy( ) )
-                client.connect( hostname=self.host_name,
+                client.connect( hostname=self.ip_address,
                                 username=self.username( ),
                                 timeout=EC2_POLLING_INTERVAL )
                 stdin, stdout, stderr = client.exec_command( 'echo hi' )
@@ -587,6 +602,8 @@ class Box( object ):
         if user is None:
             user = self.username( )
         args = [ 'ssh', '-A' ] + options
+        # Using host name instead of IP allows for more descriptive known_hosts entries and
+        # enables using wildcards like *.compute.amazonaws.com Host entries in ~/.ssh/config.
         args.append( '%s@%s' % ( user, self.host_name ) )
         args += command
         return args
@@ -652,12 +669,7 @@ class Box( object ):
         image_name_pattern = '%s *' % self.absolute_role( )
         images = self.connection.get_all_images( filters={ 'name': image_name_pattern } )
         images.sort( key=attrgetter( 'name' ) ) # that sorts by date, effectively
-        return [ dict( role=role,
-                       ordinal=ordinal,
-                       name=image.name,
-                       id=image.id,
-                       state=image.state )
-            for ordinal, image in enumerate( images ) ]
+        return images
 
     @fabric_task
     def _prepend_remote_shell_script(self, script, remote_path, **put_kwargs):
