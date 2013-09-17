@@ -32,10 +32,16 @@ def needs_instance(method):
     return wrapped_method
 
 
-class fabric_task:
+class fabric_task(object):
     # FIXME: not thread-safe
 
     user_stack = [ ]
+
+    def __new__(cls, user=None):
+        if callable( user ):
+            return cls()( user )
+        else:
+            return super( fabric_task, cls ).__new__( cls )
 
     def __init__(self, user=None):
         self.user = user
@@ -51,10 +57,9 @@ class fabric_task:
                 try:
                     task = partial( function, box, *args, **kwargs )
                     task.name = function.__name__
-                    return box._execute_task( task, self.user )
+                    return box._execute_task( task, user )
                 finally:
                     assert self.user_stack.pop( ) == user
-
         return wrapper
 
 
@@ -179,7 +184,8 @@ class Box( object ):
             else:
                 image = self.connection.get_image( boot_image )
         else:
-            self._log( "Looking up default image for role %s, ... " % self.role( ), newline=False )
+            self._log( "Looking up default image for role %s, ... " % self.role( ),
+                       newline=False )
             image = self._base_image( )
             self._log( "found %s." % image.id )
 
@@ -352,7 +358,8 @@ class Box( object ):
                 self.connection.terminate_instances( [ self.instance_id ] )
                 if wait:
                     self.__wait_transition( instance,
-                                            from_states={ 'running', 'shutting-down', 'stopped' },
+                                            from_states={ 'running', 'shutting-down',
+                                                'stopped' },
                                             to_state='terminated' )
                 self._log( 'done.' )
 
