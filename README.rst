@@ -9,24 +9,38 @@ volumes and images can be isolated from each other by using separate namespaces.
 Quickstart
 ==========
 
-To install cghub-cloud-utils, you need Python 2.7.x and
-`pip <http://www.pip-installer.org/en/latest/installing.html#installing-globally>`_.
+To install and use cghub-cloud-utils, you need
 
-Once those are installed, use pip to install cghub-cloud-utils::
+* Python ≧ 2.7.x
+* pip_
+* Mercurial_ (``hg``)
+* A Bitbucket account and membership in the ``cghub`` (see steps 1 and 2 of our `Bitbucket Guide`_) * Your public SSH key registered in Bitbucket (see steps 3 and 4 of our `Bitbucket Guide`_)
+
+.. _pip: https://pip.readthedocs.org/en/latest/installing.html
+.. _Mercurial: http://mercurial.selenic.com/
+.. _Bitbucket Guide: http://cgwiki.soe.ucsc.edu/index.php/Bitbucket_Repositories
+
+Once those are installed, use ``pip`` to install cghub-cloud-utils::
 
    sudo pip install hg+https://bitbucket.org/cghub/cghub-cloud-utils/
 
 At the moment, the project is hosted in a *private* repository on Bitbucket, meaning that you will
 be asked to enter your Bitbucket credentials.
 
+If you get an error message during the installation of the ``lxml`` dependency, you might have to install the ``libxml2`` and ``libxslt`` headers. On Ubuntu, for example, run::
+
+   apt-get install libxml2-dev libxslt-dev
+
 The installer places the ``cgcloud`` executable on your PATH. You should be able to invoke it now::
 
    cgcloud --help
 
 Ask your EC2 admin to setup an IAM account in AWS for you and log into `Amazon's EC2 console
-<https://console.aws.amazon.com/ec2/>`
+<https://console.aws.amazon.com/ec2/>`_
 
 Create access keys on `Amazon's IAM console <https://console.aws.amazon.com/iam/home?#users>`_:
+
+TODO: need to update links to point to cghub account
 
 1. Select the row representing your IAM account
 2. Click the *Security Credentials* tab
@@ -46,6 +60,9 @@ Create access keys on `Amazon's IAM console <https://console.aws.amazon.com/iam/
 Register your SSH key in EC2 by running::
 
     cgcloud upload-key -k $(whoami) ~/.ssh/id_rsa.pub
+
+
+TODO: Mention ssh-keygen
 
 Note that the above command uses your current login to name the key pair. You might want to
 substitute ``$(whoami)``with a different name. Consider using the local part of your email address,
