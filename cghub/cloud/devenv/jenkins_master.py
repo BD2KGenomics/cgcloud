@@ -6,7 +6,7 @@ from fabric.operations import run, sudo, put, get
 from cghub.cloud.box import fabric_task
 from cghub.cloud.devenv.source_control_client import SourceControlClient
 from cghub.cloud.ubuntu_box import UbuntuBox
-from cghub.util import ec2_keypair_fingerprint, UserError
+from cghub.cloud.util import ec2_keypair_fingerprint, UserError
 
 
 class Jenkins:
@@ -213,14 +213,11 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                   user=Jenkins.user )
         else:
             if key_file_exists:
-                try:
-                    # Must use sudo('cat') since get() doesn't support use_sudo
-                    # See https://github.com/fabric/fabric/issues/700
-                    with settings( hide( 'stdout' ) ):
-                        ssh_privkey = sudo( "cat %s" % Jenkins.key_path, user=Jenkins.user )
-                    fingerprint = ec2_keypair_fingerprint( ssh_privkey )
-                finally:
-                    ssh_privkey = None
+                # Must use sudo('cat') since get() doesn't support use_sudo
+                # See https://github.com/fabric/fabric/issues/700
+                with settings( hide( 'stdout' ) ):
+                    ssh_privkey = sudo( "cat %s" % Jenkins.key_path, user=Jenkins.user )
+                fingerprint = ec2_keypair_fingerprint( ssh_privkey )
                 if ec2_keypair.fingerprint != fingerprint:
                     raise UserError(
                         "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} "
