@@ -10,5 +10,5 @@ setup(
         'Fabric>=1.7.0',
         'PyYAML>=3.10',
         'PyCrypto>=2.6',
-        'lxml>=3.2.1'],
+        'lxml>=3.2.1' ],
 )

@@ -17,7 +17,7 @@ from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
 from cghub.cloud.environment import Environment
-from cghub.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
+from cghub.cloud.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
 
 
 EC2_POLLING_INTERVAL = 5
@@ -32,14 +32,14 @@ def needs_instance(method):
     return wrapped_method
 
 
-class fabric_task(object):
+class fabric_task( object ):
     # FIXME: not thread-safe
 
     user_stack = [ ]
 
     def __new__(cls, user=None):
         if callable( user ):
-            return cls()( user )
+            return cls( )( user )
         else:
             return super( fabric_task, cls ).__new__( cls )
 
@@ -60,6 +60,7 @@ class fabric_task(object):
                     return box._execute_task( task, user )
                 finally:
                     assert self.user_stack.pop( ) == user
+
         return wrapper
 
 
@@ -299,14 +300,13 @@ class Box( object ):
         while True:
             try:
                 image = self.connection.get_image( image_id )
-                break
+                image.add_tag( 'generation', str( self.generation + 1 ) )
+                self.__wait_transition( image, { 'pending' }, 'available' )
+                self._log( "done. Created image %s (%s)." % ( image.id, image.name ) )
+                return image_id
             except self.connection.ResponseError as e:
                 if e.error_code != 'InvalidAMIID.NotFound':
                     raise
-        image.add_tag( 'generation', self.generation + 1 )
-        self.__wait_transition( image, { 'pending' }, 'available' )
-        self._log( "done. Created image %s (%s)." % ( image.id, image.name ) )
-        return image_id
 
     @needs_instance
     def stop(self):
@@ -319,7 +319,7 @@ class Box( object ):
         self.connection.stop_instances( [ instance.id ] )
         self.__wait_transition( instance,
                                 from_states={ 'running', 'stopping' },
-                                to_state='stopped' );
+                                to_state='stopped' )
         self._log( 'done.' )
 
     @needs_instance
@@ -493,12 +493,13 @@ class Box( object ):
         while True:
             ip_address = instance.ip_address
             host_name = instance.public_dns_name
-            if ip_address and host_name: break
+            if ip_address and host_name:
+                self.ip_address = ip_address
+                self.host_name = host_name
+                return
             time.sleep( EC2_POLLING_INTERVAL )
             instance.update( )
 
-        self.ip_address = ip_address
-        self.host_name = host_name
 
     def __wait_ssh_port_open(self):
         """
@@ -514,8 +515,6 @@ class Box( object ):
                 s.connect( (self.ip_address, 22) )
                 return i
             except socket.error:
-                pass
-            except socket.timeout:
                 pass
             finally:
                 s.close( )
@@ -598,11 +597,13 @@ class Box( object ):
         self._config_file_path() with the exception of 'mkdir' which must be omitted.
         """
         path = self._config_file_path( file_name, mkdir='False', **kwargs )
-        with open( path, 'r' ) as file:
-            return file.read( )
+        with open( path, 'r' ) as f:
+            return f.read( )
 
     @needs_instance
-    def ssh(self, options=[ ], user=None, command=[ ]):
+    def ssh(self, options=None, user=None, command=None):
+        if not command: command = [ ]
+        if not options: options = [ ]
         subprocess.call( self._ssh_args( options, user, command ) )
 
     def _ssh_args(self, options, user, command):
@@ -672,7 +673,6 @@ class Box( object ):
         """
         :rtype: list of boto.ec2.image.Image
         """
-        role = self.role( )
         image_name_pattern = '%s *' % self.absolute_role( )
         images = self.connection.get_all_images( filters={ 'name': image_name_pattern } )
         images.sort( key=attrgetter( 'name' ) ) # that sorts by date, effectively

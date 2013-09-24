@@ -3,7 +3,7 @@ import re
 from boto import ec2, s3
 from boto.exception import S3ResponseError
 from boto.s3.key import Key
-from cghub.util import ec2_keypair_fingerprint, UserError, mkdir_p, app_name
+from cghub.cloud.util import ec2_keypair_fingerprint, UserError, mkdir_p, app_name
 
 
 class Environment:

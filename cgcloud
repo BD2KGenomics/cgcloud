@@ -6,7 +6,7 @@ import os
 
 import cghub.cloud
 import cghub.cloud.devenv
-from cghub.util import Application, app_name
+from cghub.cloud.util import Application, app_name
 
 
 PACKAGES = [ cghub.cloud, cghub.cloud.devenv ]

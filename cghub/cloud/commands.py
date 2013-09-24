@@ -2,9 +2,13 @@ import argparse
 from operator import itemgetter
 import os
 import sys
-import boto
+
+from boto.ec2.connection import EC2Connection
+from boto.ec2.blockdevicemapping import BlockDeviceType
+from boto.ec2.group import Group
+
 from cghub.cloud.environment import Environment
-from cghub.util import UserError, Command
+from cghub.cloud.util import UserError, Command
 
 
 class EnvironmentCommand( Command ):
@@ -144,7 +148,7 @@ class ShowCommand( BoxCommand ):
             k = str( k )
             if k[ 0:1 ] != '_' \
                 and k != 'connection' \
-                and not isinstance( v, boto.ec2.connection.EC2Connection ):
+                and not isinstance( v, EC2Connection ):
                 sys.stdout.write( '\n%s%s: ' % ('\t' * depth, k) )
                 if isinstance( v, basestring ):
                     sys.stdout.write( v.strip( ) )
@@ -152,8 +156,8 @@ class ShowCommand( BoxCommand ):
                     self.print_dict( v, visited, depth + 1 )
                 elif hasattr( v, '__iter__' ):
                     self.print_dict( dict( enumerate( v ) ), visited, depth + 1 )
-                elif isinstance( v, boto.ec2.blockdevicemapping.BlockDeviceType ) \
-                    or isinstance( v, boto.ec2.group.Group ):
+                elif isinstance( v, BlockDeviceType ) \
+                    or isinstance( v, Group ):
                     self.print_object( v, visited, depth + 1 )
                 else:
                     sys.stdout.write( repr( v ) )
@@ -296,8 +300,8 @@ class UploadKeyCommand( EnvironmentCommand ):
                      help='The desired name of the EC2 key pair.' )
 
     def run_in_env(self, options, env):
-        with open( options.ssh_public_key ) as file:
-            ssh_public_key = file.read( )
+        with open( options.ssh_public_key ) as f:
+            ssh_public_key = f.read( )
         env.upload_ssh_pubkey( ec2_keypair_name=options.ec2_keypair_name,
                                ssh_pubkey=ssh_public_key,
                                force=options.force )

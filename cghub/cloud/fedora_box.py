@@ -19,7 +19,7 @@ class FedoraBox( YumBox, CloudInitBox ):
 
     def _base_image(self):
         release = self.release( )
-        images = self.connection.get_all_images( owners='125523088429',
+        images = self.connection.get_all_images( owners=[ '125523088429' ],
                                                  filters={
                                                      'name': 'Fedora-x86_64-%i-*' % release,
                                                      'root-device-type': 'ebs' } )

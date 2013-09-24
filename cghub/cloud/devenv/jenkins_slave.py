@@ -1,6 +1,6 @@
 from lxml.builder import E
 
-from cghub.util import snake_to_camel
+from cghub.cloud.util import snake_to_camel
 
 from cghub.fabric.operations import sudo
 from cghub.cloud.box import fabric_task

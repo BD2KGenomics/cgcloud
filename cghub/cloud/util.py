@@ -422,7 +422,7 @@ def ec2_keypair_fingerprint(ssh_key):
     """
     rsa_key = RSA.importKey( ssh_key )
     der_rsa_key = rsa_key.exportKey( format='DER', pkcs=(8 if rsa_key.has_private( ) else 1) )
-    hash = (SHA if rsa_key.has_private( ) else MD5).new( )
-    hash.update( der_rsa_key )
-    return ':'.join( partition_seq( hash.hexdigest( ), 2 ) )
+    key_hash = (SHA if rsa_key.has_private( ) else MD5).new( )
+    key_hash.update( der_rsa_key )
+    return ':'.join( partition_seq( key_hash.hexdigest( ), 2 ) )
 

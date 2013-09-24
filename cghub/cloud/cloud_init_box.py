@@ -51,7 +51,7 @@ class CloudInitBox( Box ):
         if first_boot:
             # cloud-init is run on every boot, but only on the first boot will it invoke the user
             # script that signals completion
-            self.__wait_for_cloud_init_completion( );
+            self.__wait_for_cloud_init_completion( )
 
     @fabric_task
     def __wait_for_cloud_init_completion(self):

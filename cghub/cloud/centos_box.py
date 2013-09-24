@@ -10,7 +10,7 @@ from cghub.cloud.yum_box import YumBox
 ADMIN_USER = 'admin'
 
 
-class CentosBox(YumBox ):
+class CentosBox( YumBox ):
     """
     A box representing EC2 instances that boots of a RightScale CentOS AMI. Most of the
     complexity in this class stems from a workaround for RightScale's handling of the root
@@ -42,7 +42,7 @@ class CentosBox(YumBox ):
 
     def _base_image(self):
         release = self.release( )
-        images = self.connection.get_all_images( owners='411009282317',
+        images = self.connection.get_all_images( owners=[ '411009282317' ],
                                                  filters={
                                                      'name': 'RightImage_CentOS_%s_x64*' % release,
                                                      'root-device-type': 'ebs' } )
@@ -64,12 +64,12 @@ class CentosBox(YumBox ):
         return base_image
 
 
-    def _on_instance_ready(self,first_boot):
+    def _on_instance_ready(self, first_boot):
         super( CentosBox, self )._on_instance_ready( first_boot )
         if first_boot and self.username( ) == 'root':
-            self.__create_admin()
+            self.__create_admin( )
             self._set_username( ADMIN_USER )
-            self.__setup_admin()
+            self.__setup_admin( )
 
     @fabric_task
     def __create_admin(self):

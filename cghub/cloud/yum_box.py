@@ -42,7 +42,7 @@ class YumBox( PackageManagerBox ):
         """
         Download the RPM at the given URL and run 'yum localupdate' on it.
 
-        :param rpm_url: An HTTP or FTP URL ending in a valid RPM file name.
+        :param rpm_urls: A list of HTTP or FTP URLs ending in a valid RPM file name.
         """
         for rpm_url in rpm_urls:
             run( "wget '%s'" % rpm_url )
