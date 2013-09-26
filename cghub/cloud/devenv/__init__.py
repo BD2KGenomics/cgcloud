@@ -14,7 +14,8 @@ BOXES = [
     Fedora17GenetorrentJenkinsSlave,
     Fedora18GenetorrentJenkinsSlave,
     Fedora19GenetorrentJenkinsSlave,
-    Centos5RpmbuildJenkinsSlave ]
+    Centos5RpmbuildJenkinsSlave,
+    Centos6RpmbuildJenkinsSlave ]
 
 COMMANDS = [
     GetKeys,

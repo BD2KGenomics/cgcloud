@@ -1,7 +1,7 @@
 from cghub.cloud.box import fabric_task
 from cghub.cloud.centos_box import CentosBox
 from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
-from cghub.cloud.generic_boxes import GenericCentos5Box
+from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box
 from cghub.fabric.operations import sudo
 
 
@@ -22,7 +22,13 @@ class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):
             'bzip2-devel',
             'openssl-devel',
             'ncurses-devel',
-            'readline-devel' ]
+            'readline-devel',
+            # for building the Apache RPM:
+            'mock',
+            'apr-devel',
+            'apr-util-devel',
+            'pcre-devel'
+        ]
 
     @fabric_task
     def _setup_build_user(self):
@@ -31,7 +37,11 @@ class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):
         # be able to run rpm in between RPM builds
         sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
         sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /bin/rpm' >> /etc/sudoers" )
+        sudo( "useradd -s /sbin/nologin mockbuild" ) # goes with the mock package
 
 
 class Centos5RpmbuildJenkinsSlave(CentosRpmbuildJenkinsSlave, GenericCentos5Box):
+    pass
+
+class Centos6RpmbuildJenkinsSlave(CentosRpmbuildJenkinsSlave, GenericCentos6Box):
     pass
