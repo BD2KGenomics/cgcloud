@@ -259,8 +259,9 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         get( local_path=jenkins_config_file,
              remote_path=jenkins_config_path )
         jenkins_config_file.seek( 0 )
-        parser = etree.XMLParser(remove_blank_text=True)
+        parser = etree.XMLParser( remove_blank_text=True )
         jenkins_config = etree.parse( jenkins_config_file, parser )
+        templates = jenkins_config.find( './/hudson.plugins.ec2.EC2Cloud/templates' )
         for slave_cls in slave_clss:
             slave = slave_cls( self.env )
             images = slave.list_images( )
@@ -270,9 +271,18 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                 raise UserError( "No images for '%s'" % slave_cls.role( ) )
             new_template = slave.slave_config_template( image )
             description = new_template.find( 'description' ).text
-            for old_template in jenkins_config.findall( './/hudson.plugins.ec2.SlaveTemplate' ):
+            found = False
+            for old_template in templates.findall( 'hudson.plugins.ec2.SlaveTemplate' ):
                 if old_template.find( 'description' ).text == description:
-                    replace( old_template, new_template )
+                    if found:
+                        raise RuntimeError( 'More than one existing slave definition for %s. '
+                                            'Fix and try again' % description )
+                    i = templates.index( old_template )
+                    templates[ i ] = new_template
+                    found = True
+            if not found:
+                templates.append( new_template )
+
         jenkins_config_file.truncate( 0 )
         jenkins_config.write( jenkins_config_file,
                               encoding=jenkins_config.docinfo.encoding,
@@ -280,9 +290,6 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                               pretty_print=True )
         put( local_path=jenkins_config_file,
              remote_path=jenkins_config_path )
-
-
-def replace(old_element, new_element):
-    parent = old_element.getparent( )
-    i = parent.index( old_element )
-    parent[ i ] = new_element
+        run( "java -jar /var/cache/jenkins/war/WEB-INF/jenkins-cli.jar "
+             "-s http://localhost:8080/ "
+             "reload-configuration" )
