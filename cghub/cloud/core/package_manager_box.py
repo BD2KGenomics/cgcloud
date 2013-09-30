@@ -1,4 +1,4 @@
-from cghub.cloud.box import Box
+from cghub.cloud.core.box import Box
 
 
 class PackageManagerBox( Box ):

@@ -6,10 +6,10 @@ import os
 
 import cghub.cloud
 import cghub.cloud.devenv
-from cghub.cloud.util import Application, app_name
+from cghub.cloud.core.util import Application, app_name
 
 
-PACKAGES = [ cghub.cloud, cghub.cloud.devenv ]
+PACKAGES = [ cghub.cloud.core, cghub.cloud.devenv ]
 
 DEBUG_LOG_FILE_NAME = '%s.{pid}.log' % app_name()
 

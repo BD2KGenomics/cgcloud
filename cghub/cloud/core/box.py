@@ -16,8 +16,8 @@ from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
-from cghub.cloud.environment import Environment
-from cghub.cloud.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
+from cghub.cloud.core.environment import Environment
+from cghub.cloud.core.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
 
 
 EC2_POLLING_INTERVAL = 5

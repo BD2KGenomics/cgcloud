@@ -7,8 +7,8 @@ from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
 
-from cghub.cloud.environment import Environment
-from cghub.cloud.util import UserError, Command
+from cghub.cloud.core.environment import Environment
+from cghub.cloud.core.util import UserError, Command
 
 
 class EnvironmentCommand( Command ):
@@ -150,7 +150,7 @@ class ShowCommand( BoxCommand ):
                 and k != 'connection' \
                 and not isinstance( v, EC2Connection ):
                 sys.stdout.write( '\n%s%s: ' % ('\t' * depth, k) )
-                if isinstance( v, basestring ):
+                if isinstance( v, str ) or isinstance( v, unicode ):
                     sys.stdout.write( v.strip( ) )
                 elif hasattr( v, 'iteritems' ):
                     self.print_dict( v, visited, depth + 1 )

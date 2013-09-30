@@ -1,6 +1,6 @@
 from fabric.operations import run
 import yaml
-from cghub.cloud.box import Box, fabric_task
+from cghub.cloud.core.box import Box, fabric_task
 
 __author__ = 'hannes'
 

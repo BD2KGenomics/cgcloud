@@ -1,8 +1,8 @@
 import os.path
 from urlparse import urlparse
 from fabric.operations import sudo, run
-from cghub.cloud.box import fabric_task
-from cghub.cloud.package_manager_box import PackageManagerBox
+from cghub.cloud.core.box import fabric_task
+from cghub.cloud.core.package_manager_box import PackageManagerBox
 
 __author__ = 'hannes'
 

@@ -1,5 +1,5 @@
-from cghub.cloud.cloud_init_box import CloudInitBox
-from cghub.cloud.yum_box import YumBox
+from cghub.cloud.core.cloud_init_box import CloudInitBox
+from cghub.cloud.core.yum_box import YumBox
 
 
 class FedoraBox( YumBox, CloudInitBox ):

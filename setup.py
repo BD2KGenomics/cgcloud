@@ -11,4 +11,7 @@ setup(
         'PyYAML>=3.10',
         'PyCrypto>=2.6',
         'lxml>=3.2.1' ],
+    namespace_packages=[
+        'cghub', 'cghub.cloud'
+    ]
 )

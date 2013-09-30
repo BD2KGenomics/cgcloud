@@ -1,9 +1,9 @@
 from lxml.builder import E
 
-from cghub.cloud.util import snake_to_camel
+from cghub.cloud.core.util import snake_to_camel
 
 from cghub.fabric.operations import sudo
-from cghub.cloud.box import fabric_task
+from cghub.cloud.core.box import fabric_task
 from cghub.cloud.devenv.jenkins_master import Jenkins, JenkinsMaster
 from cghub.cloud.devenv.source_control_client import SourceControlClient
 

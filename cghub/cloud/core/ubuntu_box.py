@@ -3,8 +3,8 @@ import csv
 import urllib2
 from fabric.operations import sudo
 from box import fabric_task
-from cghub.cloud.cloud_init_box import CloudInitBox
-from cghub.cloud.package_manager_box import PackageManagerBox
+from cghub.cloud.core.cloud_init_box import CloudInitBox
+from cghub.cloud.core.package_manager_box import PackageManagerBox
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 

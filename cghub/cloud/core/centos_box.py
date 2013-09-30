@@ -4,7 +4,7 @@ from distutils.version import LooseVersion
 from fabric.operations import run
 
 from box import fabric_task
-from cghub.cloud.yum_box import YumBox
+from cghub.cloud.core.yum_box import YumBox
 
 
 ADMIN_USER = 'admin'

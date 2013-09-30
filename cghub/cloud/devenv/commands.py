@@ -1,6 +1,6 @@
 from fnmatch import fnmatch
 
-from cghub.cloud import BoxCommand
+from cghub.cloud.core import BoxCommand
 
 
 class GetKeys( BoxCommand ):

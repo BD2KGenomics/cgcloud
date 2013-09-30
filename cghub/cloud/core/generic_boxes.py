@@ -1,8 +1,8 @@
 from fabric.operations import run, sudo
-from cghub.cloud.box import fabric_task
-from cghub.cloud.centos_box import CentosBox
-from cghub.cloud.fedora_box import FedoraBox
-from cghub.cloud.ubuntu_box import UbuntuBox
+from cghub.cloud.core.box import fabric_task
+from cghub.cloud.core.centos_box import CentosBox
+from cghub.cloud.core.fedora_box import FedoraBox
+from cghub.cloud.core.ubuntu_box import UbuntuBox
 
 
 class GenericCentos5Box( CentosBox ):

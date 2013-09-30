@@ -1,10 +1,10 @@
 from fabric.operations import sudo
-from cghub.cloud.box import fabric_task
-from cghub.cloud.centos_box import CentosBox
+from cghub.cloud.core.box import fabric_task
+from cghub.cloud.core.centos_box import CentosBox
 from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
-from cghub.cloud.fedora_box import FedoraBox
-from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericUbuntuLucidBox, GenericUbuntuPreciseBox, GenericUbuntuRaringBox, GenericUbuntuOneiricBox, GenericFedora19Box, GenericFedora18Box, GenericFedora17Box
-from cghub.cloud.ubuntu_box import UbuntuBox
+from cghub.cloud.core.fedora_box import FedoraBox
+from cghub.cloud.core.generic_boxes import GenericCentos5Box, GenericCentos6Box, GenericUbuntuLucidBox, GenericUbuntuPreciseBox, GenericUbuntuRaringBox, GenericUbuntuOneiricBox, GenericFedora19Box, GenericFedora18Box, GenericFedora17Box
+from cghub.cloud.core.ubuntu_box import UbuntuBox
 
 
 class GenetorrentJenkinsSlave( JenkinsSlave ):

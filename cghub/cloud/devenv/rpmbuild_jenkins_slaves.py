@@ -1,7 +1,7 @@
-from cghub.cloud.box import fabric_task
-from cghub.cloud.centos_box import CentosBox
+from cghub.cloud.core.box import fabric_task
+from cghub.cloud.core.centos_box import CentosBox
 from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
-from cghub.cloud.generic_boxes import GenericCentos5Box, GenericCentos6Box
+from cghub.cloud.core.generic_boxes import GenericCentos5Box, GenericCentos6Box
 from cghub.fabric.operations import sudo
 
 
