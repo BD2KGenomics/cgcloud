@@ -85,7 +85,8 @@ class Environment:
             namespace = self.__normalize_namespace( namespace )
         self.namespace = namespace
 
-    def __normalize_namespace(self, namespace):
+    @staticmethod
+    def __normalize_namespace(namespace):
         components = [ c for c in namespace.split( '/' ) if c ]
         if any( c[ 0:1 ] == '_' for c in components ):
             raise UserError( "Namespace component may not start with '_'" )
@@ -196,7 +197,8 @@ class Environment:
         return file_path
 
 
-    def ssh_pubkey_s3_key(self, fingerprint):
+    @staticmethod
+    def ssh_pubkey_s3_key(fingerprint):
         return 'ssh_pubkey:%s' % fingerprint
 
     def upload_ssh_pubkey(self, ec2_keypair_name, ssh_pubkey, force=False):
