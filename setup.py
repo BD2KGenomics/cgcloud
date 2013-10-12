@@ -12,7 +12,7 @@ setup(
         'cghub-python-lib>=1.2.dev1',
         'python-daemon>=1.6',
         'boto>=2.9.7',
-        'argparse' if version_info < (2,7) else None
+        'argparse'
     ],
     dependency_links=[
         'hg+ssh://hg@bitbucket.org/cghub/cghub-python-lib@default#egg=cghub-python-lib-1.2.dev1',
