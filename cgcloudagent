@@ -1,0 +1,171 @@
+#! /usr/bin/env python
+
+import os
+import sys
+import argparse
+import platform
+import itertools
+import logging as log
+from logging.handlers import SysLogHandler, SYSLOG_UDP_PORT
+
+import daemon
+
+from cghub.util import uid_to_name, gid_to_name, name_to_uid, name_to_gid
+from cghub.util.lockfile import SmartPIDLockFile
+from cghub.util.throttle import LocalThrottle
+
+from cghub.cloud.lib.environment import Environment
+from cghub.cloud.agent import Agent
+
+
+description = "The CGHub Cloud Agent daemon"
+
+exec_path = os.path.abspath( sys.argv[ 0 ] )
+exec_name = os.path.basename( exec_path )
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description=description )
+    group = parser.add_argument_group( title='functional options' )
+    defaults = Environment()
+    group.add_argument( '--zone', '-z', metavar='AVAILABILITY_ZONE',
+                     default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
+                     dest='availability_zone',
+                     help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
+                          'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
+                          'run in. The value of the environment variable CGCLOUD_ZONE, '
+                          'if that variable is present, overrides the default.' )
+    group.add_argument( '--interval', '-i', metavar='SECONDS',
+                        default=300, type=int,
+                        help='' )
+    group.add_argument( '--authorized-keys-file', '-f', metavar='PATH',
+                        required=True, dest='authorized_keys_path',
+                        help='' )
+    default_ec2_keypair_names = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
+    group.add_argument( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
+                 dest='ec2_keypair_names', nargs='+',
+                 required=not default_ec2_keypair_names,
+                 default=default_ec2_keypair_names,
+                 help='The names of EC2 key pairs whose public key is to be to injected into '
+                      'the box to facilitate SSH logins. For the first listed argument, '
+                      'the so called primary key pair, a matching private key needs to be '
+                      'present locally. All other arguments may use shell-style globs in '
+                      'which case every key pair whose name matches one of the globs will be '
+                      'deployed to the box. The cgcloud agent that will typically be '
+                      'installed on a box, will keep the deployed list of authorized keys up '
+                      'to date in case matching keys are added or removed from EC2. The value '
+                      'of the environment variable CGCLOUD_KEYPAIRS, if that variable is '
+                      'present, overrides the default.' )
+
+    group = parser.add_argument_group( title='process options' )
+    group.add_argument( '--debug', '-X', default=False, action='store_true',
+                        help="Run in debug mode without daemonizing. All other process options "
+                             "will be ignored." )
+    group.add_argument( '--user', '-u', metavar='UID',
+                        default=uid_to_name( os.getuid( ) ),
+                        help='The name of the user to run the daemon as.' )
+    group.add_argument( '--group', '-g', metavar='GID',
+                        default=gid_to_name( os.getgid( ) ),
+                        help='The name of the group to run the daemon as.' )
+    group.add_argument( '--pid-file', '-p', metavar='PATH',
+                        default='./%s.pid' % exec_name,
+                        help="The path of the file to which the daemon's process ID will be "
+                             "written." )
+    log_levels = [ log.getLevelName( level ) for level in
+        ( log.CRITICAL, log.ERROR, log.WARNING, log.INFO, log.DEBUG ) ]
+    group.add_argument( '--log-level', default=log.getLevelName( log.INFO ),
+                        choices=log_levels, help="The default log level." )
+    group.add_argument( '--log-spill', metavar='PATH',
+                        default='./%s.log' % exec_name,
+                        help="The path of the file to which the daemon's stderr and stdout will "
+                             "be redirected. Most of the diagnostic output will go to syslog but "
+                             "some might spill over to stderr or stdout, especially on errors "
+                             "during daemonization." )
+    group = parser.add_argument_group( title='miscellaeneous options' )
+    group.add_argument( '--init-script', default=False, action='store_true',
+                        help='Instead of starting the daemon, generate an /etc/init.d script for '
+                             '%s using the specified options and exit. One would typically '
+                             'redirect the output to a file, move that file into place, '
+                             'make it executable and run chkconfig to '
+                             'update the run levels.' % exec_name )
+    options = parser.parse_args( )
+
+    # The lock file path will be evaluated by DaemonContext after the chdir to /,
+    # so we need to convert a relative path to an absolute one. Also, the init script generation
+    # should not use relative paths.
+    options.pid_file = os.path.abspath( options.pid_file )
+    options.log_spill = os.path.abspath( options.log_spill )
+
+    if options.init_script:
+        generate_init_script( options )
+        sys.exit( 0 )
+
+    def run():
+        log.info( "Entering main loop." )
+        env = Environment( availability_zone=options.availability_zone )
+        throttle = LocalThrottle( min_interval=options.interval )
+        for i in itertools.count( ):
+            throttle.throttle( )
+            try:
+                log.info( "Starting run %i.", i )
+                Agent( env, options ).run( )
+                log.info( "Completed run %i.", i )
+            except (SystemExit, KeyboardInterrupt):
+                log.info( 'Terminating.' )
+                break
+            except:
+                log.exception( 'Abandoning run due to exception' )
+
+    logger = log.getLogger( )
+    logger.name = exec_name
+    if options.debug:
+        stream_handler = log.StreamHandler( sys.stderr )
+        logger.addHandler( stream_handler )
+        logger.setLevel( log.DEBUG )
+        run( )
+    else:
+        system = platform.system( )
+        if system in ( 'Darwin', 'FreeBSD' ):
+            address = '/var/run/syslog'
+        elif system == 'Linux':
+            address = '/dev/log'
+        else:
+            address = ( 'localhost', SYSLOG_UDP_PORT )
+        syslog_handler = SysLogHandler( address=address )
+        formatter = log.Formatter( '%(name)s: [%(levelname)s] %(threadName)s %(message)s' )
+        syslog_handler.setFormatter( formatter )
+        logger.addHandler( syslog_handler )
+        logger.setLevel( options.log_level )
+        log_spill = open( options.log_spill, 'w' ) if options.log_spill else None
+        try:
+            pid_lock_file = SmartPIDLockFile( options.pid_file )
+            with daemon.DaemonContext( uid=name_to_uid( options.user ),
+                                       gid=name_to_gid( options.group ),
+                                       stderr=log_spill, stdout=log_spill,
+                                       files_preserve=[ syslog_handler.socket ],
+                                       pidfile=pid_lock_file ):
+                run( )
+        finally:
+            if log_spill:
+                log_spill.close()
+
+
+def generate_init_script(options):
+    from pkg_resources import resource_string
+    import cghub.dcc
+
+    init_script = resource_string( cghub.dcc.__name__, 'init-script' )
+    args = ' '.join( "'%s'" % arg.replace( "'", "\\'" )
+        for arg in sys.argv[ 1: ] if arg != '--init-script' )
+    variables = vars( options ).copy( )
+    variables.update( dict( args=args,
+                            exec_path=exec_path,
+                            exec_name=exec_name,
+                            description=description ) )
+    print init_script % variables
+
+
+if __name__ == '__main__':
+    main( )
