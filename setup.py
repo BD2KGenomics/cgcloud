@@ -6,7 +6,7 @@ setup(
     packages=find_packages( ),
     scripts=[ 'cgcloudagent' ],
     install_requires=[
-        'cghub-cloud-lib'>='1.0.dev1',
+        'cghub-cloud-lib>=1.0.dev1',
         'cghub-python-lib>=1.2.dev1',
         'python-daemon>=1.6',
         'boto>=2.9.7'
