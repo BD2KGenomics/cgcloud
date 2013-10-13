@@ -3,11 +3,12 @@ import fnmatch
 import os
 import re
 import socket
+import itertools
+
 from boto import ec2, s3
 from boto.exception import S3ResponseError
 from boto.s3.key import Key
-from boto.ec2.keypair import KeyPair
-import itertools
+
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, mkdir_p, app_name
 
 
