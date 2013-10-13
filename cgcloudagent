@@ -29,14 +29,14 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=description )
     group = parser.add_argument_group( title='functional options' )
-    defaults = Environment()
+    defaults = Environment( )
     group.add_argument( '--zone', '-z', metavar='AVAILABILITY_ZONE',
-                     default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
-                     dest='availability_zone',
-                     help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
-                          'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
-                          'run in. The value of the environment variable CGCLOUD_ZONE, '
-                          'if that variable is present, overrides the default.' )
+                        default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
+                        dest='availability_zone',
+                        help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
+                             'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
+                             'run in. The value of the environment variable CGCLOUD_ZONE, '
+                             'if that variable is present, overrides the default.' )
     group.add_argument( '--interval', '-i', metavar='SECONDS',
                         default=300, type=int,
                         help='' )
@@ -45,16 +45,16 @@ def main():
                         help='' )
     default_ec2_keypair_names = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
     group.add_argument( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
-                 dest='ec2_keypair_names', nargs='+',
-                 required=not default_ec2_keypair_names,
-                 default=default_ec2_keypair_names,
-                 help='The names or name patterns of EC2 key pairs whose public key is to be to '
-                      'maintained in the file specified by the --authorized-keys-file options. '
-                      'The arguments may be a literal names of a keypairs or shell-style globs in '
-                      'which case every key pair whose name matches one of the globs will be '
-                      'deployed to the box. The value of the environment variable '
-                      'CGCLOUD_KEYPAIRS, if that variable is present, overrides the '
-                      'default.' )
+                        dest='ec2_keypair_names', nargs='+',
+                        required=not default_ec2_keypair_names,
+                        default=default_ec2_keypair_names,
+                        help='The names or name patterns of EC2 key pairs whose public key is to be to '
+                             'maintained in the file specified by the --authorized-keys-file options. '
+                             'The arguments may be a literal names of a keypairs or shell-style globs in '
+                             'which case every key pair whose name matches one of the globs will be '
+                             'deployed to the box. The value of the environment variable '
+                             'CGCLOUD_KEYPAIRS, if that variable is present, overrides the '
+                             'default.' )
 
     group = parser.add_argument_group( title='process options' )
     group.add_argument( '--debug', '-X', default=False, action='store_true',
@@ -146,14 +146,23 @@ def main():
                 run( )
         finally:
             if log_spill:
-                log_spill.close()
+                log_spill.close( )
 
 
 def generate_init_script(options):
     from pkg_resources import resource_string
     import cghub.cloud.agent
+    import platform
 
-    init_script = resource_string( cghub.cloud.agent.__name__, 'init-script' )
+    distro = platform.dist( )[ 0 ]
+    if distro == 'centos' or distro == 'fedora':
+        script = 'init-script.lsb'
+    elif distro == 'ubuntu':
+        script = 'init-script.upstart'
+    else:
+        raise RuntimeError( "Distribution '%s' is not supported" % distro )
+
+    init_script = resource_string( cghub.cloud.agent.__name__, script )
     args = ' '.join( "'%s'" % arg.replace( "'", "\\'" )
         for arg in sys.argv[ 1: ] if arg != '--init-script' )
     variables = vars( options ).copy( )

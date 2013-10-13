@@ -1,6 +1,13 @@
 import sys
 
-from setuptools import setup, find_packages
+from setuptools import setup as _setup, find_packages
+
+
+def setup(*args, **kwargs):
+    if 'install_requires' in kwargs:
+        kwargs[ 'install_requires' ] = filter( None, kwargs[ 'install_requires' ] )
+    _setup( *args, **kwargs )
+
 
 setup(
     name="cghub-cloud-agent",
@@ -22,6 +29,6 @@ setup(
         'cghub', 'cghub.cloud'
     ],
     package_data={
-        'cghub.cloud.agent': [ 'init-script' ]
+        'cghub.cloud.agent': [ 'init-script.lsb', 'init-script.upstart' ]
     },
 )

@@ -8,7 +8,7 @@
 
 ### BEGIN INIT INFO
 # Provides: %(exec_name)s
-# Required-Start: $network mysql
+# Required-Start: $network
 # Required-Stop: 3 5
 # Default-Start: 3 5
 # Default-Stop:
