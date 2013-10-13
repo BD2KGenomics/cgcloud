@@ -48,16 +48,13 @@ def main():
                  dest='ec2_keypair_names', nargs='+',
                  required=not default_ec2_keypair_names,
                  default=default_ec2_keypair_names,
-                 help='The names of EC2 key pairs whose public key is to be to injected into '
-                      'the box to facilitate SSH logins. For the first listed argument, '
-                      'the so called primary key pair, a matching private key needs to be '
-                      'present locally. All other arguments may use shell-style globs in '
+                 help='The names or name patterns of EC2 key pairs whose public key is to be to '
+                      'maintained in the file specified by the --authorized-keys-file options. '
+                      'The arguments may be a literal names of a keypairs or shell-style globs in '
                       'which case every key pair whose name matches one of the globs will be '
-                      'deployed to the box. The cgcloud agent that will typically be '
-                      'installed on a box, will keep the deployed list of authorized keys up '
-                      'to date in case matching keys are added or removed from EC2. The value '
-                      'of the environment variable CGCLOUD_KEYPAIRS, if that variable is '
-                      'present, overrides the default.' )
+                      'deployed to the box. The value of the environment variable '
+                      'CGCLOUD_KEYPAIRS, if that variable is present, overrides the '
+                      'default.' )
 
     group = parser.add_argument_group( title='process options' )
     group.add_argument( '--debug', '-X', default=False, action='store_true',
@@ -154,9 +151,9 @@ def main():
 
 def generate_init_script(options):
     from pkg_resources import resource_string
-    import cghub.dcc
+    import cghub.cloud.agent
 
-    init_script = resource_string( cghub.dcc.__name__, 'init-script' )
+    init_script = resource_string( cghub.cloud.agent.__name__, 'init-script' )
     args = ' '.join( "'%s'" % arg.replace( "'", "\\'" )
         for arg in sys.argv[ 1: ] if arg != '--init-script' )
     variables = vars( options ).copy( )

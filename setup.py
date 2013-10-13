@@ -20,5 +20,8 @@ setup(
     ],
     namespace_packages=[
         'cghub', 'cghub.cloud'
-    ]
+    ],
+    package_data={
+        'cghub.cloud.agent': [ 'init-script' ]
+    },
 )
