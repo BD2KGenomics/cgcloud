@@ -71,6 +71,9 @@ class GenericUbuntuLucidBox( UbuntuBox ):
         if self.generation == 0 and first_boot:
             self.__update_sudo( )
 
+    def _get_package_substitutions(self):
+        return super( GenericUbuntuLucidBox, self )._get_package_substitutions( ) + [
+            ('git', 'git-core') ]
 
 class GenericUbuntuMaverickBox( UbuntuBox ):
     """

@@ -1,8 +1,10 @@
+from StringIO import StringIO
 import contextlib
 import csv
 import urllib2
-from fabric.operations import sudo
+from fabric.operations import sudo, put
 from box import fabric_task
+from cghub.cloud.core.agent_box import AgentBox
 from cghub.cloud.core.cloud_init_box import CloudInitBox
 from cghub.cloud.core.package_manager_box import PackageManagerBox
 
@@ -14,7 +16,7 @@ class TemplateDict( dict ):
         return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
 
-class UbuntuBox( PackageManagerBox, CloudInitBox ):
+class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
     """
     A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """
@@ -83,3 +85,10 @@ class UbuntuBox( PackageManagerBox, CloudInitBox ):
                 raise RuntimeError( 'Double quotes in debconf selections are not supported yet' )
         sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ) )
 
+    @fabric_task
+    def _register_init_script(self, script, name):
+        put(
+            local_path=StringIO( script ),
+            remote_path='/etc/init/%s.conf' % name,
+            use_sudo=True )
+        sudo( 'service %s start' % name )

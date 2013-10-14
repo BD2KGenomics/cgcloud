@@ -83,6 +83,10 @@ class PackageManagerBox( Box ):
             # The upgrade might involve a kernel update, so we'll reboot to be safe
             self.reboot( )
 
+    def _register_init_script(self, script, name ):
+        raise NotImplementedError()
+
+
 
 def substitute_package(substitutions, package):
     """

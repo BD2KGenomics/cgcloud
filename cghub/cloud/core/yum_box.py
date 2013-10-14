@@ -1,6 +1,7 @@
+from cStringIO import StringIO
 import os.path
 from urlparse import urlparse
-from fabric.operations import sudo, run
+from fabric.operations import sudo, run, put
 from cghub.cloud.core.box import fabric_task
 from cghub.cloud.core.package_manager_box import PackageManagerBox
 
@@ -38,7 +39,7 @@ class YumBox( PackageManagerBox ):
         sudo( 'yum update -y -d 1' )
 
     @fabric_task
-    def _yum_local(self, is_update, rpm_urls ):
+    def _yum_local(self, is_update, rpm_urls):
         """
         Download the RPM at the given URL and run 'yum localupdate' on it.
 
@@ -53,3 +54,17 @@ class YumBox( PackageManagerBox ):
             # since we can't rely on yum to report errors
             run( "rpm -q $(rpm -qp --queryformat '%%{N}' '%s')" % rpm )
             run( "rm '%s'" % rpm )
+
+    def _get_package_substitutions(self):
+        return super( YumBox, self )._get_package_substitutions( ) + [
+            ( 'python-dev', 'python-devel' ),
+        ]
+
+    @fabric_task
+    def _register_init_script(self, script, name):
+        put(
+            local_path=StringIO( script ),
+            remote_path='/etc/init.d/%s' % name,
+            mode=0755,
+            use_sudo=True )
+        sudo( 'sudo chkconfig --add %s' % name )

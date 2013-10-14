@@ -1,4 +1,5 @@
 import argparse
+import getpass
 from operator import itemgetter
 import os
 import sys
@@ -7,8 +8,8 @@ from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
 
-from cghub.cloud.core.environment import Environment
-from cghub.cloud.core.util import UserError, Command
+from cghub.cloud.lib.environment import Environment
+from cghub.cloud.lib.util import UserError, Command
 
 
 class EnvironmentCommand( Command ):
@@ -21,8 +22,9 @@ class EnvironmentCommand( Command ):
         raise NotImplementedError( )
 
     def __init__(self, application, **kwargs):
-        defaults = Environment( )
         super( EnvironmentCommand, self ).__init__( application, **kwargs )
+        # Environment defaults to the root namespace but this is too dangerous a default for inexperienced users
+        defaults = Environment( namespace='/%s/' % getpass.getuser( ) )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                      default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
                      dest='availability_zone',
@@ -39,8 +41,11 @@ class EnvironmentCommand( Command ):
                           'that variable is present, overrides the default.' )
 
     def run(self, options):
-        env = Environment( availability_zone=options.availability_zone,
-                           namespace=options.namespace )
+        try:
+            env = Environment( availability_zone=options.availability_zone,
+                               namespace=options.namespace )
+        except ValueError as e:
+            raise UserError( e )
         return self.run_in_env( options, env )
 
 
@@ -150,8 +155,10 @@ class ShowCommand( BoxCommand ):
                 and k != 'connection' \
                 and not isinstance( v, EC2Connection ):
                 sys.stdout.write( '\n%s%s: ' % ('\t' * depth, k) )
-                if isinstance( v, str ) or isinstance( v, unicode ):
+                if isinstance( v, str ):
                     sys.stdout.write( v.strip( ) )
+                if isinstance( v, unicode ):
+                    sys.stdout.write( v.encode( 'utf8' ).strip( ) )
                 elif hasattr( v, 'iteritems' ):
                     self.print_dict( v, visited, depth + 1 )
                 elif hasattr( v, '__iter__' ):
@@ -236,11 +243,16 @@ class CreationCommand( RoleCommand ):
                      dest='ec2_keypair_names', nargs='+',
                      required=not default_ec2_keypair_names,
                      default=default_ec2_keypair_names,
-                     help='The names of EC2 keypairs whose public key is to be to injected into '
-                          'the box to facilitate SSH logins. For the first listed keypair, '
-                          'the so called primary keypair, a matching private key needs to be '
-                          'present locally. The value of the environment variable '
-                          'CGCLOUD_KEYPAIRS, if that variable is present, overrides the default.' )
+                     help='The names of EC2 key pairs whose public key is to be to injected into '
+                          'the box to facilitate SSH logins. For the first listed argument, '
+                          'the so called primary key pair, a matching private key needs to be '
+                          'present locally. All other arguments may use shell-style globs in '
+                          'which case every key pair whose name matches one of the globs will be '
+                          'deployed to the box. The cgcloud agent that will typically be '
+                          'installed on a box, will keep the deployed list of authorized keys up '
+                          'to date in case matching keys are added or removed from EC2. The value '
+                          'of the environment variable CGCLOUD_KEYPAIRS, if that variable is '
+                          'present, overrides the default.' )
 
         self.option( '--instance-type', '-t', metavar='TYPE',
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
@@ -271,7 +283,7 @@ class CreationCommand( RoleCommand ):
 
     def run_on_box(self, options, box):
         try:
-            box.create( ec2_keypair_names=options.ec2_keypair_names,
+            box.create( ec2_keypair_globs=options.ec2_keypair_names,
                         instance_type=options.instance_type,
                         boot_image=options.boot_image )
             self.run_on_creation( box, options )

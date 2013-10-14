@@ -10,14 +10,15 @@ import sys
 import itertools
 
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
+from boto.exception import BotoServerError, EC2ResponseError
 from fabric.operations import sudo, run, get, put
-from boto import ec2, logging
+from boto import ec2, logging, iam
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
-from cghub.cloud.core.environment import Environment
-from cghub.cloud.core.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
+from cghub.cloud.lib.environment import Environment
+from cghub.cloud.lib.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
 
 
 EC2_POLLING_INTERVAL = 5
@@ -122,12 +123,16 @@ class Box( object ):
         self.env = env
         self.instance_id = None
         self.generation = None
+        self.ec2_keypairs = None
+        self.ec2_keypair_globs = None
+
         """
         The number of previous generations of this box. When an instances is booted from a
         stock AMI, generations is zero. After that instance is set up and imaged and another
         instance is booted from the resulting AMI, generations will be one.
         """
         self.ip_address = None
+        # TODO: boxes should share a connection
         self.connection = ec2.connect_to_region( env.region )
 
     def _populate_instance_creation_args(self, image, kwargs):
@@ -153,7 +158,7 @@ class Box( object ):
         image = self.connection.get_image( image_id )
         self.generation = int( image.tags.get( 'generation', '0' ) )
 
-    def create(self, ec2_keypair_names, instance_type=None, boot_image=None):
+    def create(self, ec2_keypair_globs, instance_type=None, boot_image=None):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -161,11 +166,12 @@ class Box( object ):
 
         :type instance_type: string
 
-        :param ec2_keypair_names: The names of EC2 keypairs whose public key is to be to injected
+        :param ec2_keypair_globs: The names of EC2 keypairs whose public key is to be to injected
          into the instance to facilitate SSH logins. For the first listed keypair a matching
-         private key needs to be present locally.
+         private key needs to be present locally. Note that after the agent is installed on the
+         box it will
 
-        :type ec2_keypair_names: list of strings
+        :type ec2_keypair_globs: list of strings
 
         :param boot_image: the ordinal or AMI ID of the image to boot from. If None,
         the return value of self._boot_image_id() will be used.
@@ -192,15 +198,35 @@ class Box( object ):
 
         self.__read_generation( image.id )
 
+        ec2_keypairs = self.env.expand_keypair_globs( ec2_keypair_globs,
+                                                      ec2_connection=self.connection )
+        if not ec2_keypairs:
+            raise UserError( 'No matching key pairs found' )
+        if ec2_keypairs[ 0 ].name != ec2_keypair_globs[ 0 ]:
+            raise UserError( "The first key pair name can't be a glob." )
+
         self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
         kwargs = dict( instance_type=instance_type,
-                       key_name=ec2_keypair_names[ 0 ],
-                       placement=self.env.availability_zone )
+                       key_name=ec2_keypairs[ 0 ].name,
+                       placement=self.env.availability_zone,
+                       instance_profile_arn=self.get_instance_profile_arn( ) )
         self._populate_instance_creation_args( image, kwargs )
-        reservation = self.connection.run_instances( image.id, **kwargs )
+
+        while True:
+            try:
+                reservation = self.connection.run_instances( image.id, **kwargs )
+                break
+            except EC2ResponseError as e:
+                if 'Invalid IAM Instance Profile' in e.error_message:
+                    time.sleep( EC2_POLLING_INTERVAL )
+                    pass
+                else:
+                    raise
+
         instance = unpack_singleton( reservation.instances )
         self.instance_id = instance.id
-        self.ec2_keypair_names = ec2_keypair_names
+        self.ec2_keypairs = ec2_keypairs
+        self.ec2_keypair_globs = ec2_keypair_globs
         self._on_instance_created( instance )
         self.__wait_ready( instance, { 'pending' }, first_boot=True )
 
@@ -210,7 +236,7 @@ class Box( object ):
 
         :type instance: boto.ec2.instance.Instance
         """
-        self._log( 'tagging instance, ...', newline=False )
+        self._log( 'tagging instance, ... ', newline=False )
         instance.add_tag( 'Name', self.absolute_role( ) )
 
     def _on_instance_ready(self, first_boot):
@@ -221,7 +247,7 @@ class Box( object ):
         its creation
         """
         if first_boot:
-            self.__inject_authorized_keys( self.ec2_keypair_names[ 1: ] )
+            self.__inject_authorized_keys( self.ec2_keypairs[ 1: ] )
 
     def adopt(self, ordinal=None, wait_ready=True):
         """
@@ -353,13 +379,12 @@ class Box( object ):
         """
         if self.instance_id is not None:
             instance = self.get_instance( )
-            if instance._state != 'terminated':
+            if instance.state != 'terminated':
                 self._log( 'Terminating instance, ... ', newline=False )
                 self.connection.terminate_instances( [ self.instance_id ] )
                 if wait:
                     self.__wait_transition( instance,
-                                            from_states={ 'running', 'shutting-down',
-                                                'stopped' },
+                                            from_states={ 'running', 'shutting-down', 'stopped' },
                                             to_state='terminated' )
                 self._log( 'done.' )
 
@@ -471,17 +496,8 @@ class Box( object ):
         self._log( "running, ... ", newline=False )
         self.__wait_public_ip_assigned( instance )
         self._log( "hostname assigned, ... ", newline=False )
-        num_connect_failures = self.__wait_ssh_port_open( )
-        self._log( "SSH port open, ... ", newline=False )
-        # We observed sshd on Lucid to accept connections on port 22 during boot, but not follow
-        # through with the SSH connection setup. To ensure that SSH is actually functional,
-        # we go through the whole process of executing a command via SSH. We only do it if we
-        # actually witnessed port 22 going from closed to open while we are waiting on it.
-        if num_connect_failures > 0:
-            self.__wait_ssh_working( )
-            self._log( "SSH working, done." )
-        else:
-            self._log( "done." )
+        self.__wait_ssh_working( )
+        self._log( "SSH working, done." )
         self._on_instance_ready( first_boot )
 
     def __wait_public_ip_assigned(self, instance):
@@ -596,7 +612,7 @@ class Box( object ):
         Returns the contents of the given config file. Accepts the same parameters as
         self._config_file_path() with the exception of 'mkdir' which must be omitted.
         """
-        path = self._config_file_path( file_name, mkdir='False', **kwargs )
+        path = self._config_file_path( file_name, mkdir=False, **kwargs )
         with open( path, 'r' ) as f:
             return f.read( )
 
@@ -626,13 +642,13 @@ class Box( object ):
         return self.env.absolute_name( self.role( ) )
 
     @fabric_task
-    def __inject_authorized_keys(self, ec2_keypair_names):
+    def __inject_authorized_keys(self, ec2_keypairs):
         with closing( StringIO( ) ) as authorized_keys:
             get( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
             authorized_keys.seek( 0 )
             ssh_pubkeys = set( l.strip( ) for l in authorized_keys.readlines( ) )
-            for ec2_keypair_name in ec2_keypair_names:
-                ssh_pubkey = self.env.download_ssh_pubkey( ec2_keypair_name )
+            for ec2_keypair in ec2_keypairs:
+                ssh_pubkey = self.env.download_ssh_pubkey( ec2_keypair )
                 ssh_pubkeys.add( ssh_pubkey.strip( ) )
             authorized_keys.seek( 0 )
             authorized_keys.truncate( )
@@ -696,3 +712,24 @@ class Box( object ):
             out_file.seek( 0 )
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
 
+    def get_instance_profile_arn(self):
+        iam_conn = iam.connect_to_region( 'universal', path=self.env.namespace )
+        try:
+            profile = iam_conn.get_instance_profile( self.role( ) )
+            profile = profile[ 'get_instance_profile_response' ][ 'get_instance_profile_result' ]
+        except BotoServerError as e:
+            if e.status == 404:
+                profile = iam_conn.create_instance_profile( self.role( ), path=self.env.namespace )
+                profile = profile[ 'create_instance_profile_response' ][
+                    'create_instance_profile_result' ]
+            else:
+                raise
+        profile = profile[ 'instance_profile' ]
+        # Boto 2.13.3.returns some unparsed 'garbage' in the roles entry but IAM only allows one
+        # role per profile so we're just gonna brute force it.
+        try:
+            iam_conn.add_role_to_instance_profile( self.role( ), 'cghub-cloud-utils' )
+        except BotoServerError as e:
+            if e.status != 409:
+                raise
+        return profile[ 'arn' ]

@@ -4,14 +4,14 @@ from collections import OrderedDict
 import logging
 import os
 
-import cghub.cloud
+import cghub.cloud.core
 import cghub.cloud.devenv
-from cghub.cloud.core.util import Application, app_name
+from cghub.cloud.lib.util import Application, app_name
 
 
 PACKAGES = [ cghub.cloud.core, cghub.cloud.devenv ]
 
-DEBUG_LOG_FILE_NAME = '%s.{pid}.log' % app_name()
+DEBUG_LOG_FILE_NAME = '%s.{pid}.log' % app_name( )
 
 
 def main():
@@ -37,6 +37,7 @@ class Cgcloud( Application ):
         if options.debug:
             logging.basicConfig( filename=DEBUG_LOG_FILE_NAME.format( pid=os.getpid( ) ),
                                  level=logging.DEBUG )
+
 
 if __name__ == "__main__":
     main( )

@@ -2,10 +2,11 @@ from setuptools import setup, find_packages
 
 setup(
     name="cghub-cloud-utils",
-    version="0.1",
+    version="1.0.dev1",
     packages=find_packages( ),
     scripts=[ 'cgcloud' ],
     install_requires=[
+        'cghub-cloud-lib>=1.0.dev1',
         'boto>=2.9.7',
         'Fabric>=1.7.0',
         'PyYAML>=3.10',
@@ -13,5 +14,8 @@ setup(
         'lxml>=3.2.1' ],
     namespace_packages=[
         'cghub', 'cghub.cloud'
-    ]
+    ],
+    dependency_links=[
+        'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-lib@default#egg=cghub-cloud-lib-1.0.dev1'
+    ],
 )

@@ -1,8 +1,9 @@
+from cghub.cloud.core.agent_box import AgentBox
 from cghub.cloud.core.cloud_init_box import CloudInitBox
 from cghub.cloud.core.yum_box import YumBox
 
 
-class FedoraBox( YumBox, CloudInitBox ):
+class FedoraBox( YumBox, AgentBox, CloudInitBox ):
     """
     A box that boots of an official Fedora cloud AMI
     """

@@ -14,7 +14,7 @@ To install and use cghub-cloud-utils, you need
 * Python ≧ 2.7.x
 * pip_
 * Mercurial_ (``hg``)
-* Mac OS X: Xcode_ and the `_Xcode Command Line Tools`_ (needed during the installation of cghub-cloud-utils for compiling the PyCrypto dependency)
+* Mac OS X: Xcode_ and the `Xcode Command Line Tools`_ (needed during the installation of cghub-cloud-utils for compiling the PyCrypto dependency)
 * A Bitbucket account and membership in the ``cghub`` (see steps 1 and 2 of our `Bitbucket Guide`_) * Your public SSH key registered in Bitbucket (see steps 3 and 4 of our `Bitbucket Guide`_)
 
 .. _pip: https://pip.readthedocs.org/en/latest/installing.html

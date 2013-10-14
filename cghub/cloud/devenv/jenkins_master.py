@@ -1,12 +1,14 @@
 from StringIO import StringIO
 from textwrap import dedent
+
 from lxml import etree
 from fabric.context_managers import settings, hide
 from fabric.operations import run, sudo, put, get
+from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError
+
 from cghub.cloud.core.box import fabric_task
-from cghub.cloud.devenv.source_control_client import SourceControlClient
+from cghub.cloud.core.source_control_client import SourceControlClient
 from cghub.cloud.core.ubuntu_box import UbuntuBox
-from cghub.cloud.core.util import ec2_keypair_fingerprint, UserError
 
 
 class Jenkins:
