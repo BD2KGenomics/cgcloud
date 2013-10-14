@@ -3,7 +3,7 @@ author "Hannes Schmidt <hannes@ucsc.edu>"
 start on runlevel [2345]
 stop on runlevel [016]
 respawn
-expect daemon
+expect fork
 exec %(exec_path)s %(args)s
 pre-start script
     pid_file=%(pid_file)s
