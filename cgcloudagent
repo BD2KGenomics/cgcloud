@@ -189,10 +189,19 @@ def generate_init_script(options):
         quote_level = 2
 
     init_script = resource_string( cghub.cloud.agent.__name__, script )
-    args = ' '.join( quote( arg, level=quote_level )
-        for arg in sys.argv[ 1: ] if arg != '--init-script' )
+
+    args = [
+               '--zone', options.availability_zone,
+               '--interval', str( options.interval ),
+               '--authorized-keys-file', options.authorized_keys_path,
+               '--keypairs' ] + options.ec2_keypair_names + [
+               '--user', options.user,
+               '--group', options.group,
+               '--pid-file', options.pid_file,
+               '--log-level', options.log_level,
+               '--log-spill', options.log_spill ]
     variables = vars( options ).copy( )
-    variables.update( dict( args=args,
+    variables.update( dict( args=' '.join( quote( arg, level=quote_level ) for arg in args ),
                             exec_path=exec_path,
                             exec_name=exec_name,
                             description=description ) )
