@@ -170,7 +170,7 @@ def generate_init_script(options):
     import cghub.cloud.agent
     import platform
 
-    distro = platform.dist( )[ 0 ]
+    distro = platform.dist( )[ 0 ].lower()
     if distro == 'ubuntu':
         script = 'init-script.upstart'
     else:
