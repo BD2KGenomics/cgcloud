@@ -155,7 +155,7 @@ _find_unsafe = re.compile( r'[^\w@%+=:,./-]' ).search
 
 def quote(s, level=1):
     for i in xrange( 0, level ):
-        s = quote( s )
+        s = _quote( s )
     return s
 
 
