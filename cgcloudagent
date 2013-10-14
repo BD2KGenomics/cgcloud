@@ -153,8 +153,18 @@ def main():
 _find_unsafe = re.compile( r'[^\w@%+=:,./-]' ).search
 
 
-def quote(s):
-    """Return a shell-escaped version of the string *s*."""
+def quote(s, level=1):
+    for i in xrange( 0, level ):
+        s = quote( s )
+    return s
+
+
+def _quote(s):
+    """
+    Return a shell-escaped version of the string *s*.
+
+    Stolen from Python 3's shlex module
+    """
     if not s:
         return "''"
     if _find_unsafe( s ) is None:
@@ -170,14 +180,16 @@ def generate_init_script(options):
     import cghub.cloud.agent
     import platform
 
-    distro = platform.dist( )[ 0 ].lower()
+    distro = platform.dist( )[ 0 ].lower( )
     if distro == 'ubuntu':
         script = 'init-script.upstart'
+        quote_level = 1
     else:
         script = 'init-script.lsb'
+        quote_level = 2
 
     init_script = resource_string( cghub.cloud.agent.__name__, script )
-    args = ' '.join( quote( arg )
+    args = ' '.join( quote( arg, level=quote_level )
         for arg in sys.argv[ 1: ] if arg != '--init-script' )
     variables = vars( options ).copy( )
     variables.update( dict( args=args,
