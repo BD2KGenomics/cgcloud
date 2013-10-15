@@ -126,10 +126,11 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         # 1) cruft was removed
         # 2) --httpListenAddress=127.0.0.1 was added to make Jenkins listen locally only
         #
+        instance_type = self.get_instance( ).instance_type
         etc_default_jenkins = StringIO( dedent( '''\
             NAME=jenkins
             JAVA=/usr/bin/java
-            #JAVA_ARGS="-Xmx256m"
+            JAVA_ARGS="-Xmx{jvm_heap_size}"
             #JAVA_ARGS="-Djava.net.preferIPv4Stack=true" # make jenkins listen on IPv4 address
             PIDFILE=/var/run/jenkins/jenkins.pid
             JENKINS_USER={user}
@@ -152,7 +153,8 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                 --ajp13Port=$AJP_PORT \\
                 --httpListenAddress=127.0.0.1 \\
             "
-        '''.format( **jenkins ) ) )
+        '''.format( jvm_heap_size='256m' if instance_type == 't1.micro' else '1G',
+                    **jenkins ) ) )
         put( etc_default_jenkins, '/etc/default/jenkins', use_sudo=True, mode=0644 )
         sudo( 'chown root:root /etc/default/jenkins' )
         #
@@ -295,3 +297,9 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         run( "java -jar /var/cache/jenkins/war/WEB-INF/jenkins-cli.jar "
              "-s http://localhost:8080/ "
              "reload-configuration" )
+
+    def _image_block_device_mapping(self):
+        # Do not include the data volume in the snapshot
+        bdm = self.get_instance( ).block_device_mapping
+        bdm[ Jenkins.data_device_ext ].no_device = True
+        return bdm

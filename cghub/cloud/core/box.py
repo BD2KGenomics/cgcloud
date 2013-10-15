@@ -13,6 +13,7 @@ from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from boto.exception import BotoServerError, EC2ResponseError
 from fabric.operations import sudo, run, get, put
 from boto import ec2, logging, iam
+from cghub.boto.ec2.connection import EC2Connection
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
@@ -133,7 +134,7 @@ class Box( object ):
         """
         self.ip_address = None
         # TODO: boxes should share a connection
-        self.connection = ec2.connect_to_region( env.region )
+        self.connection = EC2Connection( region=ec2.get_region( env.region ) )
 
     def _populate_instance_creation_args(self, image, kwargs):
         """
@@ -311,6 +312,14 @@ class Box( object ):
         except IndexError:
             raise UserError( 'No box with ordinal %i' % ordinal )
 
+    def _image_block_device_mapping(self):
+        """
+        Returns the block device mapping to be used for the image. The base implementation
+        returns None, indicating that all volumes attached to the instance should be included in
+        the image.
+        """
+        return None
+
     @needs_instance
     def image(self):
         """
@@ -322,7 +331,10 @@ class Box( object ):
 
         self._log( "Creating image, ... ", newline=False )
         image_name = "%s %s" % ( self.absolute_role( ), time.strftime( '%Y-%m-%d %H-%M-%S' ) )
-        image_id = self.connection.create_image( self.instance_id, image_name )
+        image_id = self.connection.create_image(
+            instance_id=self.instance_id,
+            name=image_name,
+            block_device_map=self._image_block_device_mapping( ) )
         while True:
             try:
                 image = self.connection.get_image( image_id )
