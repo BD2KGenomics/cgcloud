@@ -30,10 +30,7 @@ class CentosGenetorrentJenkinsSlave( CentosBox, GenetorrentJenkinsSlave ):
         return super( CentosGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             'gcc-c++',
             'pkgconfig',
-            'xerces-c-devel',
             'libcurl-devel',
-            'xqilla-devel',
-            'openssl-devel',
             'make',
             'rpm-build',
             'redhat-rpm-config' ]
@@ -46,7 +43,6 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
 
     def recommended_instance_type(self):
         return 'm1.medium'
-
 
     def _get_package_substitutions(self):
         return super( Centos5GenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
@@ -89,7 +85,13 @@ class Centos6GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     """
     A Jenkins slave for building GeneTorrent on CentOS 6
     """
-    pass
+
+    def _list_packages_to_install(self):
+        return super( Centos6GenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            'xerces-c-devel',
+            'xqilla-devel',
+            'openssl-devel'
+        ]
 
 
 class UbuntuGenetorrentJenkinsSlave( UbuntuBox, GenetorrentJenkinsSlave ):
