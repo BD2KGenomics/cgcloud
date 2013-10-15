@@ -80,6 +80,10 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
     An instance of this class represents the build master in EC2
     """
 
+    def __init__(self, env):
+        super( JenkinsMaster, self ).__init__( env )
+        self.volume = None
+
     def release(self):
         return 'raring'
 
@@ -87,7 +91,11 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
                                                  Jenkins.data_volume_size_gb )
         super( JenkinsMaster, self ).create( *args, **kwargs )
-        self.attach_volume( self.volume, Jenkins.data_device_ext )
+
+    def _on_instance_running(self, first_boot):
+        if first_boot:
+            self.attach_volume( self.volume, Jenkins.data_device_ext )
+        super( JenkinsMaster, self )._on_instance_running( first_boot )
 
     @fabric_task
     def _setup_package_repos(self):

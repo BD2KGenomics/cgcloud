@@ -237,14 +237,27 @@ class Box( object ):
 
         :type instance: boto.ec2.instance.Instance
         """
-        self._log( 'tagging instance, ... ', newline=False )
+        self._log( 'tagging instance ... ', newline=False )
         instance.add_tag( 'Name', self.absolute_role( ) )
+
+
+    def _on_instance_running(self, first_boot):
+        """
+        Invoked while creating, adopting or starting an instance, right after the instance
+        entered the running state.
+
+        :param first_boot: True if this is the first time the instance enters the running state
+        since its creation
+        """
+        pass
+
 
     def _on_instance_ready(self, first_boot):
         """
-        Invoked during creation, adoption or after start, right after the instance became ready.
+        Invoked while creating, adopting or starting an instance, right after the instance became
+        ready.
 
-        :param first_boot: True if this is the first time the instance becomes ready after
+        :param first_boot: True if this is the first time the instance becomes ready since
         its creation
         """
         if first_boot:
@@ -259,7 +272,7 @@ class Box( object ):
         :param wait_ready: if True, wait for the instance to be ready
         """
         if self.instance_id is None:
-            self._log( 'Adopting instance, ... ', newline=False )
+            self._log( 'Adopting instance ... ', newline=False )
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
             self.__read_generation( instance.image_id )
@@ -503,13 +516,16 @@ class Box( object ):
 
         :type instance: boto.ec2.instance.Instance
         """
-        self._log( "waiting for instance, ... ", newline=False )
+        self._log( "waiting for instance ... ", newline=False )
         self.__wait_transition( instance, from_states, 'running' )
-        self._log( "running, ... ", newline=False )
+        self._on_instance_running( first_boot )
+        self._log( "running, waiting for hostname ... ", newline=False )
         self.__wait_public_ip_assigned( instance )
-        self._log( "hostname assigned, ... ", newline=False )
+        self._log( "assigned, waiting for ssh ... ", newline=False )
+        self.__wait_ssh_port_open( )
+        self._log( "port open, testing ... ", newline=False )
         self.__wait_ssh_working( )
-        self._log( "SSH working, done." )
+        self._log( "working, done." )
         self._on_instance_ready( first_boot )
 
     def __wait_public_ip_assigned(self, instance):
