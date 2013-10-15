@@ -36,6 +36,29 @@ class GenericCentos5Box( CentosBox ):
     def _ephemeral_mount_point(self):
         return "/mnt"
 
+    # FIXME: These two methods assume that this class is derived from AgentBox.
+
+    def _get_package_substitutions(self):
+        return super( GenericCentos5Box, self )._get_package_substitutions( ) + [
+            ( 'python', 'python26' ),
+            ( 'python-devel', 'python26-devel' )
+        ]
+
+    @fabric_task
+    def _post_install_packages(self):
+        # The pip from the python-pip package is hard-wired to the python 2.4 from the python
+        # package. Also it's ancient, fossilized crap. To get an up-to-date pip that is wired to
+        # python 2.6 from the python26 package we have to jump though some hoops. First,
+        # we need to ignore certs since the CA package on CentOS 5 is, you guessed it, out of date.
+        sudo( 'echo "check_certificate=off" > /root/.wgetrc' )
+        # Then install setuptools ...
+        run( 'wget https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py' )
+        sudo( 'python26 ez_setup.py' )
+        # .. and pip.
+        run( 'wget https://raw.github.com/pypa/pip/master/contrib/get-pip.py' )
+        sudo( 'python26 get-pip.py' )
+        super( GenericCentos5Box, self )._post_install_packages( )
+
 
 class GenericCentos6Box( CentosBox ):
     """
@@ -74,6 +97,7 @@ class GenericUbuntuLucidBox( UbuntuBox ):
     def _get_package_substitutions(self):
         return super( GenericUbuntuLucidBox, self )._get_package_substitutions( ) + [
             ('git', 'git-core') ]
+
 
 class GenericUbuntuMaverickBox( UbuntuBox ):
     """
