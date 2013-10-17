@@ -76,6 +76,7 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
             'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-setuptools-0.6c11-cghub.noarch.rpm'
         ] )
         # Make 2.7 the default
+        # FIXME: This breaks yum which depends on 2.4 being the default
         sudo( 'ln -snf /usr/bin/python2.7 /usr/bin/python' )
         sudo( 'ln -snf /usr/bin/easy_install-2.7 /usr/bin/easy_install' )
         sudo( 'mv /usr/bin/pydoc /usr/bin/pydoc2.4' )
