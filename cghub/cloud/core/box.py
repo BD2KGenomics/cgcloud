@@ -660,12 +660,6 @@ class Box( object ):
         args += command
         return args
 
-    def get_keys(self):
-        """
-        Download the public keys that identify users on the instance.
-        """
-        pass
-
     def absolute_role(self):
         return self.env.absolute_name( self.role( ) )
 
@@ -683,7 +677,6 @@ class Box( object ):
             authorized_keys.write( '\n'.join( ssh_pubkeys ) )
             authorized_keys.write( '\n' )
             put( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
-
 
     @fabric_task
     def _propagate_authorized_keys(self, user, group=None):

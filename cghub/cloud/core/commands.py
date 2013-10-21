@@ -45,7 +45,7 @@ class EnvironmentCommand( Command ):
             env = Environment( availability_zone=options.availability_zone,
                                namespace=options.namespace )
         except ValueError as e:
-            raise UserError( e )
+            raise UserError( cause=e )
         return self.run_in_env( options, env )
 
 
@@ -296,27 +296,30 @@ class CreationCommand( RoleCommand ):
                 box.terminate( )
 
 
-class UploadKeyCommand( EnvironmentCommand ):
+class RegisterKeyCommand( EnvironmentCommand ):
     """
     Upload an OpenSSH public key for future injection into boxes. The public key will be imported
     into EC2 as a keypair and stored verbatim in S3.
     """
 
     def __init__(self, application, **kwargs):
-        super( UploadKeyCommand, self ).__init__( application, **kwargs )
+        super( RegisterKeyCommand, self ).__init__( application, **kwargs )
         self.option( 'ssh_public_key', metavar='KEY_FILE',
                      help='A file containing the SSH public key to upload to the EC2 keypair.' )
         self.option( '--force', '-F', default=False, action='store_true',
                      help='Overwrite potentially existing EC2 key pair' )
-        self.option( '--keypair', '-k', required=True, dest='ec2_keypair_name',
-                     help='The desired name of the EC2 key pair.' )
+        self.option( '--keypair', '-k', metavar='NAME',
+                     dest='ec2_keypair_name', default=getpass.getuser( ),
+                     help='The desired name of the EC2 key pair. The name should associate the '
+                          'key with you in a way that it is obvious to other users in your '
+                          'organization.' )
 
     def run_in_env(self, options, env):
         with open( options.ssh_public_key ) as f:
             ssh_public_key = f.read( )
-        env.upload_ssh_pubkey( ec2_keypair_name=options.ec2_keypair_name,
-                               ssh_pubkey=ssh_public_key,
-                               force=options.force )
+        env.register_ssh_pubkey( ec2_keypair_name=options.ec2_keypair_name,
+                                 ssh_pubkey=ssh_public_key,
+                                 force=options.force )
 
 
 class ListRolesCommand( Command ):

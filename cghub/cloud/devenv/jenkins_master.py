@@ -4,7 +4,7 @@ from textwrap import dedent
 from lxml import etree
 from fabric.context_managers import settings, hide
 from fabric.operations import run, sudo, put, get
-from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError
+from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key
 
 from cghub.cloud.core.box import fabric_task
 from cghub.cloud.core.source_control_client import SourceControlClient
@@ -63,12 +63,6 @@ class Jenkins:
     The path to the file where the jenkins user's public key is stored on the EC2 instance.
     This public key will be deployed on the build servers such that Jenkins can launch
     its build agents on those servers.
-    """
-
-    pubkey_config_file = 'jenkins.id_rsa.pub'
-    """
-    The name of the config file where the jenkins user's public key is stored on the system running
-    this code.
     """
 
 
@@ -189,40 +183,36 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         sudo( 'useradd -d {home} -g {group} -s /bin/bash {user}'.format( **jenkins ) )
         sudo( 'chown -R {user} {home}'.format( **jenkins ) )
 
-    @fabric_task
-    def _post_install_packages(self):
-        self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
-        ec2_key_pair_name = '{user}@{host}'.format( user=Jenkins.user, host=self.absolute_role( ) )
-        ec2_keypair = self.connection.get_key_pair( ec2_key_pair_name )
+    @classmethod
+    def ec2_keypair_name(cls, env):
+        return Jenkins.user + '@' + env.absolute_name( cls.role( ) )
+
+    def __create_jenkins_keypair(self):
+        ec2_keypair_name = self.ec2_keypair_name( self.env )
+        ec2_keypair = self.connection.get_key_pair( ec2_keypair_name )
         if ec2_keypair is None:
-            ec2_keypair = self.connection.create_key_pair( ec2_key_pair_name )
+            ec2_keypair = self.connection.create_key_pair( ec2_keypair_name )
             if not ec2_keypair.material:
                 raise AssertionError( "Created key pair but didn't get back private key" )
         key_file_exists = sudo( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
         #
-        # Create an SSH key pair in Jenkin's home and download the public key to local config
-        # directory so we can inject it into the slave boxes. Note that this will prompt the user
-        # for a passphrase.
+        # Create an SSH key pair in Jenkin's home and upload the public key to S3.
         #
         if ec2_keypair.material:
+            ssh_privkey = ec2_keypair.material
             if key_file_exists:
                 # TODO: make this more prominent, e.g. by displaying all warnings at the end
                 self._log( 'Warning: Overwriting private key with new one from EC2.' )
-
-            # upload private key
-            put( local_path=StringIO( ec2_keypair.material ),
+                # store private key on box
+            put( local_path=StringIO( ssh_privkey ),
                  remote_path=Jenkins.key_path,
                  use_sudo=True )
-            assert ec2_keypair.fingerprint == ec2_keypair_fingerprint( ec2_keypair.material )
+            assert ec2_keypair.fingerprint == ec2_keypair_fingerprint( ssh_privkey )
             sudo( 'chown {user}:{group} {key_path}'.format( **jenkins ) )
-            # so get_keys can download the keys
-            sudo( 'chmod go+rx {key_dir_path}'.format( **jenkins ),
-                  user=Jenkins.user )
-            sudo( 'chmod go= {key_path}'.format( **jenkins ),
-                  user=Jenkins.user )
-            # generate public key from private key
-            sudo( 'ssh-keygen -y -f {key_path} > {key_path}.pub'.format( **jenkins ),
-                  user=Jenkins.user )
+            sudo( 'chmod go= {key_path}'.format( **jenkins ), user=Jenkins.user )
+            ssh_pubkey = private_to_public_key( ssh_privkey )
+            # Note that we are uploading the public key using the private key's fingerprint
+            self.env.upload_ssh_pubkey( ssh_pubkey, ec2_keypair.fingerprint )
         else:
             if key_file_exists:
                 # Must use sudo('cat') since get() doesn't support use_sudo
@@ -237,6 +227,10 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                         "currently present on the instance. "
                         "Please delete the key pair from EC2 before retrying."
                         .format( key_pair=ec2_keypair, fingerprint=fingerprint ) )
+                ssh_pubkey = self.env.download_ssh_pubkey( ec2_keypair )
+                if ssh_pubkey != private_to_public_key( ssh_privkey ):
+                    raise RuntimeError( "The private key on the data volume doesn't match the "
+                                        "public key in EC2." )
             else:
                 raise UserError(
                     "The key pair {ec2_keypair.name} is registered in EC2 but the corresponding "
@@ -245,19 +239,11 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                     "Please delete the key pair from EC2 before retrying."
                     .format( key_pair=ec2_keypair, **jenkins ) )
 
-        # Store a copy of the public key locally
-        #
-        self.__get_jenkins_key( )
-        self.setup_repo_host_keys( user=Jenkins.user )
-
-    def get_keys(self):
-        super( JenkinsMaster, self ).get_keys( )
-        self.__get_jenkins_key( )
-
     @fabric_task
-    def __get_jenkins_key(self):
-        get( remote_path='%s.pub' % Jenkins.key_path,
-             local_path=self._config_file_path( Jenkins.pubkey_config_file, mkdir=True ) )
+    def _post_install_packages(self):
+        self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
+        self.__create_jenkins_keypair( )
+        self.setup_repo_host_keys( user=Jenkins.user )
 
     def _ssh_args(self, options, user, command):
         # Add port forwarding to Jenkins' web UI

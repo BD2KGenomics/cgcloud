@@ -1,6 +1,6 @@
 from lxml.builder import E
 
-from cghub.cloud.lib.util import snake_to_camel
+from cghub.cloud.lib.util import snake_to_camel, UserError
 
 from cghub.fabric.operations import sudo
 from cghub.cloud.core.box import fabric_task
@@ -32,6 +32,14 @@ class JenkinsSlave( SourceControlClient ):
         # might be a symlink but prepend_remote_shell_script doesn't work with symlinks
         return sudo( 'readlink -f /etc/rc.local' )
 
+    def __get_master_pubkey(self):
+        ec2_keypair_name = JenkinsMaster.ec2_keypair_name( self.env )
+        ec2_keypair = self.connection.get_key_pair( ec2_keypair_name )
+        if ec2_keypair is None:
+            raise UserError( "Missing EC2 keypair named '%s'. You must create the master before "
+                             "creating slaves." % ec2_keypair_name )
+        return self.env.download_ssh_pubkey( ec2_keypair )
+
     @fabric_task
     def _setup_build_user(self):
         """
@@ -42,8 +50,7 @@ class JenkinsSlave( SourceControlClient ):
             user=BUILD_USER,
             dir=BUILD_DIR,
             ephemeral=self._ephemeral_mount_point( ),
-            key=self._read_config_file( Jenkins.pubkey_config_file,
-                                        role=JenkinsMaster.role( ) ).strip( ) )
+            pubkey=self.__get_master_pubkey( ).strip( ) )
 
         # Create the build user
         #
@@ -52,7 +59,7 @@ class JenkinsSlave( SourceControlClient ):
 
         # Ensure that jenkins@build-master can log into this box as the build user
         #
-        sudo( "echo '{key}' >> ~/.ssh/authorized_keys".format( **kwargs ),
+        sudo( "echo '{pubkey}' >> ~/.ssh/authorized_keys".format( **kwargs ),
               user=BUILD_USER,
               sudo_args='-i' )
 

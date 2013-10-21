@@ -29,4 +29,4 @@ COMMANDS = [
     SshCommand,
     ListCommand,
     ListImages,
-    UploadKeyCommand ]
+    RegisterKeyCommand ]

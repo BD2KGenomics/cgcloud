@@ -18,5 +18,4 @@ BOXES = [
     Centos6RpmbuildJenkinsSlave ]
 
 COMMANDS = [
-    GetKeys,
     RegisterSlaves ]

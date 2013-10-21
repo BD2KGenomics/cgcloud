@@ -3,16 +3,6 @@ from fnmatch import fnmatch
 from cghub.cloud.core import BoxCommand
 
 
-class GetKeys( BoxCommand ):
-    """
-    Get a copy of the public keys that identify users on the box.
-    """
-
-    def run_on_box(self, options, box):
-        box.adopt( ordinal=options.ordinal )
-        box.get_keys( )
-
-
 class RegisterSlaves( BoxCommand ):
     """
     Adds the specified slave images to Jenkins' EC2 configuration on the given master to the
