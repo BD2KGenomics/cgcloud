@@ -215,12 +215,24 @@ class Environment:
         file_path = config_file_path( path_components, mkdir=mkdir )
         return file_path
 
-
     @staticmethod
     def ssh_pubkey_s3_key(fingerprint):
         return 'ssh_pubkey:%s' % fingerprint
 
-    def upload_ssh_pubkey(self, ec2_keypair_name, ssh_pubkey, force=False):
+    def upload_ssh_pubkey(self, ssh_pubkey, fingerprint):
+        s3_conn = s3.connect_to_region( self.region )
+        try:
+            bucket = s3_conn.lookup( self.s3_bucket_name )
+            if bucket is None:
+                bucket = s3_conn.create_bucket( self.s3_bucket_name,
+                                                location=self.region )
+            s3_entry = Key( bucket )
+            s3_entry.key = self.ssh_pubkey_s3_key( fingerprint )
+            s3_entry.set_contents_from_string( ssh_pubkey )
+        finally:
+            s3_conn.close( )
+
+    def register_ssh_pubkey(self, ec2_keypair_name, ssh_pubkey, force=False):
         """
         Import the given OpenSSH public key  as a 'key pair' into EC2. The term 'key pair' is
         misleading since imported 'key pairs' are really just public keys. For generated EC2 key
@@ -242,38 +254,28 @@ class Environment:
         """
         ec2_conn = ec2.connect_to_region( self.region )
         try:
-            s3_conn = s3.connect_to_region( self.region )
-            try:
-                fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
-                ec2_keypair = ec2_conn.get_key_pair( ec2_keypair_name )
-                if ec2_keypair is not None:
-                    if ec2_keypair.name != ec2_keypair_name:
-                        raise AssertionError( "Key pair names don't match." )
-                    if ec2_keypair.fingerprint != fingerprint:
-                        if force:
-                            ec2_conn.delete_key_pair( ec2_keypair_name )
-                            ec2_keypair = None
-                        else:
-                            raise UserError(
-                                "Key pair %s already exists in EC2, but its fingerprint %s is "
-                                "different from the fingerprint %s of the key to be imported. Use "
-                                "the force option to overwrite the existing key pair." %
-                                ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
+            fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
+            ec2_keypair = ec2_conn.get_key_pair( ec2_keypair_name )
+            if ec2_keypair is not None:
+                if ec2_keypair.name != ec2_keypair_name:
+                    raise AssertionError( "Key pair names don't match." )
+                if ec2_keypair.fingerprint != fingerprint:
+                    if force:
+                        ec2_conn.delete_key_pair( ec2_keypair_name )
+                        ec2_keypair = None
+                    else:
+                        raise UserError(
+                            "Key pair %s already exists in EC2, but its fingerprint %s is "
+                            "different from the fingerprint %s of the key to be imported. Use "
+                            "the force option to overwrite the existing key pair." %
+                            ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
 
-                bucket = s3_conn.lookup( self.s3_bucket_name )
-                if bucket is None:
-                    bucket = s3_conn.create_bucket( self.s3_bucket_name,
-                                                    location=self.region )
-                s3_entry = Key( bucket )
-                s3_entry.key = self.ssh_pubkey_s3_key( fingerprint )
-                s3_entry.set_contents_from_string( ssh_pubkey )
+            self.upload_ssh_pubkey( ssh_pubkey, fingerprint )
 
-                if ec2_keypair is None:
-                    ec2_keypair = ec2_conn.import_key_pair( ec2_keypair_name, ssh_pubkey )
-                assert ec2_keypair.fingerprint == fingerprint
-                return ec2_keypair
-            finally:
-                s3_conn.close( )
+            if ec2_keypair is None:
+                ec2_keypair = ec2_conn.import_key_pair( ec2_keypair_name, ssh_pubkey )
+            assert ec2_keypair.fingerprint == fingerprint
+            return ec2_keypair
         finally:
             ec2_conn.close( )
 
@@ -319,19 +321,28 @@ class Environment:
             except S3ResponseError as e:
                 if e.status == 404:
                     raise UserError(
-                        "There is no matching SSH pub key stored in S3 for EC2 key pair %s. "
-                        "Has it been uploaded using the upload-key command?" %
-                        ec2_keypair )
+                        "There is no matching SSH pub key stored in S3 for EC2 key pair %s. Has "
+                        "it been registered, e.g using the cgcloud's register-key command?" %
+                        ec2_keypair.name )
                 else:
                     raise
-            fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
-            if ec2_keypair.fingerprint != fingerprint:
-                raise UserError(
-                    "Fingerprint mismatch for key %s! Expected %s but got %s. The EC2 keypair "
-                    "doesn't match the public key stored in S3." %
-                    ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
-            else:
-                return ssh_pubkey
+            fingerprint_len = len( ec2_keypair.fingerprint.split( ':' ) )
+            if fingerprint_len == 20: # 160 bit SHA-1
+                # The fingerprint is that of a private key. We can't get at the private key so we
+                # can't verify the public key either. So this is inherently insecure. However,
+                # remember that the only reason why we are dealing with n EC2-generated private
+                # key is that the Jenkins' EC2 plugin expects a 20 byte fingerprint. See
+                # https://issues.jenkins-ci.org/browse/JENKINS-20142 for details. Once that issue
+                # is fixed, we can switch back to just using imported keys and 16-byte fingerprints.
+                pass
+            elif fingerprint_len == 16: # 128 bit MD5
+                fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
+                if ec2_keypair.fingerprint != fingerprint:
+                    raise UserError(
+                        "Fingerprint mismatch for key %s! Expected %s but got %s. The EC2 keypair "
+                        "doesn't match the public key stored in S3." %
+                        ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
+            return ssh_pubkey
         finally:
             s3_conn.close( )
 
