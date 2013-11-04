@@ -1,5 +1,4 @@
 import argparse
-import getpass
 from operator import itemgetter
 import os
 import sys
@@ -13,7 +12,7 @@ from cghub.cloud.lib.util import UserError, Command
 
 
 class EnvironmentCommand( Command ):
-    def run_in_env(self, options, env):
+    def run_in_env( self, options, env ):
         """
         Run this command in the given environment.
 
@@ -21,10 +20,9 @@ class EnvironmentCommand( Command ):
         """
         raise NotImplementedError( )
 
-    def __init__(self, application, **kwargs):
+    def __init__( self, application, **kwargs ):
         super( EnvironmentCommand, self ).__init__( application, **kwargs )
-        # Environment defaults to the root namespace but this is too dangerous a default for inexperienced users
-        defaults = Environment( namespace='/%s/' % getpass.getuser( ) )
+        defaults = Environment( )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                      default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
                      dest='availability_zone',
@@ -40,7 +38,7 @@ class EnvironmentCommand( Command ):
                           'namespace. The value of the environment variable CGCLOUD_NAMESPACE, if '
                           'that variable is present, overrides the default.' )
 
-    def run(self, options):
+    def run( self, options ):
         try:
             env = Environment( availability_zone=options.availability_zone,
                                namespace=options.namespace )
@@ -55,7 +53,7 @@ class RoleCommand( EnvironmentCommand ):
     than one box per role. To target a specific box, BoxCommand might be a better choice.
     """
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         """
         Execute this command using the specified parsed command line options on the specified box.
 
@@ -66,14 +64,14 @@ class RoleCommand( EnvironmentCommand ):
         """
         raise NotImplementedError( )
 
-    def __init__(self, application, **kwargs):
+    def __init__( self, application, **kwargs ):
         super( RoleCommand, self ).__init__( application, **kwargs )
         self.option( 'role',
                      metavar='ROLE',
                      help="The name of the role. Use the list-roles command to show possible "
                           "roles." )
 
-    def run_in_env(self, options, env):
+    def run_in_env( self, options, env ):
         role = options.role
         box_cls = self.application.boxes.get( role )
         if box_cls is None: raise UserError( "No such role: '%s'" % role )
@@ -86,13 +84,13 @@ class ListCommand( RoleCommand ):
     List the boxes performing a particular role.
     """
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         for box in box.list( ):
             print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}\t{state}'.format( **box ) )
 
 
 class BoxCommand( RoleCommand ):
-    def __init__(self, application, **kwargs):
+    def __init__( self, application, **kwargs ):
         super( BoxCommand, self ).__init__( application, **kwargs )
         self.option( '--ordinal', '-o', default=-1, type=int,
                      help='Selects an individual box from the list of boxes performing the '
@@ -110,7 +108,7 @@ class SshCommand( BoxCommand ):
     Start an interactive SSH session on a box.
     """
 
-    def __init__(self, application):
+    def __init__( self, application ):
         super( SshCommand, self ).__init__( application )
         self.option( '--user', '--login', '-u', '-l', default=None,
                      help="Name of user to login as." )
@@ -118,7 +116,7 @@ class SshCommand( BoxCommand ):
                      help="Additional arguments to pass to ssh. This can be anything that you "
                           "would pass to SSH with the exception of user name or host." )
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal )
         i = next( ( i for i, v in enumerate( options.command ) if not v.startswith( '-' ) ),
                   len( options.command ) )
@@ -130,7 +128,7 @@ class ImageCommand( BoxCommand ):
     Create an AMI image of a box performing a given role. The box must be stopped.
     """
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal, wait_ready=False )
         box.image( )
 
@@ -140,7 +138,7 @@ class ShowCommand( BoxCommand ):
     Display the EC2 attributes of the box.
     """
 
-    def print_object(self, o, visited=set( ), depth=1):
+    def print_object( self, o, visited=set( ), depth=1 ):
         _id = id( o )
         if not _id in visited:
             visited.add( _id )
@@ -148,7 +146,7 @@ class ShowCommand( BoxCommand ):
             visited.remove( _id )
         if depth == 1: sys.stdout.write( '\n' )
 
-    def print_dict(self, d, visited, depth):
+    def print_dict( self, d, visited, depth ):
         for k, v in sorted( d.iteritems( ), key=itemgetter( 0 ) ):
             k = str( k )
             if k[ 0:1 ] != '_' \
@@ -169,7 +167,7 @@ class ShowCommand( BoxCommand ):
                 else:
                     sys.stdout.write( repr( v ) )
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal, wait_ready=False )
         self.print_object( box.get_instance( ) )
 
@@ -179,10 +177,10 @@ class LifecycleCommand( BoxCommand ):
     Transition a box into a particular state.
     """
 
-    def adopt(self, box, options):
+    def adopt( self, box, options ):
         box.adopt( ordinal=options.ordinal, wait_ready=False )
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         self.adopt( box, options )
         getattr( box, self.name( ) )( )
 
@@ -206,13 +204,13 @@ class TerminateCommand( LifecycleCommand ):
     Terminate the box, ie. delete it permanently.
     """
 
-    def __init__(self, application, **kwargs):
+    def __init__( self, application, **kwargs ):
         super( TerminateCommand, self ).__init__( application, **kwargs )
         self.option( '--quick', '-q', default=False, action='store_true',
                      help="Exit immediately after termination request has been made, don't wait "
                           "until the box is terminated." )
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         self.adopt( box, options )
         box.terminate( wait=not options.quick )
 
@@ -229,20 +227,24 @@ class ListImages( RoleCommand ):
     List the AMI images that were created from boxes performing a particular role.
     """
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         for ordinal, image in enumerate( box.list_images( ) ):
             print( '{name}\t{ordinal}\t{id}\t{state}'.format( ordinal=ordinal,
                                                               **image.__dict__ ) )
 
 
 class CreationCommand( RoleCommand ):
-    def __init__(self, application):
+    def __init__( self, application ):
         super( CreationCommand, self ).__init__( application )
-        default_ec2_keypair_names = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
+        default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
+        if not default_ec2_keypairs:
+            user_name = Environment.iam_user_name( )
+            if user_name:
+                default_ec2_keypairs = [ user_name, '*' ]
         self.option( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
                      dest='ec2_keypair_names', nargs='+',
-                     required=not default_ec2_keypair_names,
-                     default=default_ec2_keypair_names,
+                     required=not default_ec2_keypairs,
+                     default=default_ec2_keypairs,
                      help='The names of EC2 key pairs whose public key is to be to injected into '
                           'the box to facilitate SSH logins. For the first listed argument, '
                           'the so called primary key pair, a matching private key needs to be '
@@ -275,13 +277,13 @@ class CreationCommand( RoleCommand ):
 
         self.end_mutex( )
 
-    def run_on_creation(self, box, options):
+    def run_on_creation( self, box, options ):
         """
         Run on the given box after it was created.
         """
         raise NotImplementedError( )
 
-    def run_on_box(self, options, box):
+    def run_on_box( self, options, box ):
         try:
             box.create( ec2_keypair_globs=options.ec2_keypair_names,
                         instance_type=options.instance_type,
@@ -302,19 +304,19 @@ class RegisterKeyCommand( EnvironmentCommand ):
     into EC2 as a keypair and stored verbatim in S3.
     """
 
-    def __init__(self, application, **kwargs):
+    def __init__( self, application, **kwargs ):
         super( RegisterKeyCommand, self ).__init__( application, **kwargs )
         self.option( 'ssh_public_key', metavar='KEY_FILE',
                      help='A file containing the SSH public key to upload to the EC2 keypair.' )
         self.option( '--force', '-F', default=False, action='store_true',
                      help='Overwrite potentially existing EC2 key pair' )
         self.option( '--keypair', '-k', metavar='NAME',
-                     dest='ec2_keypair_name', default=getpass.getuser( ),
+                     dest='ec2_keypair_name', default=Environment.iam_user_name( ),
                      help='The desired name of the EC2 key pair. The name should associate the '
                           'key with you in a way that it is obvious to other users in your '
                           'organization.' )
 
-    def run_in_env(self, options, env):
+    def run_in_env( self, options, env ):
         with open( options.ssh_public_key ) as f:
             ssh_public_key = f.read( )
         env.register_ssh_pubkey( ec2_keypair_name=options.ec2_keypair_name,
@@ -328,7 +330,7 @@ class ListRolesCommand( Command ):
     also known as an instance.
     """
 
-    def run(self, options):
+    def run( self, options ):
         print '\n'.join( self.application.boxes.iterkeys( ) )
 
 
@@ -337,7 +339,7 @@ class RecreateCommand( CreationCommand ):
     Recreate a box from an image that was taken from an earlier incarnation of the box
     """
 
-    def __init__(self, application):
+    def __init__( self, application ):
         super( RecreateCommand, self ).__init__( application )
         self.option( '--boot-image', '-i', metavar='ORDINAL',
                      type=int, default=-1, # default to the last one
@@ -352,7 +354,7 @@ class RecreateCommand( CreationCommand ):
                           'role. Passing -1, for example, selects image that was created most '
                           'recently.' )
 
-    def run_on_creation(self, box, options):
+    def run_on_creation( self, box, options ):
         pass
 
 
@@ -362,7 +364,7 @@ class CreateCommand( CreationCommand ):
     optionally create an AMI image of it.
     """
 
-    def __init__(self, application):
+    def __init__( self, application ):
         super( CreateCommand, self ).__init__( application )
         self.option( '--boot-image', '-i', metavar='IMAGE_ID',
                      help='An image ID (aka AMI ID) from which to create the box. This is argument '
@@ -376,7 +378,7 @@ class CreateCommand( CreationCommand ):
                           "date, i.e. do what on Ubuntu is achieved by doing "
                           "'sudo apt-get update ; sudo apt-get upgrade'." )
 
-    def run_on_creation(self, box, options):
+    def run_on_creation( self, box, options ):
         box.setup( options.update )
         if options.image:
             box.stop( )
