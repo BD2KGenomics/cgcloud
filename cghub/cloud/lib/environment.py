@@ -5,9 +5,10 @@ import re
 import socket
 import itertools
 
-from boto import ec2, s3
+from boto import ec2, s3, iam
 from boto.exception import S3ResponseError
 from boto.s3.key import Key
+from cghub.util import memoize
 
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, mkdir_p, app_name
 
@@ -24,7 +25,7 @@ class Environment:
     namespace_re = re.compile( path_prefix_re.pattern + '/$' )
 
 
-    def __init__(self, availability_zone='us-west-1b', namespace='/'):
+    def __init__( self, availability_zone='us-west-1b', namespace=None ):
         """
         Create an Environment object.
 
@@ -102,7 +103,6 @@ class Environment:
         >>> Environment(namespace=namespace).namespace == namespace
         True
         """
-
         self.availability_zone = availability_zone
         m = self.availability_zone_re.match( availability_zone )
         if not m:
@@ -111,7 +111,8 @@ class Environment:
         self.region = m.group( 1 )
 
         if namespace is None:
-            raise ValueError( 'Namespace is None' )
+            user_name = self.iam_user_name( )
+            namespace = '/' if user_name is None else '/%s/' % user_name
         try:
             namespace = namespace.encode( 'ascii' )
         except UnicodeEncodeError as e:
@@ -121,10 +122,10 @@ class Environment:
 
         self.namespace = namespace
 
-    def is_absolute_name(self, name):
+    def is_absolute_name( self, name ):
         return self.namespace is None or name[ 0:1 ] == '/'
 
-    def absolute_name(self, name):
+    def absolute_name( self, name ):
         """
         Returns the absolute form of the specified resource name. If the specified name is
         already absolute, that name will be returned unchanged, otherwise the given name will be
@@ -179,7 +180,7 @@ class Environment:
         return result
 
 
-    def config_file_path(self, path_components, mkdir=False):
+    def config_file_path( self, path_components, mkdir=False ):
         """
         Returns the absolute path to a local configuration file. If this environment is
         namespace-aware, configuration files will be located in a namespace-specific subdirectory.
@@ -216,10 +217,10 @@ class Environment:
         return file_path
 
     @staticmethod
-    def ssh_pubkey_s3_key(fingerprint):
+    def ssh_pubkey_s3_key( fingerprint ):
         return 'ssh_pubkey:%s' % fingerprint
 
-    def upload_ssh_pubkey(self, ssh_pubkey, fingerprint):
+    def upload_ssh_pubkey( self, ssh_pubkey, fingerprint ):
         s3_conn = s3.connect_to_region( self.region )
         try:
             bucket = s3_conn.lookup( self.s3_bucket_name )
@@ -232,7 +233,7 @@ class Environment:
         finally:
             s3_conn.close( )
 
-    def register_ssh_pubkey(self, ec2_keypair_name, ssh_pubkey, force=False):
+    def register_ssh_pubkey( self, ec2_keypair_name, ssh_pubkey, force=False ):
         """
         Import the given OpenSSH public key  as a 'key pair' into EC2. The term 'key pair' is
         misleading since imported 'key pairs' are really just public keys. For generated EC2 key
@@ -279,7 +280,7 @@ class Environment:
         finally:
             ec2_conn.close( )
 
-    def expand_keypair_globs(self, globs, ec2_connection=None):
+    def expand_keypair_globs( self, globs, ec2_connection=None ):
         """
         Returns a list of EC2 key pair objects matching the specified globs. The order of the
         objects in the returned list will be consistent with the order of the globs and it will
@@ -310,7 +311,7 @@ class Environment:
             if ec2_conn != ec2_connection:
                 ec2_conn.close( )
 
-    def download_ssh_pubkey(self, ec2_keypair):
+    def download_ssh_pubkey( self, ec2_keypair ):
         s3_conn = s3.connect_to_region( self.region )
         try:
             try:
@@ -347,7 +348,7 @@ class Environment:
             s3_conn.close( )
 
     @staticmethod
-    def to_sns_name(name):
+    def to_sns_name( name ):
         """
         :type name: str|unicode
 
@@ -366,7 +367,7 @@ class Environment:
         True
         """
 
-        def f(c):
+        def f( c ):
             """
             :type c: str
             """
@@ -379,7 +380,7 @@ class Environment:
 
 
     @staticmethod
-    def from_sns_name(name):
+    def from_sns_name( name ):
         """
         :type name: str|unicode
         >>> Environment.from_sns_name( '_2ffoo_2fbar' )
@@ -403,15 +404,28 @@ class Environment:
                                          ( chr( int( sub[ :2 ], 16 ) ) + sub[ 2: ]
                                              for sub in subs[ 1: ] ) ) ).encode( 'ascii' )
 
-    def agent_topic_name(self):
+    def agent_topic_name( self ):
         return self.to_sns_name( self.absolute_name( "cghub_cloud_agent" ) )
 
-    def agent_queue_name(self):
+    def agent_queue_name( self ):
         return self.to_sns_name(
             self.agent_topic_name( ) + "/" + socket.gethostname( ).replace( '.', '-' ) )
 
+    @staticmethod
+    @memoize
+    def iam_user_name( ):
+        conn = None
+        try:
+            conn = iam.connect_to_region( 'universal' )
+            return conn.get_user( )[ 'get_user_response' ][ 'get_user_result' ][ 'user' ][ 'user_name' ]
+        except:
+            return None
+        finally:
+            if conn is not None:
+                conn.close( )
 
-def config_file_path(path_components, mkdir=False):
+
+def config_file_path( path_components, mkdir=False ):
     """
     Returns the path of a configuration file. In accordance with freedesktop.org's XDG Base
     `Directory Specification <http://standards.freedesktop.org/basedir-spec/basedir-spec-latest
