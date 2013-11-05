@@ -53,7 +53,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
                                    release_type='release',
                                    storage_type='ebs',
                                    arch='amd64',
-                                   region=self.env.region,
+                                   region=self.ctx.region,
                                    hypervisor='paravirtual' ),
             url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
             fields=[

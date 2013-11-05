@@ -27,8 +27,8 @@ class CentosBox( YumBox, AgentBox ):
         """
         raise NotImplementedError
 
-    def __init__(self, env):
-        super( CentosBox, self ).__init__( env )
+    def __init__(self, ctx):
+        super( CentosBox, self ).__init__( ctx )
         self._username = None
 
     def username(self):

@@ -7,28 +7,28 @@ from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
 
-from cghub.cloud.lib.environment import Environment
+from cghub.cloud.lib.context import Context
 from cghub.cloud.lib.util import UserError, Command
 
 
-class EnvironmentCommand( Command ):
+class ContextCommand( Command ):
     """
-    A command that runs in an environment. Environment encapsulate the necessary context for
-    boxes to run in. The most important aspect of an environment is its namespace. Namespaces can
-    be used to isolate boxes and other resources into separate groups.
+    A command that runs in a context. Contexts encapsulate the necessary environment for
+    boxes to run in. The most important aspect of a context is its namespace. Namespaces isolate
+    boxes and other resources into separate groups.
     """
 
-    def run_in_env( self, options, env ):
+    def run_in_env( self, options, ctx ):
         """
-        Run this command in the given environment.
+        Run this command in the given context.
 
-        :type env: Environment
+        :type ctx: Context
         """
         raise NotImplementedError( )
 
     def __init__( self, application, **kwargs ):
-        super( EnvironmentCommand, self ).__init__( application, **kwargs )
-        defaults = Environment( )
+        super( ContextCommand, self ).__init__( application, **kwargs )
+        defaults = Context( )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                      default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
                      dest='availability_zone',
@@ -46,14 +46,14 @@ class EnvironmentCommand( Command ):
 
     def run( self, options ):
         try:
-            env = Environment( availability_zone=options.availability_zone,
+            ctx = Context( availability_zone=options.availability_zone,
                                namespace=options.namespace )
         except ValueError as e:
             raise UserError( cause=e )
-        return self.run_in_env( options, env )
+        return self.run_in_env( options, ctx )
 
 
-class RoleCommand( EnvironmentCommand ):
+class RoleCommand( ContextCommand ):
     """
     An abstract command that targets boxes of a particular role.  Note that there may be more
     than one box per role. To target a specific box, BoxCommand might be a better choice.
@@ -77,11 +77,11 @@ class RoleCommand( EnvironmentCommand ):
                      help="The name of the role. Use the list-roles command to show possible "
                           "roles." )
 
-    def run_in_env( self, options, env ):
+    def run_in_env( self, options, ctx ):
         role = options.role
         box_cls = self.application.boxes.get( role )
         if box_cls is None: raise UserError( "No such role: '%s'" % role )
-        box = box_cls( env )
+        box = box_cls( ctx )
         return self.run_on_box( options, box )
 
 
@@ -244,7 +244,7 @@ class CreationCommand( RoleCommand ):
         super( CreationCommand, self ).__init__( application )
         default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
         if not default_ec2_keypairs:
-            user_name = Environment.iam_user_name( )
+            user_name = Context.iam_user_name( )
             if user_name:
                 default_ec2_keypairs = [ user_name, '*' ]
         self.option( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
@@ -304,7 +304,7 @@ class CreationCommand( RoleCommand ):
                 box.terminate( )
 
 
-class RegisterKeyCommand( EnvironmentCommand ):
+class RegisterKeyCommand( ContextCommand ):
     """
     Upload an OpenSSH public key for future injection into boxes. The public key will be imported
     into EC2 as a keypair and stored verbatim in S3.
@@ -317,15 +317,15 @@ class RegisterKeyCommand( EnvironmentCommand ):
         self.option( '--force', '-F', default=False, action='store_true',
                      help='Overwrite potentially existing EC2 key pair' )
         self.option( '--keypair', '-k', metavar='NAME',
-                     dest='ec2_keypair_name', default=Environment.iam_user_name( ),
+                     dest='ec2_keypair_name', default=Context.iam_user_name( ),
                      help='The desired name of the EC2 key pair. The name should associate the '
                           'key with you in a way that it is obvious to other users in your '
                           'organization.' )
 
-    def run_in_env( self, options, env ):
+    def run_in_env( self, options, ctx ):
         with open( options.ssh_public_key ) as f:
             ssh_public_key = f.read( )
-        env.register_ssh_pubkey( ec2_keypair_name=options.ec2_keypair_name,
+        ctx.register_ssh_pubkey( ec2_keypair_name=options.ec2_keypair_name,
                                  ssh_pubkey=ssh_public_key,
                                  force=options.force )
 

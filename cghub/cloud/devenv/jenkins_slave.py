@@ -33,12 +33,12 @@ class JenkinsSlave( SourceControlClient ):
         return sudo( 'readlink -f /etc/rc.local' )
 
     def __get_master_pubkey(self):
-        ec2_keypair_name = JenkinsMaster.ec2_keypair_name( self.env )
+        ec2_keypair_name = JenkinsMaster.ec2_keypair_name( self.ctx )
         ec2_keypair = self.connection.get_key_pair( ec2_keypair_name )
         if ec2_keypair is None:
             raise UserError( "Missing EC2 keypair named '%s'. You must create the master before "
                              "creating slaves." % ec2_keypair_name )
-        return self.env.download_ssh_pubkey( ec2_keypair )
+        return self.ctx.download_ssh_pubkey( ec2_keypair )
 
     @fabric_task
     def _setup_build_user(self):
@@ -113,7 +113,7 @@ class JenkinsSlave( SourceControlClient ):
                   # don't need to use the absolute role name since we are not going to mix slaves
                   # from different namespaces:
                   E.description( self.role( ) ),
-                  E.zone( self.env.availability_zone ),
+                  E.zone( self.ctx.availability_zone ),
                   # Using E.foo('') instead of just E.foo() yields <foo></foo> instead of <foo/>,
                   # consistent with how Jenkins serializes its config:
                   E.securityGroups( '' ),

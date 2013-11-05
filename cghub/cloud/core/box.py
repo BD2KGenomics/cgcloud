@@ -18,7 +18,7 @@ from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
-from cghub.cloud.lib.environment import Environment
+from cghub.cloud.lib.context import Context
 from cghub.cloud.lib.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
 
 
@@ -113,15 +113,15 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    def __init__(self, env):
+    def __init__(self, ctx):
         """
         Initialize an instance of this class. Before calling any of the methods on this object,
         you must ensure that a corresponding EC2 instance exists by calling either create() or
         adopt(). The former creates a new EC2 instance, the latter looks up an existing one.
 
-        :type env: Environment
+        :type ctx: Context
         """
-        self.env = env
+        self.ctx = ctx
         self.instance_id = None
         self.generation = None
         self.ec2_keypairs = None
@@ -134,7 +134,7 @@ class Box( object ):
         """
         self.ip_address = None
         # TODO: boxes should share a connection
-        self.connection = EC2Connection( region=ec2.get_region( env.region ) )
+        self.connection = EC2Connection( region=ec2.get_region( ctx.region ) )
 
     def _populate_instance_creation_args(self, image, kwargs):
         """
@@ -199,7 +199,7 @@ class Box( object ):
 
         self.__read_generation( image.id )
 
-        ec2_keypairs = self.env.expand_keypair_globs( ec2_keypair_globs,
+        ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs,
                                                       ec2_connection=self.connection )
         if not ec2_keypairs:
             raise UserError( 'No matching key pairs found' )
@@ -209,7 +209,7 @@ class Box( object ):
         self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypairs[ 0 ].name,
-                       placement=self.env.availability_zone,
+                       placement=self.ctx.availability_zone,
                        instance_profile_arn=self.get_instance_profile_arn( ) )
         self._populate_instance_creation_args( image, kwargs )
 
@@ -421,14 +421,14 @@ class Box( object ):
 
         :param name: the name of the volume
         """
-        name = self.env.absolute_name( name )
+        name = self.ctx.absolute_name( name )
         volumes = self.connection.get_all_volumes( filters={ 'tag:Name': name } )
         if len( volumes ) < 1: return None
         if len( volumes ) > 1: raise UserError( "More than one EBS volume named %s" % name )
         volume = volumes[ 0 ]
         if volume.status != 'available':
             raise UserError( "EBS volume %s is not available." % name )
-        expected_zone = self.env.availability_zone
+        expected_zone = self.ctx.availability_zone
         if volume.zone != expected_zone:
             raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
                              % (name, volume.zone, expected_zone ) )
@@ -446,11 +446,11 @@ class Box( object ):
         :param kwargs: additional parameters for boto.connection.create_volume()
         :return: the volume
         """
-        name = self.env.absolute_name( name )
+        name = self.ctx.absolute_name( name )
         volume = self.get_attachable_volume( name )
         if volume is None:
             self._log( "Creating volume %s, ... " % name, newline=False )
-            zone = self.env.availability_zone
+            zone = self.ctx.availability_zone
             volume = self.connection.create_volume( size, zone, **kwargs )
             self.__wait_volume_transition( volume, { 'creating' }, 'available' )
             volume.add_tag( 'Name', name )
@@ -632,7 +632,7 @@ class Box( object ):
         :return: the absolute path of the config file
         """
         if role is None: role = self.role( )
-        return self.env.config_file_path( [ role, file_name ], mkdir=mkdir )
+        return self.ctx.config_file_path( [ role, file_name ], mkdir=mkdir )
 
 
     def _read_config_file(self, file_name, **kwargs):
@@ -661,7 +661,7 @@ class Box( object ):
         return args
 
     def absolute_role(self):
-        return self.env.absolute_name( self.role( ) )
+        return self.ctx.absolute_name( self.role( ) )
 
     @fabric_task
     def __inject_authorized_keys(self, ec2_keypairs):
@@ -670,7 +670,7 @@ class Box( object ):
             authorized_keys.seek( 0 )
             ssh_pubkeys = set( l.strip( ) for l in authorized_keys.readlines( ) )
             for ec2_keypair in ec2_keypairs:
-                ssh_pubkey = self.env.download_ssh_pubkey( ec2_keypair )
+                ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
                 ssh_pubkeys.add( ssh_pubkey.strip( ) )
             authorized_keys.seek( 0 )
             authorized_keys.truncate( )
@@ -734,13 +734,13 @@ class Box( object ):
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
 
     def get_instance_profile_arn(self):
-        iam_conn = iam.connect_to_region( 'universal', path=self.env.namespace )
+        iam_conn = iam.connect_to_region( 'universal', path=self.ctx.namespace )
         try:
             profile = iam_conn.get_instance_profile( self.role( ) )
             profile = profile[ 'get_instance_profile_response' ][ 'get_instance_profile_result' ]
         except BotoServerError as e:
             if e.status == 404:
-                profile = iam_conn.create_instance_profile( self.role( ), path=self.env.namespace )
+                profile = iam_conn.create_instance_profile( self.role( ), path=self.ctx.namespace )
                 profile = profile[ 'create_instance_profile_response' ][
                     'create_instance_profile_result' ]
             else:

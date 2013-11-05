@@ -74,8 +74,8 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
     An instance of this class represents the build master in EC2
     """
 
-    def __init__(self, env):
-        super( JenkinsMaster, self ).__init__( env )
+    def __init__(self, ctx):
+        super( JenkinsMaster, self ).__init__( ctx )
         self.volume = None
 
     def release(self):
@@ -184,11 +184,11 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         sudo( 'chown -R {user} {home}'.format( **jenkins ) )
 
     @classmethod
-    def ec2_keypair_name(cls, env):
-        return Jenkins.user + '@' + env.absolute_name( cls.role( ) )
+    def ec2_keypair_name(cls, ctx):
+        return Jenkins.user + '@' + ctx.absolute_name( cls.role( ) )
 
     def __create_jenkins_keypair(self):
-        ec2_keypair_name = self.ec2_keypair_name( self.env )
+        ec2_keypair_name = self.ec2_keypair_name( self.ctx )
         ec2_keypair = self.connection.get_key_pair( ec2_keypair_name )
         if ec2_keypair is None:
             ec2_keypair = self.connection.create_key_pair( ec2_keypair_name )
@@ -212,7 +212,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
             sudo( 'chmod go= {key_path}'.format( **jenkins ), user=Jenkins.user )
             ssh_pubkey = private_to_public_key( ssh_privkey )
             # Note that we are uploading the public key using the private key's fingerprint
-            self.env.upload_ssh_pubkey( ssh_pubkey, ec2_keypair.fingerprint )
+            self.ctx.upload_ssh_pubkey( ssh_pubkey, ec2_keypair.fingerprint )
         else:
             if key_file_exists:
                 # Must use sudo('cat') since get() doesn't support use_sudo
@@ -227,7 +227,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                         "currently present on the instance. "
                         "Please delete the key pair from EC2 before retrying."
                         .format( key_pair=ec2_keypair, fingerprint=fingerprint ) )
-                ssh_pubkey = self.env.download_ssh_pubkey( ec2_keypair )
+                ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
                 if ssh_pubkey != private_to_public_key( ssh_privkey ):
                     raise RuntimeError( "The private key on the data volume doesn't match the "
                                         "public key in EC2." )
@@ -261,7 +261,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         jenkins_config = etree.parse( jenkins_config_file, parser )
         templates = jenkins_config.find( './/hudson.plugins.ec2.EC2Cloud/templates' )
         for slave_cls in slave_clss:
-            slave = slave_cls( self.env )
+            slave = slave_cls( self.ctx )
             images = slave.list_images( )
             try:
                 image = images[ -1 ]
