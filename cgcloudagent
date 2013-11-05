@@ -16,7 +16,7 @@ from cghub.util import uid_to_name, gid_to_name, name_to_uid, name_to_gid, shell
 from cghub.util.lockfile import SmartPIDLockFile
 from cghub.util.throttle import LocalThrottle
 
-from cghub.cloud.lib.environment import Environment
+from cghub.cloud.lib.context import Context
 from cghub.cloud.agent import Agent
 
 log = logging.getLogger( )
@@ -32,7 +32,7 @@ def main():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=description )
     group = parser.add_argument_group( title='functional options' )
-    defaults = Environment( )
+    defaults = Context( )
     group.add_argument( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                         default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
                         dest='availability_zone',
@@ -104,13 +104,13 @@ def main():
 
     def run():
         log.info( "Entering main loop." )
-        env = Environment( availability_zone=options.availability_zone )
+        ctx = Context( availability_zone=options.availability_zone )
         throttle = LocalThrottle( min_interval=options.interval )
         for i in itertools.count( ):
             throttle.throttle( )
             try:
                 log.info( "Starting run %i.", i )
-                Agent( env, options ).run( )
+                Agent( ctx, options ).run( )
                 log.info( "Completed run %i.", i )
             except (SystemExit, KeyboardInterrupt):
                 log.info( 'Terminating.' )

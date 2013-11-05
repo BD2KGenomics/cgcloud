@@ -8,18 +8,18 @@ from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
-from cghub.cloud.lib.environment import Environment
+from cghub.cloud.lib.context import Context
 from cghub.util.throttle import LocalThrottle
 
 
 class Agent( object ):
-    def __init__(self, env, options):
+    def __init__(self, ctx, options):
         """
-        :type env: Environment
+        :type ctx: Context
         """
         super( Agent, self ).__init__( )
         self.options = options
-        self.env = env
+        self.ctx = ctx
         self.fingerprints = None
         self.sns = self.aws_connect( sns )
         """
@@ -33,10 +33,10 @@ class Agent( object ):
         """
         :type: EC2Connection
         """
-        response = self.sns.create_topic( self.env.topic_name )
+        response = self.sns.create_topic( self.ctx.topic_name )
         topic_arn = response[ 'CreateTopicResponse' ][ 'CreateTopicResult' ][ 'TopicArn' ]
 
-        queue_name = self.env.agent_queue_name( )
+        queue_name = self.ctx.agent_queue_name( )
         self.queue = self.sqs.get_queue( queue_name )
         if self.queue is None:
             # The create_queue API call handles races gracefully,
@@ -45,10 +45,10 @@ class Agent( object ):
         self.sns.subscribe_sqs_queue( topic_arn, self.queue )
 
     def aws_connect(self, aws_module):
-        conn = aws_module.connect_to_region( self.env.region )
+        conn = aws_module.connect_to_region( self.ctx.region )
         if conn is None:
             raise RuntimeError( "%s couldn't connect to region %s" % (
-                aws_module.__name__, self.env.region ) )
+                aws_module.__name__, self.ctx.region ) )
         return conn
 
     def run(self):
@@ -73,13 +73,13 @@ class Agent( object ):
                     self.update_ssh_keys( )
 
     def update_ssh_keys(self):
-        keypairs = self.env.expand_keypair_globs( self.options.keypairs )
+        keypairs = self.ctx.expand_keypair_globs( self.options.keypairs )
         fingerprints = [ keypair.fingerprint for keypair in keypairs ]
         fingerprints.sort( )
         if fingerprints != self.fingerprints:
             ssh_keys = set( )
             for keypair in keypairs:
-                ssh_key = self.env.download_ssh_pubkey( keypair )
+                ssh_key = self.ctx.download_ssh_pubkey( keypair )
                 ssh_keys.add( ssh_key )
             local_ssh_keys = set( )
             if os.path.isfile( self.options.authorized_keys_path ):
