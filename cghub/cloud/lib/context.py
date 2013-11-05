@@ -13,7 +13,7 @@ from cghub.util import memoize
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, mkdir_p, app_name
 
 
-class Environment:
+class Context:
     """
     Encapsulates all EC2-specific settings used by components in this project
     """
@@ -27,7 +27,7 @@ class Environment:
 
     def __init__( self, availability_zone='us-west-1b', namespace=None ):
         """
-        Create an Environment object.
+        Create an Context object.
 
         :param availability_zone: The availability zone to place EC2 resources like volumes and
         instances into. The AWS region to operate in is implied by this parameter since the
@@ -40,59 +40,58 @@ class Environment:
         can't be encoded as ASCII will be rejected.
 
 
-        >>> Environment(namespace=None).namespace is None
-        Traceback (most recent call last):
-        ....
-        ValueError: Namespace is None
+        >>> ctx = Context(namespace=None)
+        >>> ctx.namespace == '/%s/' % ctx.iam_user_name()
+        True
 
-        >>> Environment(namespace='/').namespace
+        >>> Context(namespace='/').namespace
         '/'
 
-        >>> Environment(namespace='/foo/').namespace
+        >>> Context(namespace='/foo/').namespace
         '/foo/'
 
-        >>> Environment(namespace='/foo/bar/').namespace
+        >>> Context(namespace='/foo/bar/').namespace
         '/foo/bar/'
 
-        >>> Environment(namespace='')
+        >>> Context(namespace='')
         Traceback (most recent call last):
         ....
         ValueError: Invalid namespace ''
 
-        >>> Environment(namespace='foo')
+        >>> Context(namespace='foo')
         Traceback (most recent call last):
         ....
         ValueError: Invalid namespace 'foo'
 
-        >>> Environment(namespace='/foo')
+        >>> Context(namespace='/foo')
         Traceback (most recent call last):
         ....
         ValueError: Invalid namespace '/foo'
 
-        >>> Environment(namespace='//foo/')
+        >>> Context(namespace='//foo/')
         Traceback (most recent call last):
         ....
         ValueError: Invalid namespace '//foo/'
 
-        >>> Environment(namespace='/foo//')
+        >>> Context(namespace='/foo//')
         Traceback (most recent call last):
         ....
         ValueError: Invalid namespace '/foo//'
 
-        >>> Environment(namespace='han//nes')
+        >>> Context(namespace='han//nes')
         Traceback (most recent call last):
         ....
         ValueError: Invalid namespace 'han//nes'
 
-        >>> Environment(namespace='/_foo/')
+        >>> Context(namespace='/_foo/')
         Traceback (most recent call last):
         ....
         ValueError: Invalid namespace '/_foo/'
 
-        >>> Environment(namespace=u'/foo/').namespace
+        >>> Context(namespace=u'/foo/').namespace
         '/foo/'
 
-        >>> Environment(namespace=u'/föo/').namespace
+        >>> Context(namespace=u'/föo/').namespace
         Traceback (most recent call last):
         ....
         ValueError: 'ascii' codec can't encode characters in position 2-3: ordinal not in range(128)
@@ -100,7 +99,7 @@ class Environment:
         >>> import string
         >>> component = string.ascii_letters + string.digits + '-_.'
         >>> namespace = '/' + component + '/'
-        >>> Environment(namespace=namespace).namespace == namespace
+        >>> Context(namespace=namespace).namespace == namespace
         True
         """
         self.availability_zone = availability_zone
@@ -133,40 +132,40 @@ class Environment:
 
         Relative names starting with underscores are disallowed.
 
-        >>> env = Environment(namespace='/')
-        >>> env.absolute_name('bar')
+        >>> ctx = Context(namespace='/')
+        >>> ctx.absolute_name('bar')
         '/bar'
-        >>> env.absolute_name('/bar')
+        >>> ctx.absolute_name('/bar')
         '/bar'
-        >>> env.absolute_name('')
+        >>> ctx.absolute_name('')
         '/'
-        >>> env.absolute_name('/')
+        >>> ctx.absolute_name('/')
         '/'
-        >>> env.absolute_name('_bar')
+        >>> ctx.absolute_name('_bar')
         Traceback (most recent call last):
         ....
         ValueError: Invalid path '/_bar'
-        >>> env.absolute_name('/_bar')
+        >>> ctx.absolute_name('/_bar')
         Traceback (most recent call last):
         ....
         ValueError: Invalid path '/_bar'
 
-        >>> env = Environment(namespace='/foo/')
-        >>> env.absolute_name('bar')
+        >>> ctx = Context(namespace='/foo/')
+        >>> ctx.absolute_name('bar')
         '/foo/bar'
-        >>> env.absolute_name('bar/')
+        >>> ctx.absolute_name('bar/')
         '/foo/bar/'
-        >>> env.absolute_name('/bar')
+        >>> ctx.absolute_name('/bar')
         '/bar'
-        >>> env.absolute_name('')
+        >>> ctx.absolute_name('')
         '/foo/'
-        >>> env.absolute_name('/')
+        >>> ctx.absolute_name('/')
         '/'
-        >>> env.absolute_name('_bar')
+        >>> ctx.absolute_name('_bar')
         Traceback (most recent call last):
         ....
         ValueError: Invalid path '/foo/_bar'
-        >>> env.absolute_name('/_bar')
+        >>> ctx.absolute_name('/_bar')
         Traceback (most recent call last):
         ....
         ValueError: Invalid path '/_bar'
@@ -182,27 +181,27 @@ class Environment:
 
     def config_file_path( self, path_components, mkdir=False ):
         """
-        Returns the absolute path to a local configuration file. If this environment is
+        Returns the absolute path to a local configuration file. If this context is
         namespace-aware, configuration files will be located in a namespace-specific subdirectory.
 
         >>> os.environ['HOME']='/home/foo'
 
-        >>> env = Environment(namespace='/')
-        >>> env.config_file_path(['foo'])
+        >>> ctx = Context(namespace='/')
+        >>> ctx.config_file_path(['foo'])
         '/home/foo/.config/docrunner/_namespaces/_root/foo'
-        >>> env.config_file_path(['foo','bar'])
+        >>> ctx.config_file_path(['foo','bar'])
         '/home/foo/.config/docrunner/_namespaces/_root/foo/bar'
 
-        >>> env = Environment(namespace='/hannes/')
-        >>> env.config_file_path(['foo'])
+        >>> ctx = Context(namespace='/hannes/')
+        >>> ctx.config_file_path(['foo'])
         '/home/foo/.config/docrunner/_namespaces/hannes/foo'
-        >>> env.config_file_path(['foo','bar'])
+        >>> ctx.config_file_path(['foo','bar'])
         '/home/foo/.config/docrunner/_namespaces/hannes/foo/bar'
 
-        >>> env = Environment(namespace='/hannes/test/')
-        >>> env.config_file_path(['foo'])
+        >>> ctx = Context(namespace='/hannes/test/')
+        >>> ctx.config_file_path(['foo'])
         '/home/foo/.config/docrunner/_namespaces/hannes/test/foo'
-        >>> env.config_file_path(['foo','bar'])
+        >>> ctx.config_file_path(['foo','bar'])
         '/home/foo/.config/docrunner/_namespaces/hannes/test/foo/bar'
 
         """
@@ -235,9 +234,7 @@ class Environment:
 
     def register_ssh_pubkey( self, ec2_keypair_name, ssh_pubkey, force=False ):
         """
-        Import the given OpenSSH public key  as a 'key pair' into EC2. The term 'key pair' is
-        misleading since imported 'key pairs' are really just public keys. For generated EC2 key
-        pairs Amazon also stores the private key, so the name makes more sense for those.
+        Import the given OpenSSH public key  as a 'key pair' into EC2.
 
         There is no way to get to the actual public key once it has been imported to EC2.
         Openstack lets you do that and I don't see why Amazon decided to omit this functionality.
@@ -352,18 +349,18 @@ class Environment:
         """
         :type name: str|unicode
 
-        >>> Environment.to_sns_name('/foo/bar')
+        >>> Context.to_sns_name('/foo/bar')
         '_2ffoo_2fbar'
-        >>> Environment.to_sns_name('/foo\\tbar')
+        >>> Context.to_sns_name('/foo\\tbar')
         '_2ffoo_09bar'
-        >>> Environment.to_sns_name('_')
+        >>> Context.to_sns_name('_')
         '_5f'
-        >>> Environment.to_sns_name('-') == '-'
+        >>> Context.to_sns_name('-') == '-'
         True
         >>> import string
-        >>> Environment.to_sns_name(string.ascii_letters) == string.ascii_letters
+        >>> Context.to_sns_name(string.ascii_letters) == string.ascii_letters
         True
-        >>> Environment.to_sns_name(string.digits) == string.digits
+        >>> Context.to_sns_name(string.digits) == string.digits
         True
         """
 
@@ -383,20 +380,26 @@ class Environment:
     def from_sns_name( name ):
         """
         :type name: str|unicode
-        >>> Environment.from_sns_name( '_2ffoo_2fbar' )
+
+        >>> Context.from_sns_name( '_2ffoo_2fbar' )
         '/foo/bar'
-        >>> Environment.from_sns_name( '_2ffoo_09bar' )
+
+        >>> Context.from_sns_name( '_2ffoo_09bar' )
         '/foo\\tbar'
-        >>> Environment.from_sns_name( 'foo_bar' ) # 0xBA is not a valid ASCII code point
+
+        >>> Context.from_sns_name( 'foo_bar' ) # 0xBA is not a valid ASCII code point
         Traceback (most recent call last):
         ....
         UnicodeDecodeError: 'ascii' codec can't decode byte 0xba in position 3: ordinal not in range(128)
-        >>> Environment.from_sns_name('-') == '-'
+
+        >>> Context.from_sns_name('-') == '-'
         True
+
         >>> import string
-        >>> Environment.from_sns_name(string.ascii_letters) == string.ascii_letters
+        >>> Context.from_sns_name(string.ascii_letters) == string.ascii_letters
         True
-        >>> Environment.from_sns_name(string.digits) == string.digits
+
+        >>> Context.from_sns_name(string.digits) == string.digits
         True
         """
         subs = name.split( '_' )
@@ -417,7 +420,8 @@ class Environment:
         conn = None
         try:
             conn = iam.connect_to_region( 'universal' )
-            return conn.get_user( )[ 'get_user_response' ][ 'get_user_result' ][ 'user' ][ 'user_name' ]
+            return conn.get_user( )[ 'get_user_response' ][ 'get_user_result' ][ 'user' ][
+                'user_name' ]
         except:
             return None
         finally:
