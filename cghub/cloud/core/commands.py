@@ -12,6 +12,12 @@ from cghub.cloud.lib.util import UserError, Command
 
 
 class EnvironmentCommand( Command ):
+    """
+    A command that runs in an environment. Environment encapsulate the necessary context for
+    boxes to run in. The most important aspect of an environment is its namespace. Namespaces can
+    be used to isolate boxes and other resources into separate groups.
+    """
+
     def run_in_env( self, options, env ):
         """
         Run this command in the given environment.
