@@ -634,7 +634,6 @@ class Box( object ):
         if role is None: role = self.role( )
         return self.ctx.config_file_path( [ role, file_name ], mkdir=mkdir )
 
-
     def _read_config_file(self, file_name, **kwargs):
         """
         Returns the contents of the given config file. Accepts the same parameters as
