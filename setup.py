@@ -6,7 +6,7 @@ setup(
     packages=find_packages( ),
     install_requires=[
         'PyCrypto>=2.3',
-        'boto>=2.9.7',
+        'boto>=2.9.7'
     ],
     namespace_packages=[ 'cghub', 'cghub.cloud' ]
 )
