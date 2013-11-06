@@ -12,7 +12,7 @@ BASE_URL = 'http://cloud-images.ubuntu.com'
 
 
 class TemplateDict( dict ):
-    def matches(self, other):
+    def matches( self, other ):
         return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
 
@@ -21,14 +21,14 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
     A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """
 
-    def release(self):
+    def release( self ):
         """
         :return: the code name of the Ubuntu release, e.g. "precise"
         """
         raise NotImplementedError( )
 
     @staticmethod
-    def __find_image(template, url, fields):
+    def __find_image( template, url, fields ):
         matches = [ ]
         with contextlib.closing( urllib2.urlopen( url ) ) as stream:
             images = csv.DictReader( stream, fields, delimiter='\t' )
@@ -42,10 +42,10 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
         match = matches[ 0 ]
         return match
 
-    def username(self):
+    def username( self ):
         return 'ubuntu'
 
-    def _base_image(self):
+    def _base_image( self ):
         release = self.release( )
         image_info = self.__find_image(
             template=TemplateDict( release=release,
@@ -61,32 +61,32 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
                 'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
                 'dont_know', 'hypervisor' ] )
         image_id = image_info[ 'ami_id' ]
-        return self.connection.get_image( image_id )
+        return self.ctx.ec2.get_image( image_id )
 
     apt_get = 'DEBIAN_FRONTEND=readline apt-get -q -y'
 
     @fabric_task
-    def _sync_package_repos(self):
+    def _sync_package_repos( self ):
         sudo( '%s update' % self.apt_get )
 
     @fabric_task
-    def _upgrade_installed_packages(self):
+    def _upgrade_installed_packages( self ):
         sudo( '%s upgrade' % self.apt_get )
 
     @fabric_task
-    def _install_packages(self, packages):
+    def _install_packages( self, packages ):
         packages = " ".join( packages )
         sudo( '%s install %s' % (self.apt_get, packages ) )
 
     @fabric_task
-    def _debconf_set_selection(self, *debconf_selections):
+    def _debconf_set_selection( self, *debconf_selections ):
         for debconf_selection in debconf_selections:
             if '"' in debconf_selection:
                 raise RuntimeError( 'Double quotes in debconf selections are not supported yet' )
         sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ) )
 
     @fabric_task
-    def _register_init_script(self, script, name):
+    def _register_init_script( self, script, name ):
         put(
             local_path=StringIO( script ),
             remote_path='/etc/init/%s.conf' % name,

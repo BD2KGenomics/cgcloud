@@ -18,7 +18,7 @@ class ContextCommand( Command ):
     boxes and other resources into separate groups.
     """
 
-    def run_in_env( self, options, ctx ):
+    def run_in_ctx( self, options, ctx ):
         """
         Run this command in the given context.
 
@@ -28,29 +28,35 @@ class ContextCommand( Command ):
 
     def __init__( self, application, **kwargs ):
         super( ContextCommand, self ).__init__( application, **kwargs )
-        defaults = Context( )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
-                     default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
+                     default=os.environ.get( 'CGCLOUD_ZONE', 'us-west-1b' ),
                      dest='availability_zone',
                      help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
                           'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
                           'run in. The value of the environment variable CGCLOUD_ZONE, '
                           'if that variable is present, overrides the default.' )
         self.option( '--namespace', '-n', metavar='PREFIX',
-                     default=os.environ.get( 'CGCLOUD_NAMESPACE', defaults.namespace ),
-                     help='Optional prefix for naming EC2 resource like instances, images, volumes, '
-                          'etc. Use this option to create a separate namespace in order to avoid '
-                          'collisions, e.g. when running tests. The default represents the root '
-                          'namespace. The value of the environment variable CGCLOUD_NAMESPACE, if '
-                          'that variable is present, overrides the default.' )
+                     default=os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' ),
+                     help='Optional prefix for naming EC2 resource like instances, images, '
+                          'volumes, etc. Use this option to create a separate namespace in order '
+                          'to avoid collisions, e.g. when running tests. The default represents '
+                          'the root namespace. The value of the environment variable '
+                          'CGCLOUD_NAMESPACE, if that variable is present, overrides the default. '
+                          'The string __me__ anywhere in the namespace will be replaced by the '
+                          'name of the IAM user whose credentials are used to issue requests to '
+                          'AWS.' )
 
     def run( self, options ):
+        ctx = None
         try:
             ctx = Context( availability_zone=options.availability_zone,
-                               namespace=options.namespace )
+                           namespace=options.namespace )
         except ValueError as e:
             raise UserError( cause=e )
-        return self.run_in_env( options, ctx )
+        else:
+            return self.run_in_ctx( options, ctx )
+        finally:
+            if ctx is not None: ctx.close( )
 
 
 class RoleCommand( ContextCommand ):
@@ -77,7 +83,7 @@ class RoleCommand( ContextCommand ):
                      help="The name of the role. Use the list-roles command to show possible "
                           "roles." )
 
-    def run_in_env( self, options, ctx ):
+    def run_in_ctx( self, options, ctx ):
         role = options.role
         box_cls = self.application.boxes.get( role )
         if box_cls is None: raise UserError( "No such role: '%s'" % role )
@@ -242,14 +248,9 @@ class ListImages( RoleCommand ):
 class CreationCommand( RoleCommand ):
     def __init__( self, application ):
         super( CreationCommand, self ).__init__( application )
-        default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
-        if not default_ec2_keypairs:
-            user_name = Context.iam_user_name( )
-            if user_name:
-                default_ec2_keypairs = [ user_name, '*' ]
+        default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '__me__ *' ).split( )
         self.option( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
                      dest='ec2_keypair_names', nargs='+',
-                     required=not default_ec2_keypairs,
                      default=default_ec2_keypairs,
                      help='The names of EC2 key pairs whose public key is to be to injected into '
                           'the box to facilitate SSH logins. For the first listed argument, '
@@ -260,7 +261,9 @@ class CreationCommand( RoleCommand ):
                           'installed on a box, will keep the deployed list of authorized keys up '
                           'to date in case matching keys are added or removed from EC2. The value '
                           'of the environment variable CGCLOUD_KEYPAIRS, if that variable is '
-                          'present, overrides the default.' )
+                          'present, overrides the default. The string __me__ anywhere in a key '
+                          'pair name will be replaced with the name of the IAM user whose '
+                          'credentials are used to issue requests to AWS.' )
 
         self.option( '--instance-type', '-t', metavar='TYPE',
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
@@ -291,7 +294,7 @@ class CreationCommand( RoleCommand ):
 
     def run_on_box( self, options, box ):
         try:
-            box.create( ec2_keypair_globs=options.ec2_keypair_names,
+            box.create( ec2_keypair_globs=map( box.ctx.resolve_me, options.ec2_keypair_names ),
                         instance_type=options.instance_type,
                         boot_image=options.boot_image )
             self.run_on_creation( box, options )
@@ -313,19 +316,22 @@ class RegisterKeyCommand( ContextCommand ):
     def __init__( self, application, **kwargs ):
         super( RegisterKeyCommand, self ).__init__( application, **kwargs )
         self.option( 'ssh_public_key', metavar='KEY_FILE',
-                     help='A file containing the SSH public key to upload to the EC2 keypair.' )
+                     help='Path of file containing the SSH public key to upload to the EC2 '
+                          'keypair.' )
         self.option( '--force', '-F', default=False, action='store_true',
                      help='Overwrite potentially existing EC2 key pair' )
         self.option( '--keypair', '-k', metavar='NAME',
-                     dest='ec2_keypair_name', default=Context.iam_user_name( ),
-                     help='The desired name of the EC2 key pair. The name should associate the '
-                          'key with you in a way that it is obvious to other users in your '
-                          'organization.' )
+                     dest='ec2_keypair_name', default='__me__',
+                     help='The desired name of the EC2 key pair. The name should associate '
+                          'the key with you in a way that it is obvious to other users in '
+                          'your organization.  The string __me__ anywhere in the key pair name '
+                          'will be replaced with the name of the IAM user whose credentials are '
+                          'used to issue requests to AWS.' )
 
-    def run_in_env( self, options, ctx ):
+    def run_in_ctx( self, options, ctx ):
         with open( options.ssh_public_key ) as f:
             ssh_public_key = f.read( )
-        ctx.register_ssh_pubkey( ec2_keypair_name=options.ec2_keypair_name,
+        ctx.register_ssh_pubkey( ec2_keypair_name=ctx.resolve_me( options.ec2_keypair_name ),
                                  ssh_pubkey=ssh_public_key,
                                  force=options.force )
 

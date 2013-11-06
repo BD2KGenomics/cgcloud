@@ -18,12 +18,12 @@ class JenkinsSlave( SourceControlClient ):
     typically used as a mix-in.
     """
 
-    def _post_install_packages(self):
+    def _post_install_packages( self ):
         super( JenkinsSlave, self )._post_install_packages( )
         self._setup_build_user( )
 
     @fabric_task
-    def _get_rc_local_path(self):
+    def _get_rc_local_path( self ):
         """
         Return the canonical path to /etc/rc.local or an equivalent shell script that gets
         executed during boot up. The last component in the path must not be be a symlink,
@@ -32,16 +32,18 @@ class JenkinsSlave( SourceControlClient ):
         # might be a symlink but prepend_remote_shell_script doesn't work with symlinks
         return sudo( 'readlink -f /etc/rc.local' )
 
-    def __get_master_pubkey(self):
+    # TODO: We should probably remove this and let the agent take care of it
+
+    def __get_master_pubkey( self ):
         ec2_keypair_name = JenkinsMaster.ec2_keypair_name( self.ctx )
-        ec2_keypair = self.connection.get_key_pair( ec2_keypair_name )
+        ec2_keypair = self.ctx.ec2.get_key_pair( ec2_keypair_name )
         if ec2_keypair is None:
             raise UserError( "Missing EC2 keypair named '%s'. You must create the master before "
                              "creating slaves." % ec2_keypair_name )
         return self.ctx.download_ssh_pubkey( ec2_keypair )
 
     @fabric_task
-    def _setup_build_user(self):
+    def _setup_build_user( self ):
         """
         Setup a user account that accepts SSH connections from Jenkins such that it can act as a
         Jenkins slave.
@@ -89,11 +91,11 @@ class JenkinsSlave( SourceControlClient ):
             # No ephemeral storage, just create the build directory
             sudo( 'mkdir {dir}'.format( **kwargs ), user=BUILD_USER, sudo_args='-i' )
 
-    def __jenkins_labels(self):
+    def __jenkins_labels( self ):
         labels = self.role( ).split( '-' )
         return [ l for l in labels if l not in [ 'jenkins', 'slave' ] ]
 
-    def slave_config_template(self, image):
+    def slave_config_template( self, image ):
         """
         Returns the slave template, i.e. a fragment of Jenkins configuration that,
         if added to the master's main config file, controls how EC2 instances of this slave box

@@ -74,25 +74,30 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
     An instance of this class represents the build master in EC2
     """
 
-    def __init__(self, ctx):
+
+    def __init__( self, ctx ):
         super( JenkinsMaster, self ).__init__( ctx )
         self.volume = None
 
-    def release(self):
+
+    def release( self ):
         return 'raring'
 
-    def create(self, *args, **kwargs):
+
+    def create( self, *args, **kwargs ):
         self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
                                                  Jenkins.data_volume_size_gb )
         super( JenkinsMaster, self ).create( *args, **kwargs )
 
-    def _on_instance_running(self, first_boot):
+
+    def _on_instance_running( self, first_boot ):
         if first_boot:
             self.attach_volume( self.volume, Jenkins.data_device_ext )
         super( JenkinsMaster, self )._on_instance_running( first_boot )
 
+
     @fabric_task
-    def _setup_package_repos(self):
+    def _setup_package_repos( self ):
         #
         # Jenkins
         #
@@ -106,21 +111,24 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         #
         sudo( 'apt-add-repository multiverse' )
 
-    def _list_packages_to_install(self):
+
+    def _list_packages_to_install( self ):
         return super( JenkinsMaster, self )._list_packages_to_install( ) + [
             'ec2-api-tools'
         ]
 
-    @fabric_task
-    def _install_packages(self, packages):
-        super( JenkinsMaster, self )._install_packages( packages )
-        #
-        # Use confold so it doesn't get hung up on our pre-staged /etc/default/jenkins
-        #
-        sudo( 'apt-get -q -y -o Dpkg::Options::=--force-confold install jenkins' )
 
     @fabric_task
-    def _pre_install_packages(self):
+    def _install_packages( self, packages ):
+        super( JenkinsMaster, self )._install_packages( packages )
+        # work around https://issues.jenkins-ci.org/browse/JENKINS-20407
+        sudo( 'mkdir /var/run/jenkins' )
+        # Use confold so it doesn't get hung up on our pre-staged /etc/default/jenkins
+        sudo( 'apt-get -q -y -o Dpkg::Options::=--force-confold install jenkins' )
+
+
+    @fabric_task
+    def _pre_install_packages( self ):
         #
         # Pre-stage the defaults file for Jenkins. It differs from the maintainer's version in the
         # following ways: (please document all changes in this comment)
@@ -183,15 +191,17 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         sudo( 'useradd -d {home} -g {group} -s /bin/bash {user}'.format( **jenkins ) )
         sudo( 'chown -R {user} {home}'.format( **jenkins ) )
 
+
     @classmethod
-    def ec2_keypair_name(cls, ctx):
+    def ec2_keypair_name( cls, ctx ):
         return Jenkins.user + '@' + ctx.absolute_name( cls.role( ) )
 
-    def __create_jenkins_keypair(self):
+
+    def __create_jenkins_keypair( self ):
         ec2_keypair_name = self.ec2_keypair_name( self.ctx )
-        ec2_keypair = self.connection.get_key_pair( ec2_keypair_name )
+        ec2_keypair = self.ctx.ec2.get_key_pair( ec2_keypair_name )
         if ec2_keypair is None:
-            ec2_keypair = self.connection.create_key_pair( ec2_keypair_name )
+            ec2_keypair = self.ctx.ec2.create_key_pair( ec2_keypair_name )
             if not ec2_keypair.material:
                 raise AssertionError( "Created key pair but didn't get back private key" )
         key_file_exists = sudo( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
@@ -239,19 +249,22 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                     "Please delete the key pair from EC2 before retrying."
                     .format( key_pair=ec2_keypair, **jenkins ) )
 
+
     @fabric_task
-    def _post_install_packages(self):
+    def _post_install_packages( self ):
         self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
         self.__create_jenkins_keypair( )
         self.setup_repo_host_keys( user=Jenkins.user )
 
-    def _ssh_args(self, options, user, command):
+
+    def _ssh_args( self, options, user, command ):
         # Add port forwarding to Jenkins' web UI
         options += ( '-L', 'localhost:8080:localhost:8080' )
         return super( JenkinsMaster, self )._ssh_args( options, user, command )
 
+
     @fabric_task( user=Jenkins.user )
-    def register_slaves(self, slave_clss):
+    def register_slaves( self, slave_clss ):
         jenkins_config_file = StringIO( )
         jenkins_config_path = '~/config.xml'
         get( local_path=jenkins_config_file,
@@ -292,7 +305,8 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
              "-s http://localhost:8080/ "
              "reload-configuration" )
 
-    def _image_block_device_mapping(self):
+
+    def _image_block_device_mapping( self ):
         # Do not include the data volume in the snapshot
         bdm = self.get_instance( ).block_device_mapping
         bdm[ Jenkins.data_device_ext ].no_device = True

@@ -21,32 +21,32 @@ class CentosBox( YumBox, AgentBox ):
     admin account such that we can look it up later.
     """
 
-    def release(self):
+    def release( self ):
         """
         :return: the version number of the CentOS release, e.g. "6.4"
         """
         raise NotImplementedError
 
-    def __init__(self, ctx):
+    def __init__( self, ctx ):
         super( CentosBox, self ).__init__( ctx )
         self._username = None
 
-    def username(self):
+    def username( self ):
         if self._username is None:
             default_username = 'root' if self.generation == 0 else 'admin'
             self._username = self.get_instance( ).tags.get( 'admin_user', default_username )
         return self._username
 
-    def _set_username(self, admin_user):
+    def _set_username( self, admin_user ):
         self._username = admin_user
         self.get_instance( ).add_tag( 'admin_user', admin_user )
 
-    def _base_image(self):
+    def _base_image( self ):
         release = self.release( )
-        images = self.connection.get_all_images( owners=[ '411009282317' ],
-                                                 filters={
-                                                     'name': 'RightImage_CentOS_%s_x64*' % release,
-                                                     'root-device-type': 'ebs' } )
+        images = self.ctx.ec2.get_all_images( owners=[ '411009282317' ],
+                                              filters={
+                                                  'name': 'RightImage_CentOS_%s_x64*' % release,
+                                                  'root-device-type': 'ebs' } )
         if not images:
             raise RuntimeError( "Can't find any suitable AMIs for CentOS release %s" % release )
         max_version = None
@@ -65,7 +65,7 @@ class CentosBox( YumBox, AgentBox ):
         return base_image
 
 
-    def _on_instance_ready(self, first_boot):
+    def _on_instance_ready( self, first_boot ):
         super( CentosBox, self )._on_instance_ready( first_boot )
         if first_boot and self.username( ) == 'root':
             self.__create_admin( )
@@ -73,7 +73,7 @@ class CentosBox( YumBox, AgentBox ):
             self.__setup_admin( )
 
     @fabric_task
-    def __create_admin(self):
+    def __create_admin( self ):
         # don't clear screen on logout, it's annoying
         run( r"sed -i -r 's!^(/usr/bin/)?clear!# \0!' /etc/skel/.bash_logout ~/.bash_logout" )
         # Imitate the security model of Canonical's Ubuntu AMIs: Create an admin user that can sudo
@@ -86,7 +86,7 @@ class CentosBox( YumBox, AgentBox ):
         run( 'echo PermitRootLogin no >> /etc/ssh/sshd_config' )
 
     @fabric_task
-    def __setup_admin(self):
+    def __setup_admin( self ):
         run( "echo 'export PATH=\"/usr/local/sbin:/usr/sbin:/sbin:$PATH\"' >> ~/.bash_profile" )
 
 
