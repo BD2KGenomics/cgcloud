@@ -5,7 +5,13 @@ from cghub.cloud.core.source_control_client import SourceControlClient
 
 
 class AgentBox( SourceControlClient ):
-    def _list_packages_to_install(self):
+    """
+    A box on which to install the agent. It inherits SourceControlClient because we would like to
+    install the agent directly from its source repository.
+    """
+
+
+    def _list_packages_to_install( self ):
         return super( AgentBox, self )._list_packages_to_install( ) + [
             'python',
             'python-pip',
@@ -18,8 +24,9 @@ class AgentBox( SourceControlClient ):
             'make'
         ]
 
+
     @fabric_task
-    def _post_install_packages(self):
+    def _post_install_packages( self ):
         super( AgentBox, self )._post_install_packages( )
         sudo( 'pip install --upgrade pip' ) # some distros (lucid & centos5 ) have an ancient pip
         sudo( 'pip install --upgrade virtualenv' )
@@ -39,5 +46,6 @@ class AgentBox( SourceControlClient ):
                       ' -k {ec2_keypair_globs}'
                       ' -u {user}'
                       ' -g {group}'.format( **kwargs ) )
-        script = script.replace('\r','') # don't know how these get in there
+        script = script.replace( '\r', '' ) # don't know how these get in there
         self._register_init_script( script, 'cgcloudagent' )
+        sudo( '/etc/init.d/cgcloudagent start' )
