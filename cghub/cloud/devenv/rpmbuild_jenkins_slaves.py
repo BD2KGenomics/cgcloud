@@ -27,7 +27,9 @@ class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):
             'mock',
             'apr-devel',
             'apr-util-devel',
-            'pcre-devel'
+            'pcre-devel',
+            # for OpenSSH RPM:
+            'pam-devel'
         ]
 
     @fabric_task
