@@ -362,7 +362,7 @@ class Box( object ):
         image_id = self.ctx.ec2.create_image(
             instance_id=self.instance_id,
             name=image_name,
-            block_device_map=self._image_block_device_mapping( ) )
+            block_device_mapping=self._image_block_device_mapping( ) )
         while True:
             try:
                 image = self.ctx.ec2.get_image( image_id )

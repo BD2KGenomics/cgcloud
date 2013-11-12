@@ -7,7 +7,7 @@ setup(
     scripts=[ 'cgcloud' ],
     install_requires=[
         'cghub-cloud-lib>=1.0.dev1',
-        'boto>=2.9.7',
+        'boto>=2.16.0',
         'Fabric>=1.7.0',
         'PyYAML>=3.10',
         'PyCrypto>=2.6',
