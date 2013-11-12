@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 
 import os
-import re
 import sys
 import argparse
 import platform
 import itertools
 import logging
 from logging.handlers import SysLogHandler, SYSLOG_UDP_PORT
+import boto.utils
 from cghub.util.logging import Utf8SyslogFormatter
 
 import daemon
@@ -27,14 +27,25 @@ exec_path = os.path.abspath( sys.argv[ 0 ] )
 exec_name = os.path.basename( exec_path )
 
 
-def main():
+def main( ):
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
         description=description )
     group = parser.add_argument_group( title='functional options' )
-    defaults = Context( )
+    group.add_argument( '--namespace', '-n', metavar='PREFIX',
+                        required=True,
+                        help='Optional prefix for naming EC2 resource like instances, images, '
+                             'volumes, etc. Use this option to create a separate namespace in '
+                             'order to avoid collisions, e.g. when running tests. The default '
+                             'represents the root namespace. The value of the environment '
+                             'variable CGCLOUD_NAMESPACE, if that variable is present, overrides '
+                             'the default. The string __me__ anywhere in the namespace will be '
+                             'replaced by the name of the IAM user whose credentials are used to '
+                             'issue requests to AWS.' )
+    default_zone = os.environ.get( 'CGCLOUD_ZONE', None )
     group.add_argument( '--zone', '-z', metavar='AVAILABILITY_ZONE',
-                        default=os.environ.get( 'CGCLOUD_ZONE', defaults.availability_zone ),
+                        default=default_zone,
+                        required=not default_zone,
                         dest='availability_zone',
                         help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
                              'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
@@ -102,9 +113,9 @@ def main():
         generate_init_script( options )
         sys.exit( 0 )
 
-    def run():
+    def run( ):
         log.info( "Entering main loop." )
-        ctx = Context( availability_zone=options.availability_zone )
+        ctx = Context( availability_zone=options.availability_zone, namespace=options.namespace )
         throttle = LocalThrottle( min_interval=options.interval )
         for i in itertools.count( ):
             throttle.throttle( )
@@ -153,7 +164,7 @@ def main():
                 log_spill.close( )
 
 
-def generate_init_script(options):
+def generate_init_script( options ):
     from pkg_resources import resource_string
     import cghub.cloud.agent
     import platform

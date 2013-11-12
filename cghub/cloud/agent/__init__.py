@@ -1,57 +1,32 @@
-from operator import attrgetter
 import os
-from boto import sns, sqs, ec2
 
-from hashlib import sha1
-
-from boto.s3.connection import S3Connection
-from boto.sqs.connection import SQSConnection
-from boto.sns.connection import SNSConnection
-from boto.ec2.connection import EC2Connection
 from cghub.cloud.lib.context import Context
 from cghub.util.throttle import LocalThrottle
 
 
 class Agent( object ):
-    def __init__(self, ctx, options):
+    def __init__( self, ctx, options ):
         """
         :type ctx: Context
         """
         super( Agent, self ).__init__( )
-        self.options = options
         self.ctx = ctx
+        self.options = options
         self.fingerprints = None
-        self.sns = self.aws_connect( sns )
-        """
-        :type: SNSConnection
-        """
-        self.sqs = self.aws_connect( sqs )
-        """
-        :type: SQSConnection
-        """
-        self.ec2 = self.aws_connect( ec2 )
-        """
-        :type: EC2Connection
-        """
-        response = self.sns.create_topic( self.ctx.topic_name )
+
+        topic_name = self.ctx.agent_topic_name
+        response = self.ctx.sns.create_topic( topic_name )
         topic_arn = response[ 'CreateTopicResponse' ][ 'CreateTopicResult' ][ 'TopicArn' ]
 
-        queue_name = self.ctx.agent_queue_name( )
-        self.queue = self.sqs.get_queue( queue_name )
+        queue_name = self.ctx.agent_queue_name
+        self.queue = self.ctx.sqs.get_queue( queue_name )
         if self.queue is None:
             # The create_queue API call handles races gracefully,
             # the conditional above is just an optimization.
-            self.queue = self.sqs.create_queue( queue_name )
-        self.sns.subscribe_sqs_queue( topic_arn, self.queue )
+            self.queue = self.ctx.sqs.create_queue( queue_name )
+        self.ctx.sns.subscribe_sqs_queue( topic_arn, self.queue )
 
-    def aws_connect(self, aws_module):
-        conn = aws_module.connect_to_region( self.ctx.region )
-        if conn is None:
-            raise RuntimeError( "%s couldn't connect to region %s" % (
-                aws_module.__name__, self.ctx.region ) )
-        return conn
-
-    def run(self):
+    def run( self ):
         throttle = LocalThrottle( min_interval=self.options.interval )
         # first call always returns immediately
         throttle.throttle( )
@@ -72,7 +47,7 @@ class Agent( object ):
                 if throttle.throttle( wait=False ):
                     self.update_ssh_keys( )
 
-    def update_ssh_keys(self):
+    def update_ssh_keys( self ):
         keypairs = self.ctx.expand_keypair_globs( self.options.keypairs )
         fingerprints = [ keypair.fingerprint for keypair in keypairs ]
         fingerprints.sort( )
