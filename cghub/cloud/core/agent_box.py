@@ -10,7 +10,6 @@ class AgentBox( SourceControlClient ):
     install the agent directly from its source repository.
     """
 
-
     def _list_packages_to_install( self ):
         return super( AgentBox, self )._list_packages_to_install( ) + [
             'python',
@@ -24,7 +23,6 @@ class AgentBox( SourceControlClient ):
             'make'
         ]
 
-
     @fabric_task
     def _post_install_packages( self ):
         super( AgentBox, self )._post_install_packages( )
@@ -37,15 +35,19 @@ class AgentBox( SourceControlClient ):
                  '@default'
                  '#egg=cghub-cloud-agent-1.0.dev1' )
         kwargs = dict(
+            availability_zone=self.ctx.availability_zone,
+            namespace=self.ctx.namespace,
             ec2_keypair_globs=' '.join( "'%s'" % glob for glob in self.ec2_keypair_globs ),
             authorized_keys='~/authorized_keys',
             user=self.username( ),
             group=self.username( ) )
         script = run( '~/agent/bin/cgcloudagent --init-script'
-                      ' -f {authorized_keys}'
-                      ' -k {ec2_keypair_globs}'
-                      ' -u {user}'
-                      ' -g {group}'.format( **kwargs ) )
+                      ' --zone {availability_zone}'
+                      ' --namespace {namespace}'
+                      ' --authorized-keys-file {authorized_keys}'
+                      ' --keypairs {ec2_keypair_globs}'
+                      ' --user {user}'
+                      ' --group {group}'.format( **kwargs ) )
         script = script.replace( '\r', '' ) # don't know how these get in there
         self._register_init_script( script, 'cgcloudagent' )
         sudo( '/etc/init.d/cgcloudagent start' )
