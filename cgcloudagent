@@ -180,6 +180,7 @@ def generate_init_script( options ):
     init_script = resource_string( cghub.cloud.agent.__name__, script )
 
     args = [
+               '--namespace', options.namespace,
                '--zone', options.availability_zone,
                '--interval', str( options.interval ),
                '--authorized-keys-file', options.authorized_keys_path,
