@@ -10,10 +10,10 @@ class GenericCentos5Box( CentosBox ):
     Good ole CentOS 5 from 1995, more or less
     """
 
-    def release(self):
+    def release( self ):
         return '5.8'
 
-    def __update_sudo(self):
+    def __update_sudo( self ):
         """
         5.8 has sudo 1.7.2p1 whose -i switch is horribly broken. For example,
 
@@ -28,24 +28,43 @@ class GenericCentos5Box( CentosBox ):
         self._yum_local( is_update=True, rpm_urls=[
             'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.7-1.el5.x86_64.rpm' ] )
 
-    def _on_instance_ready(self, first_boot):
+    @fabric_task
+    def __update_openssh( self ):
+        """
+        Our cghub-cloud-agent needs a newer version of OpenSSH that support listing with multiple
+        files for the sshd_conf option AuthorizedKeysFile. The stock CentOS 5 doesn't have one so
+        we'll install a custom RPM.
+
+        This method should to be invoked early on during setup.
+        """
+        # I wwasn't able to cusotm build openssh-askpass as it depends on X11 and whatnot,
+        # but it's not crucial so we'll skip it, or rather remove the old version of it
+        self._yum_remove( 'openssh-askpass' )
+        base_url = 'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/'
+        self._yum_local( is_update=True, rpm_urls=[
+            base_url + 'openssh-6.3p1-1.x86_64.rpm',
+            base_url + 'openssh-clients-6.3p1-1.x86_64.rpm',
+            base_url + 'openssh-server-6.3p1-1.x86_64.rpm' ] )
+
+    def _on_instance_ready( self, first_boot ):
         super( GenericCentos5Box, self )._on_instance_ready( first_boot )
         if self.generation == 0 and first_boot:
             self.__update_sudo( )
+            self.__update_openssh( )
 
-    def _ephemeral_mount_point(self):
+    def _ephemeral_mount_point( self ):
         return "/mnt"
 
     # FIXME: These two methods assume that this class is derived from AgentBox.
 
-    def _get_package_substitutions(self):
+    def _get_package_substitutions( self ):
         return super( GenericCentos5Box, self )._get_package_substitutions( ) + [
             ( 'python', 'python26' ),
             ( 'python-devel', 'python26-devel' )
         ]
 
     @fabric_task
-    def _post_install_packages(self):
+    def _post_install_packages( self ):
         # The pip from the python-pip package is hard-wired to the python 2.4 from the python
         # package. Also it's ancient, fossilized crap. To get an up-to-date pip that is wired to
         # python 2.6 from the python26 package we have to jump though some hoops. First,
@@ -65,10 +84,10 @@ class GenericCentos6Box( CentosBox ):
     The slightly newer CentOS 6 from 1999 ;-)
     """
 
-    def release(self):
+    def release( self ):
         return '6.4'
 
-    def _ephemeral_mount_point(self):
+    def _ephemeral_mount_point( self ):
         return "/mnt/ephemeral"
 
 
@@ -77,11 +96,11 @@ class GenericUbuntuLucidBox( UbuntuBox ):
     10.04 LTS
     """
 
-    def release(self):
+    def release( self ):
         return 'lucid'
 
     @fabric_task
-    def __update_sudo(self):
+    def __update_sudo( self ):
         """
         See GenericCentos5Box
         """
@@ -89,12 +108,12 @@ class GenericUbuntuLucidBox( UbuntuBox ):
         sudo( 'sudo dpkg --force-confold -i sudo_1.8.7-1_amd64.deb' )
         run( 'rm sudo_1.8.7-1_amd64.deb' )
 
-    def _on_instance_ready(self, first_boot):
+    def _on_instance_ready( self, first_boot ):
         super( GenericUbuntuLucidBox, self )._on_instance_ready( first_boot )
         if self.generation == 0 and first_boot:
             self.__update_sudo( )
 
-    def _get_package_substitutions(self):
+    def _get_package_substitutions( self ):
         return super( GenericUbuntuLucidBox, self )._get_package_substitutions( ) + [
             ('git', 'git-core') ]
 
@@ -104,7 +123,7 @@ class GenericUbuntuMaverickBox( UbuntuBox ):
     10.10
     """
 
-    def release(self):
+    def release( self ):
         return 'maverick'
 
 
@@ -113,7 +132,7 @@ class GenericUbuntuNattyBox( UbuntuBox ):
     11.04
     """
 
-    def release(self):
+    def release( self ):
         return 'natty'
 
 
@@ -122,7 +141,7 @@ class GenericUbuntuOneiricBox( UbuntuBox ):
     11.10
     """
 
-    def release(self):
+    def release( self ):
         return 'oneiric'
 
 
@@ -131,7 +150,7 @@ class GenericUbuntuPreciseBox( UbuntuBox ):
     12.04 LTS
     """
 
-    def release(self):
+    def release( self ):
         return 'precise'
 
 
@@ -140,7 +159,7 @@ class GenericUbuntuQuantalBox( UbuntuBox ):
     12.10
     """
 
-    def release(self):
+    def release( self ):
         return 'quantal'
 
 
@@ -149,7 +168,7 @@ class GenericUbuntuRaringBox( UbuntuBox ):
     13.04
     """
 
-    def release(self):
+    def release( self ):
         return 'raring'
 
 
@@ -158,20 +177,20 @@ class GenericUbuntuSaucyBox( UbuntuBox ):
     13.10
     """
 
-    def release(self):
+    def release( self ):
         return 'saucy'
 
 
 class GenericFedora17Box( FedoraBox ):
-    def release(self):
+    def release( self ):
         return 17
 
 
 class GenericFedora18Box( FedoraBox ):
-    def release(self):
+    def release( self ):
         return 18
 
 
 class GenericFedora19Box( FedoraBox ):
-    def release(self):
+    def release( self ):
         return 19
