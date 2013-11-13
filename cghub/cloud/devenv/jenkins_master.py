@@ -74,27 +74,22 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
     An instance of this class represents the build master in EC2
     """
 
-
     def __init__( self, ctx ):
         super( JenkinsMaster, self ).__init__( ctx )
         self.volume = None
 
-
     def release( self ):
         return 'raring'
-
 
     def create( self, *args, **kwargs ):
         self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
                                                  Jenkins.data_volume_size_gb )
         super( JenkinsMaster, self ).create( *args, **kwargs )
 
-
     def _on_instance_running( self, first_boot ):
         if first_boot:
             self.attach_volume( self.volume, Jenkins.data_device_ext )
         super( JenkinsMaster, self )._on_instance_running( first_boot )
-
 
     @fabric_task
     def _setup_package_repos( self ):
@@ -111,12 +106,10 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         #
         sudo( 'apt-add-repository multiverse' )
 
-
     def _list_packages_to_install( self ):
         return super( JenkinsMaster, self )._list_packages_to_install( ) + [
             'ec2-api-tools'
         ]
-
 
     @fabric_task
     def _install_packages( self, packages ):
@@ -125,7 +118,6 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         sudo( 'mkdir /var/run/jenkins' )
         # Use confold so it doesn't get hung up on our pre-staged /etc/default/jenkins
         sudo( 'apt-get -q -y -o Dpkg::Options::=--force-confold install jenkins' )
-
 
     @fabric_task
     def _pre_install_packages( self ):
@@ -191,11 +183,9 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         sudo( 'useradd -d {home} -g {group} -s /bin/bash {user}'.format( **jenkins ) )
         sudo( 'chown -R {user} {home}'.format( **jenkins ) )
 
-
     @classmethod
     def ec2_keypair_name( cls, ctx ):
         return Jenkins.user + '@' + ctx.absolute_name( cls.role( ) )
-
 
     def __create_jenkins_keypair( self ):
         ec2_keypair_name = self.ec2_keypair_name( self.ctx )
@@ -248,7 +238,9 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                     "create the private key file, the key pair must be created at the same time. "
                     "Please delete the key pair from EC2 before retrying."
                     .format( key_pair=ec2_keypair, **jenkins ) )
-
+        put( local_path=StringIO( ssh_pubkey ),
+             remote_path=Jenkins.key_path + '.pub',
+             use_sudo=True )
 
     @fabric_task
     def _post_install_packages( self ):
@@ -256,12 +248,10 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         self.__create_jenkins_keypair( )
         self.setup_repo_host_keys( user=Jenkins.user )
 
-
     def _ssh_args( self, options, user, command ):
         # Add port forwarding to Jenkins' web UI
         options += ( '-L', 'localhost:8080:localhost:8080' )
         return super( JenkinsMaster, self )._ssh_args( options, user, command )
-
 
     @fabric_task( user=Jenkins.user )
     def register_slaves( self, slave_clss ):
@@ -301,10 +291,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                               pretty_print=True )
         put( local_path=jenkins_config_file,
              remote_path=jenkins_config_path )
-        run( "java -jar /var/cache/jenkins/war/WEB-INF/jenkins-cli.jar "
-             "-s http://localhost:8080/ "
-             "reload-configuration" )
-
+        run( "curl -X POST http://localhost:8080/reload" )
 
     def _image_block_device_mapping( self ):
         # Do not include the data volume in the snapshot
