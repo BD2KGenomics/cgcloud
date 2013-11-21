@@ -7,7 +7,6 @@ import platform
 import itertools
 import logging
 from logging.handlers import SysLogHandler, SYSLOG_UDP_PORT
-import boto.utils
 from cghub.util.logging import Utf8SyslogFormatter
 
 import daemon
@@ -47,10 +46,11 @@ def main( ):
                         default=default_zone,
                         required=not default_zone,
                         dest='availability_zone',
-                        help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
-                             'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
-                             'run in. The value of the environment variable CGCLOUD_ZONE, '
-                             'if that variable is present, overrides the default.' )
+                        help='The name of the EC2 availability zone to operate in, '
+                             'e.g. us-east-1a, us-west-1b or us-west-2c etc. This argument '
+                             'implies the AWS region to run in. The value of the environment '
+                             'variable CGCLOUD_ZONE, if that variable is present, overrides the '
+                             'default.' )
     group.add_argument( '--interval', '-i', metavar='SECONDS',
                         default=300, type=int,
                         help='' )
@@ -62,13 +62,13 @@ def main( ):
                         dest='ec2_keypair_names', nargs='+',
                         required=not default_ec2_keypair_names,
                         default=default_ec2_keypair_names,
-                        help='The names or name patterns of EC2 key pairs whose public key is to be to '
-                             'maintained in the file specified by the --authorized-keys-file options. '
-                             'The arguments may be a literal names of a keypairs or shell-style globs in '
-                             'which case every key pair whose name matches one of the globs will be '
-                             'deployed to the box. The value of the environment variable '
-                             'CGCLOUD_KEYPAIRS, if that variable is present, overrides the '
-                             'default.' )
+                        help='The names or name patterns of EC2 key pairs whose public key is to '
+                             'be to maintained in the file specified by the '
+                             '--authorized-keys-file options. The arguments may be a literal '
+                             'names of a keypairs or shell-style globs in which case every key '
+                             'pair whose name matches one of the globs will be deployed to the '
+                             'box. The value of the environment variable CGCLOUD_KEYPAIRS, '
+                             'if that variable is present, overrides the default.' )
 
     group = parser.add_argument_group( title='process options' )
     group.add_argument( '--debug', '-X', default=False, action='store_true',
@@ -94,6 +94,7 @@ def main( ):
                              "be redirected. Most of the diagnostic output will go to syslog but "
                              "some might spill over to stderr or stdout, especially on errors "
                              "during daemonization." )
+
     group = parser.add_argument_group( title='miscellaeneous options' )
     group.add_argument( '--init-script', default=False, action='store_true',
                         help='Instead of starting the daemon, generate an /etc/init.d script for '
@@ -101,6 +102,7 @@ def main( ):
                              'redirect the output to a file, move that file into place, '
                              'make it executable and run chkconfig to '
                              'update the run levels.' % exec_name )
+
     options = parser.parse_args( )
 
     # The lock file path will be evaluated by DaemonContext after the chdir to /,
@@ -179,8 +181,7 @@ def generate_init_script( options ):
 
     init_script = resource_string( cghub.cloud.agent.__name__, script )
 
-    args = [
-               '--namespace', options.namespace,
+    args = [ '--namespace', options.namespace,
                '--zone', options.availability_zone,
                '--interval', str( options.interval ),
                '--authorized-keys-file', options.authorized_keys_path,
