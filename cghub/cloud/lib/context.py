@@ -457,8 +457,12 @@ class Context( object ):
             return None
 
 
+    current_user_placeholder = '__me__'
+
     def resolve_me( self, s ):
-        return s.replace( '__me__', self.iam_user_name )
+        placeholder = self.current_user_placeholder
+        # avoid invoking self.iam_user_name unnecessarily
+        return s.replace( placeholder, self.iam_user_name ) if placeholder in s  else s
 
     def config_file_path( self, path_components, mkdir=False ):
         """
