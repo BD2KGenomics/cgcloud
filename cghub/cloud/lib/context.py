@@ -1,4 +1,6 @@
 # coding=utf-8
+import json
+import urllib
 from cghub.util import fnmatch
 import os
 import re
@@ -7,11 +9,12 @@ import itertools
 
 from boto import ec2, s3, iam, sns, sqs
 from boto.s3.key import Key as S3Key
-from boto.exception import S3ResponseError
+from boto.exception import S3ResponseError, BotoServerError
 from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
+from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
 
 from cghub.util import memoize
@@ -29,7 +32,6 @@ class Context( object ):
     path_prefix_re = re.compile( r'^(/([0-9a-zA-Z.-][_0-9a-zA-Z.-]*))*' )
     path_re = re.compile( path_prefix_re.pattern + '/?$' )
     namespace_re = re.compile( path_prefix_re.pattern + '/$' )
-
 
     def __init__( self, availability_zone, namespace ):
         """
@@ -137,7 +139,6 @@ class Context( object ):
 
         self.namespace = namespace
 
-
     @property
     def iam( self ):
         """
@@ -146,7 +147,6 @@ class Context( object ):
         if self.__iam is None:
             self.__iam = self.__aws_connect( iam, 'universal' )
         return self.__iam
-
 
     @property
     def ec2( self ):
@@ -157,7 +157,6 @@ class Context( object ):
             self.__ec2 = self.__aws_connect( ec2 )
         return self.__ec2
 
-
     @property
     def s3( self ):
         """
@@ -166,7 +165,6 @@ class Context( object ):
         if self.__s3 is None:
             self.__s3 = self.__aws_connect( s3 )
         return self.__s3
-
 
     @property
     def sns( self ):
@@ -177,7 +175,6 @@ class Context( object ):
             self.__sns = self.__aws_connect( sns )
         return self.__sns
 
-
     @property
     def sqs( self ):
         """
@@ -187,7 +184,6 @@ class Context( object ):
             self.__sqs = self.__aws_connect( sqs )
         return self.__sqs
 
-
     def __aws_connect( self, aws_module, region=None ):
         conn = aws_module.connect_to_region( self.region if region is None else region )
         if conn is None:
@@ -195,14 +191,11 @@ class Context( object ):
                 aws_module.__name__, self.region ) )
         return conn
 
-
     def __enter__( self ):
         return self
 
-
     def __exit__( self, exc_type, exc_val, exc_tb ):
         self.close( )
-
 
     def close( self ):
         if self.__ec2 is not None: self.__ec2.close( )
@@ -211,14 +204,12 @@ class Context( object ):
         if self.__sns is not None: self.__sns.close( )
         if self.__sqs is not None: self.__sqs.close( )
 
-
     @staticmethod
     def is_absolute_name( name ):
         """
         Returns True if the given name starts with a namespace.
         """
         return name[ 0:1 ] == '/'
-
 
     def absolute_name( self, name ):
         """
@@ -274,11 +265,9 @@ class Context( object ):
             raise ValueError( "Invalid path '%s'" % result )
         return result
 
-
     @staticmethod
     def ssh_pubkey_s3_key( fingerprint ):
         return 'ssh_pubkey:%s' % fingerprint
-
 
     def upload_ssh_pubkey( self, ssh_pubkey, fingerprint ):
         bucket = self.s3.lookup( self.s3_bucket_name )
@@ -288,7 +277,6 @@ class Context( object ):
         s3_entry = S3Key( bucket )
         s3_entry.key = self.ssh_pubkey_s3_key( fingerprint )
         s3_entry.set_contents_from_string( ssh_pubkey )
-
 
     def register_ssh_pubkey( self, ec2_keypair_name, ssh_pubkey, force=False ):
         """
@@ -333,7 +321,6 @@ class Context( object ):
 
         return ec2_keypair
 
-
     def expand_keypair_globs( self, globs ):
         """
         Returns a list of EC2 key pair objects matching the specified globs. The order of the
@@ -356,7 +343,6 @@ class Context( object ):
             for keypair in result[ i: ]:
                 keypairs.pop( keypair.name )
         return result
-
 
     def download_ssh_pubkey( self, ec2_keypair ):
         try:
@@ -390,7 +376,6 @@ class Context( object ):
                     ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
         return ssh_pubkey
 
-
     @staticmethod
     def to_sns_name( name ):
         """
@@ -411,7 +396,6 @@ class Context( object ):
         True
         """
 
-
         def f( c ):
             """
             :type c: str
@@ -421,9 +405,7 @@ class Context( object ):
             else:
                 return "_" + hex( ord( c ) )[ 2: ].zfill( 2 )
 
-
         return ''.join( map( f, name.encode( 'ascii' ) ) )
-
 
     @staticmethod
     def from_sns_name( name ):
@@ -456,34 +438,27 @@ class Context( object ):
                                          ( chr( int( sub[ :2 ], 16 ) ) + sub[ 2: ]
                                              for sub in subs[ 1: ] ) ) ).encode( 'ascii' )
 
-
     @property
     def agent_topic_name( self ):
         return self.to_sns_name( self.absolute_name( "cghub_cloud_agent" ) )
-
 
     @property
     def agent_queue_name( self ):
         return self.to_sns_name(
             self.agent_topic_name( ) + "/" + socket.gethostname( ).replace( '.', '-' ) )
 
-
     @property
     @memoize
     def iam_user_name( self ):
         try:
             return self.iam.get_user( )[
-                'get_user_response' ][
-                'get_user_result' ][
-                'user' ][
-                'user_name' ]
+                'get_user_response' ][ 'get_user_result' ][ 'user' ][ 'user_name' ]
         except:
             return None
 
 
     def resolve_me( self, s ):
         return s.replace( '__me__', self.iam_user_name )
-
 
     def config_file_path( self, path_components, mkdir=False ):
         """
@@ -521,7 +496,6 @@ class Context( object ):
         file_path = self._config_file_path( path_components, mkdir=mkdir )
         return file_path
 
-
     @staticmethod
     def _config_file_path( path_components, mkdir=False ):
         """
@@ -554,4 +528,79 @@ class Context( object ):
         if mkdir: mkdir_p( os.path.dirname( path ) )
         return path
 
+    iam_ec2_role_name = 'cghub-cloud-utils'
+    """
+    The name of the IAM role assumed by EC2 instances
+    """
 
+    iam_ec2_role_policies = {
+        'ec2_read_only': {
+            "Version": "2012-10-17",
+            "Statement": [
+                { "Effect": "Allow", "Resource": "*", "Action": "ec2:Describe*" },
+                { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:Describe*" },
+                { "Effect": "Allow", "Resource": "*", "Action": "elasticloadbalancing:Describe*" },
+                { "Effect": "Allow", "Resource": "*", "Action": [
+                    "cloudwatch:ListMetrics",
+                    "cloudwatch:GetMetricStatistics",
+                    "cloudwatch:Describe*" ] } ] },
+        's3_read_only': {
+            "Version": "2012-10-17",
+            "Statement": [
+                { "Effect": "Allow", "Resource": "*", "Action": [ "s3:Get*", "s3:List*" ] } ] },
+        'iam_read_only': {
+            "Version": "2012-10-17",
+            "Statement": [
+                { "Effect": "Allow", "Resource": "*", "Action": [ "iam:List*", "iam:Get*" ] } ] }
+    }
+    """
+    The policies belonging to the role assumed by EC2 instances. This effectively controls
+    what code running on our EC2 instances can do on AWS.
+    """
+
+    def prepare( self ):
+        # Create role if necessary
+        try:
+            self.iam.create_role( role_name=self.iam_ec2_role_name,
+                                  assume_role_policy_document=json.dumps( {
+                                      "Version": "2012-10-17",
+                                      "Statement": [ {
+                                          "Effect": "Allow",
+                                          "Principal": { "Service": [ "ec2.amazonaws.com" ] },
+                                          "Action": [ "sts:AssumeRole" ] }
+                                      ] } ) )
+        except BotoServerError as e:
+            if e.status == 409 and e.error_code == 'EntityAlreadyExists':
+                pass
+            else:
+                raise
+
+        # Delete superfluous policies
+        policy_names = set( self.iam.list_role_policies( role_name=self.iam_ec2_role_name )[
+            'list_role_policies_response' ][ 'list_role_policies_result' ][ 'policy_names' ] )
+
+        for policy_name in policy_names.difference( set( self.iam_ec2_role_policies.keys( ) ) ):
+            self.iam.delete_role_policy( role_name=self.iam_ec2_role_name,
+                                         policy_name=policy_name )
+
+        # Create expected policies
+        for policy_name, policy in self.iam_ec2_role_policies.iteritems( ):
+            self.__iam_put_role_policy( policy_name, policy )
+
+    def __iam_put_role_policy( self, policy_name, policy ):
+        current_policy = None
+        try:
+            current_policy = json.loads( urllib.unquote(
+                self.iam.get_role_policy( role_name=self.iam_ec2_role_name,
+                                          policy_name=policy_name )[
+                    'get_role_policy_response' ][ 'get_role_policy_result' ][
+                    'policy_document' ] ) )
+        except BotoServerError as e:
+            if e.status == 404 and e.error_code == 'NoSuchEntity':
+                pass
+            else:
+                raise
+        if current_policy != policy:
+            self.iam.put_role_policy( role_name=self.iam_ec2_role_name,
+                                      policy_name=policy_name,
+                                      policy_document=json.dumps( policy ) )
