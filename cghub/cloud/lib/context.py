@@ -445,7 +445,7 @@ class Context( object ):
     @property
     def agent_queue_name( self ):
         return self.to_sns_name(
-            self.agent_topic_name( ) + "/" + socket.gethostname( ).replace( '.', '-' ) )
+            self.agent_topic_name + "/" + socket.gethostname( ).replace( '.', '-' ) )
 
     @property
     @memoize
@@ -455,7 +455,6 @@ class Context( object ):
                 'get_user_response' ][ 'get_user_result' ][ 'user' ][ 'user_name' ]
         except:
             return None
-
 
     current_user_placeholder = '__me__'
 
@@ -555,17 +554,34 @@ class Context( object ):
         'iam_read_only': {
             "Version": "2012-10-17",
             "Statement": [
-                { "Effect": "Allow", "Resource": "*", "Action": [ "iam:List*", "iam:Get*" ] } ] }
+                { "Effect": "Allow", "Resource": "*", "Action": [ "iam:List*", "iam:Get*" ] } ] },
+        'agent': {
+            "Version": "2012-10-17",
+            "Statement": [
+                { "Effect": "Allow", "Resource": "*", "Action": [
+                    "sqs:Get*",
+                    "sqs:List*",
+                    "sqs:CreateQueue",
+                    "sqs:SetQueueAttributes",
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessageBatch",
+                    "sns:Get*",
+                    "sns:List*",
+                    "sns:CreateTopic",
+                    "sns:Subscribe" ] } ] }
     }
     """
     The policies belonging to the role assumed by EC2 instances. This effectively controls
     what code running on our EC2 instances can do on AWS.
     """
 
-    def prepare( self ):
+    def setup_iam_ec2_role( self ):
+        role_name = self.iam_ec2_role_name
+        policies = self.iam_ec2_role_policies
+
         # Create role if necessary
         try:
-            self.iam.create_role( role_name=self.iam_ec2_role_name,
+            self.iam.create_role( role_name=role_name,
                                   assume_role_policy_document=json.dumps( {
                                       "Version": "2012-10-17",
                                       "Statement": [ {
@@ -580,31 +596,30 @@ class Context( object ):
                 raise
 
         # Delete superfluous policies
-        policy_names = set( self.iam.list_role_policies( role_name=self.iam_ec2_role_name )[
+        policy_names = set( self.iam.list_role_policies( role_name=role_name )[
             'list_role_policies_response' ][ 'list_role_policies_result' ][ 'policy_names' ] )
-
-        for policy_name in policy_names.difference( set( self.iam_ec2_role_policies.keys( ) ) ):
-            self.iam.delete_role_policy( role_name=self.iam_ec2_role_name,
+        for policy_name in policy_names.difference( set( policies.keys( ) ) ):
+            self.iam.delete_role_policy( role_name=role_name,
                                          policy_name=policy_name )
 
         # Create expected policies
-        for policy_name, policy in self.iam_ec2_role_policies.iteritems( ):
-            self.__iam_put_role_policy( policy_name, policy )
+        for policy_name, policy in policies.iteritems( ):
+            current_policy = None
+            try:
+                current_policy = json.loads( urllib.unquote(
+                    self.iam.get_role_policy( role_name=role_name,
+                                              policy_name=policy_name )[
+                        'get_role_policy_response' ][
+                        'get_role_policy_result' ][
+                        'policy_document' ] ) )
+            except BotoServerError as e:
+                if e.status == 404 and e.error_code == 'NoSuchEntity':
+                    pass
+                else:
+                    raise
+            if current_policy != policy:
+                self.iam.put_role_policy( role_name=role_name,
+                                          policy_name=policy_name,
+                                          policy_document=json.dumps( policy ) )
 
-    def __iam_put_role_policy( self, policy_name, policy ):
-        current_policy = None
-        try:
-            current_policy = json.loads( urllib.unquote(
-                self.iam.get_role_policy( role_name=self.iam_ec2_role_name,
-                                          policy_name=policy_name )[
-                    'get_role_policy_response' ][ 'get_role_policy_result' ][
-                    'policy_document' ] ) )
-        except BotoServerError as e:
-            if e.status == 404 and e.error_code == 'NoSuchEntity':
-                pass
-            else:
-                raise
-        if current_policy != policy:
-            self.iam.put_role_policy( role_name=self.iam_ec2_role_name,
-                                      policy_name=policy_name,
-                                      policy_document=json.dumps( policy ) )
+        return role_name
