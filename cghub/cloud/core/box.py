@@ -157,6 +157,7 @@ class Box( object ):
             root_bdt = image.block_device_mapping.get( root_device )
             if root_bdt:
                 root_bdt.size = 10
+                root_bdt.snapshot_id = None
                 bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
                 bdm[ '/dev/sda1' ] = root_bdt
                 bdm[ '/dev/sdb' ] = BlockDeviceType( ephemeral_name='ephemeral0' )
