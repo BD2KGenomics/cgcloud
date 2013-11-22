@@ -9,7 +9,7 @@ from Crypto.Hash import MD5, SHA
 from Crypto.PublicKey import RSA
 
 
-def unpack_singleton(singleton):
+def unpack_singleton( singleton ):
     """
     Expects a iterable with exactly one element and returns that element. If the iterable is
     empty or yields more than one element an exception will be thrown.
@@ -39,7 +39,7 @@ def unpack_singleton(singleton):
         return result
 
 
-def camel_to_snake(s, separator='_'):
+def camel_to_snake( s, separator='_' ):
     """
     Converts camel to snake case
 
@@ -67,7 +67,7 @@ def camel_to_snake(s, separator='_'):
     return re.sub( '([a-z0-9])([A-Z])', r'\1%s\2' % separator, s ).lower( )
 
 
-def snake_to_camel(s, separator='_'):
+def snake_to_camel( s, separator='_' ):
     """
     Converts snake to camel case
 
@@ -89,7 +89,7 @@ def snake_to_camel(s, separator='_'):
     return ''.join( [ w.capitalize( ) for w in s.split( separator ) ] )
 
 
-def abreviated_snake_case_class_name(cls, root_cls):
+def abreviated_snake_case_class_name( cls, root_cls ):
     """
     Returns the snake-case (with '-' instead of '_') version of the name of a given class with
     the name of another class removed from the end.
@@ -120,7 +120,7 @@ def abreviated_snake_case_class_name(cls, root_cls):
     return camel_to_snake( name, separator='-' )
 
 
-def mkdir_p(path):
+def mkdir_p( path ):
     """
     The equivalent of mkdir -p
     """
@@ -134,13 +134,13 @@ def mkdir_p(path):
 
 
 class UserError( RuntimeError ):
-    def __init__(self, message=None, cause=None):
+    def __init__( self, message=None, cause=None ):
         if message is None == cause is None:
             raise RuntimeError( "Must pass either message or cause." )
         super( UserError, self ).__init__( message if cause is None else cause.message )
 
 
-def app_name():
+def app_name( ):
     return os.path.splitext( os.path.basename( sys.argv[ 0 ] ) )[ 0 ]
 
 
@@ -169,7 +169,7 @@ class Application( object ):
     Juju
     """
 
-    def __init__(self):
+    def __init__( self ):
         """
         Initializes the argument parser
         """
@@ -183,17 +183,17 @@ class Application( object ):
                                                       dest='command_name' )
         self.commands = { }
 
-    def option(self, *args, **kwargs):
+    def option( self, *args, **kwargs ):
         self.parser.add_argument( *args, **kwargs )
 
-    def add(self, command_cls):
+    def add( self, command_cls ):
         """
         Instantiates a command of the specified class and adds it to this application.
         """
         command = command_cls( self )
         self.commands[ command.name( ) ] = command
 
-    def run(self, args=None):
+    def run( self, args=None ):
         """
         Parses the command line into an options object using arparse and invokes the requested
         command's run() method with that options object.
@@ -208,7 +208,7 @@ class Application( object ):
             sys.stderr.write( '\n' )
             exit( 1 )
 
-    def prepare(self, options):
+    def prepare( self, options ):
         pass
 
 
@@ -217,7 +217,7 @@ class Command( object ):
     An abstract base class for an applications commands.
     """
 
-    def run(self, options):
+    def run( self, options ):
         """
         Execute this command.
 
@@ -225,7 +225,7 @@ class Command( object ):
         """
         raise NotImplementedError( )
 
-    def __init__(self, application, **kwargs):
+    def __init__( self, application, **kwargs ):
         """
         Initializes this command.
         :param application: The application this command belongs to.
@@ -244,11 +244,11 @@ class Command( object ):
         self.parser._optionals.title = 'Command options'
         self.group = None
 
-    def option(self, *args, **kwargs):
+    def option( self, *args, **kwargs ):
         target = self.parser if self.group is None else self.group
         target.add_argument( *args, **kwargs )
 
-    def name(self):
+    def name( self ):
         """
         Returns the name of this command as referred to by the user when invoking it via the
         command line. The command name is the snake-case version (with dashes instead of
@@ -261,17 +261,17 @@ class Command( object ):
         """
         return abreviated_snake_case_class_name( self.__class__, Command )
 
-    def begin_mutex(self, **kwargs):
+    def begin_mutex( self, **kwargs ):
         self.group = self.parser.add_mutually_exclusive_group( **kwargs )
 
-    def end_mutex(self):
+    def end_mutex( self ):
         self.group = None
 
 
 empty_line_re = re.compile( r'^\s*(#.*)$' )
 
 
-def prepend_shell_script(script, in_file, out_file):
+def prepend_shell_script( script, in_file, out_file ):
     """
     Writes all lines from the specified input to the specified output. Input and output are both
     assumed to be file-like objects. Reading from the input as well as writing to the output
@@ -326,7 +326,7 @@ def prepend_shell_script(script, in_file, out_file):
     'hello\\n bar # foo\\n'
     """
 
-    def write_line(line):
+    def write_line( line ):
         out_file.write( line )
         if not line.endswith( '\n' ):
             out_file.write( '\n' )
@@ -342,7 +342,7 @@ def prepend_shell_script(script, in_file, out_file):
         write_line( line )
 
 
-def partition_seq(seq, size):
+def partition_seq( seq, size ):
     """
     Splits a sequence into an iterable of subsequences. All subsequences are of the given size,
     except the last one, which may be smaller. If the input list is modified while the returned
@@ -377,7 +377,7 @@ def partition_seq(seq, size):
     return (seq[ pos:pos + size ] for pos in xrange( 0, len( seq ), size ))
 
 
-def ec2_keypair_fingerprint(ssh_key):
+def ec2_keypair_fingerprint( ssh_key, reject_private_keys=False ):
     """
     Computes the fingerrint of a public or private OpenSSH key in the way Amazon does it for
     keypairs resulting from either importing a SSH public key or generating a new keypair.
@@ -424,13 +424,16 @@ def ec2_keypair_fingerprint(ssh_key):
     'ac:23:ae:c3:9a:a3:78:b1:0f:8a:31:dd:13:cc:b1:8e:fb:51:42:f8'
     """
     rsa_key = RSA.importKey( ssh_key )
-    der_rsa_key = rsa_key.exportKey( format='DER', pkcs=(8 if rsa_key.has_private( ) else 1) )
-    key_hash = (SHA if rsa_key.has_private( ) else MD5).new( )
+    is_private_key = rsa_key.has_private( )
+    if is_private_key and reject_private_keys:
+        raise ValueError( 'Private keys are disallowed' )
+    der_rsa_key = rsa_key.exportKey( format='DER', pkcs=(8 if is_private_key else 1) )
+    key_hash = (SHA if is_private_key else MD5).new( )
     key_hash.update( der_rsa_key )
     return ':'.join( partition_seq( key_hash.hexdigest( ), 2 ) )
 
 
-def private_to_public_key(private_ssh_key):
+def private_to_public_key( private_ssh_key ):
     """
     Returns the public key in OpenSSH format (as used in the authorized_keys file) for a given
     private RSA key in PEM format.
