@@ -445,12 +445,12 @@ class Context( object ):
 
     @property
     def agent_topic_name( self ):
-        return self.to_safe_name( self.absolute_name( "cghub_cloud_agent" ) )
+        return self.to_safe_name( self.absolute_name( "agent" ) )
 
     @property
     def agent_queue_name( self ):
-        return self.to_safe_name(
-            self.agent_topic_name + "/" + socket.gethostname( ).replace( '.', '-' ) )
+        host_qualifier = socket.gethostname( ).replace( '.', '-' )
+        return self.agent_topic_name + self.to_safe_name( + "/" + host_qualifier )
 
     @property
     @memoize
@@ -536,7 +536,7 @@ class Context( object ):
         if mkdir: mkdir_p( os.path.dirname( path ) )
         return path
 
-    iam_ec2_role_policies = {
+    iam_agent_policies = {
         'ec2_read_only': {
             "Version": "2012-10-17",
             "Statement": [
@@ -555,7 +555,7 @@ class Context( object ):
             "Version": "2012-10-17",
             "Statement": [
                 { "Effect": "Allow", "Resource": "*", "Action": [ "iam:List*", "iam:Get*" ] } ] },
-        'agent': {
+        'sqs_custom': {
             "Version": "2012-10-17",
             "Statement": [
                 { "Effect": "Allow", "Resource": "*", "Action": [
@@ -564,7 +564,11 @@ class Context( object ):
                     "sqs:CreateQueue",
                     "sqs:SetQueueAttributes",
                     "sqs:ReceiveMessage",
-                    "sqs:DeleteMessageBatch",
+                    "sqs:DeleteMessageBatch" ] } ] },
+        'sns_custom': {
+            "Version": "2012-10-17",
+            "Statement": [
+                { "Effect": "Allow", "Resource": "*", "Action": [
                     "sns:Get*",
                     "sns:List*",
                     "sns:CreateTopic",
@@ -576,8 +580,8 @@ class Context( object ):
     """
 
     def setup_iam_ec2_role( self ):
-        role_name = self.to_safe_name( self.absolute_name( 'ec2' ) )
-        policies = self.iam_ec2_role_policies
+        role_name = self.to_safe_name( self.absolute_name( 'agent' ) )
+        policies = self.iam_agent_policies
 
         # Create role if necessary
         try:
