@@ -248,10 +248,10 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         self.__create_jenkins_keypair( )
         self.setup_repo_host_keys( user=Jenkins.user )
 
-    def _ssh_args( self, options, user, command ):
+    def _ssh_args( self, user, command ):
         # Add port forwarding to Jenkins' web UI
-        options += ( '-L', 'localhost:8080:localhost:8080' )
-        return super( JenkinsMaster, self )._ssh_args( options, user, command )
+        command = [ '-L', 'localhost:8080:localhost:8080' ] + command
+        return super( JenkinsMaster, self )._ssh_args( user, command )
 
     @fabric_task( user=Jenkins.user )
     def register_slaves( self, slave_clss ):

@@ -20,7 +20,6 @@ from paramiko.client import MissingHostKeyPolicy
 from cghub.cloud.lib.context import Context
 from cghub.cloud.lib.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
 
-
 EC2_POLLING_INTERVAL = 5
 
 
@@ -30,7 +29,6 @@ def needs_instance( method ):
             raise AssertionError( "Instance ID not set" )
         return method( self, *args, **kwargs )
 
-
     return wrapped_method
 
 
@@ -39,17 +37,14 @@ class fabric_task( object ):
 
     user_stack = [ ]
 
-
     def __new__( cls, user=None ):
         if callable( user ):
             return cls( )( user )
         else:
             return super( fabric_task, cls ).__new__( cls )
 
-
     def __init__( self, user=None ):
         self.user = user
-
 
     def __call__( self, function ):
         @wraps( function )
@@ -66,7 +61,6 @@ class fabric_task( object ):
                 finally:
                     assert self.user_stack.pop( ) == user
 
-
         return wrapper
 
 
@@ -76,7 +70,6 @@ class Box( object ):
     instance) in EC2.
     """
 
-
     @classmethod
     def role( cls ):
         """
@@ -85,13 +78,11 @@ class Box( object ):
         """
         return camel_to_snake( cls.__name__, '-' )
 
-
     def username( self ):
         """
         Returns the username for making SSH connections to the instance.
         """
         raise NotImplementedError( )
-
 
     def _base_image( self ):
         """
@@ -101,7 +92,6 @@ class Box( object ):
         :rtype boto.ec2.image.Image
         """
         raise NotImplementedError( )
-
 
     def setup( self, update=False ):
         """
@@ -114,7 +104,6 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-
     def _ephemeral_mount_point( self ):
         """
         Returns the absolute path to the directory at which the ephemeral volume is mounted. This
@@ -122,6 +111,11 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
+    def _manages_keys_internally( self ):
+        """
+        Returns True if this box manages its own keypair, e.g. via the agent.
+        """
+        return False
 
     def __init__( self, ctx ):
         """
@@ -144,7 +138,6 @@ class Box( object ):
         """
         self.ip_address = None
 
-
     def _populate_instance_creation_args( self, image, kwargs ):
         """
         Add, remove or modify the keyword arguments that will be passed to the EC2 run_instances
@@ -164,11 +157,9 @@ class Box( object ):
                 return
         raise RuntimeError( "Can't determine root volume from image" )
 
-
     def __read_generation( self, image_id ):
         image = self.ctx.ec2.get_image( image_id )
         self.generation = int( image.tags.get( 'generation', '0' ) )
-
 
     def create( self, ec2_keypair_globs, instance_type=None, boot_image=None ):
         """
@@ -220,7 +211,7 @@ class Box( object ):
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypairs[ 0 ].name,
                        placement=self.ctx.availability_zone,
-                       instance_profile_arn=self.get_instance_profile_arn( ) )
+                       instance_profile_arn=self._get_instance_profile_arn( ) )
         self._populate_instance_creation_args( image, kwargs )
 
         while True:
@@ -250,7 +241,6 @@ class Box( object ):
         self._log( 'tagging instance ... ', newline=False )
         instance.add_tag( 'Name', self.absolute_role( ) )
 
-
     def _on_instance_running( self, first_boot ):
         """
         Invoked while creating, adopting or starting an instance, right after the instance
@@ -261,7 +251,6 @@ class Box( object ):
         """
         pass
 
-
     def _on_instance_ready( self, first_boot ):
         """
         Invoked while creating, adopting or starting an instance, right after the instance became
@@ -270,9 +259,8 @@ class Box( object ):
         :param first_boot: True if this is the first time the instance becomes ready since
         its creation
         """
-        if first_boot:
+        if first_boot and not self._manages_keys_internally():
             self.__inject_authorized_keys( self.ec2_keypairs[ 1: ] )
-
 
     def adopt( self, ordinal=None, wait_ready=True ):
         """
@@ -292,7 +280,6 @@ class Box( object ):
             else:
                 self._log( 'done.' )
 
-
     def list( self ):
         role, instances = self.__list_instances( )
         return [ dict( role=role,
@@ -302,7 +289,6 @@ class Box( object ):
                        created_at=instance.launch_time,
                        state=instance.state )
             for ordinal, instance in enumerate( instances ) ]
-
 
     def __list_instances( self ):
         """
@@ -316,7 +302,6 @@ class Box( object ):
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
         instances.sort( key=attrgetter( 'launch_time' ) )
         return name, instances
-
 
     def __get_instance_by_ordinal( self, ordinal ):
         """
@@ -339,7 +324,6 @@ class Box( object ):
         except IndexError:
             raise UserError( 'No box with ordinal %i' % ordinal )
 
-
     def _image_block_device_mapping( self ):
         """
         Returns the block device mapping to be used for the image. The base implementation
@@ -347,7 +331,6 @@ class Box( object ):
         the image.
         """
         return None
-
 
     @needs_instance
     def image( self ):
@@ -375,7 +358,6 @@ class Box( object ):
                 if e.error_code != 'InvalidAMIID.NotFound':
                     raise
 
-
     @needs_instance
     def stop( self ):
         """
@@ -390,7 +372,6 @@ class Box( object ):
                                 to_state='stopped' )
         self._log( 'done.' )
 
-
     @needs_instance
     def start( self ):
         """
@@ -404,7 +385,6 @@ class Box( object ):
         # stopped before it goes into pending
         self.__wait_ready( instance, from_states={ 'stopped', 'pending' } )
 
-
     @needs_instance
     def reboot( self ):
         """
@@ -416,7 +396,6 @@ class Box( object ):
         # state transitions is hard. So we stop and start instead.
         self.stop( )
         self.start( )
-
 
     def terminate( self, wait=True ):
         """
@@ -432,7 +411,6 @@ class Box( object ):
                                             from_states={ 'running', 'shutting-down', 'stopped' },
                                             to_state='terminated' )
                 self._log( 'done.' )
-
 
     def get_attachable_volume( self, name ):
         """
@@ -454,7 +432,6 @@ class Box( object ):
             raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
                              % (name, volume.zone, expected_zone ) )
         return volume
-
 
     def get_or_create_volume( self, name, size, **kwargs ):
         """
@@ -480,7 +457,6 @@ class Box( object ):
             volume = self.get_attachable_volume( name )
         return volume
 
-
     @needs_instance
     def attach_volume( self, volume, device ):
         self.ctx.ec2.attach_volume( volume_id=volume.id,
@@ -490,14 +466,12 @@ class Box( object ):
         if volume.attach_data.instance_id != self.instance_id:
             raise UserError( "Volume %s is not attached to this instance." )
 
-
     def _log( self, string, newline=True ):
         if newline:
             print( string, file=sys.stderr )
         else:
             sys.stderr.write( string )
             sys.stderr.flush( )
-
 
     @needs_instance
     def _execute_task( self, task, user ):
@@ -508,7 +482,6 @@ class Box( object ):
         # using IP instead of host name yields more compact log lines
         host = "%s@%s" % ( user, self.ip_address )
         return execute( task, hosts=[ host ] )[ host ]
-
 
     def __assert_state( self, expected_state ):
         """
@@ -525,7 +498,6 @@ class Box( object ):
                              % (expected_state, actual_state) )
         return instance
 
-
     @needs_instance
     def get_instance( self ):
         """
@@ -535,7 +507,6 @@ class Box( object ):
         """
         reservations = self.ctx.ec2.get_all_instances( self.instance_id )
         return unpack_singleton( unpack_singleton( reservations ).instances )
-
 
     def __wait_ready( self, instance, from_states, first_boot=False ):
         """
@@ -556,7 +527,6 @@ class Box( object ):
         self._log( "working, done." )
         self._on_instance_ready( first_boot )
 
-
     def __wait_public_ip_assigned( self, instance ):
         """
         Wait until the instances has a public IP address assigned to it.
@@ -572,7 +542,6 @@ class Box( object ):
                 return
             time.sleep( EC2_POLLING_INTERVAL )
             instance.update( )
-
 
     def __wait_ssh_port_open( self ):
         """
@@ -592,11 +561,9 @@ class Box( object ):
             finally:
                 s.close( )
 
-
     class IgnorePolicy( MissingHostKeyPolicy ):
         def missing_host_key( self, client, hostname, key ):
             pass
-
 
     def __wait_ssh_working( self ):
         while True:
@@ -627,13 +594,11 @@ class Box( object ):
                 client.close( )
             time.sleep( EC2_POLLING_INTERVAL )
 
-
     def __wait_volume_transition( self, volume, from_states, to_state ):
         """
         Same as :py:meth:`_wait_transition`, but for volumes which use 'status' instead of 'state'.
         """
         self.__wait_transition( volume, from_states, to_state, lambda volume: volume.status )
-
 
     def __wait_transition( self, resource, from_states, to_state,
                            state_getter=lambda resource: resource.state ):
@@ -656,7 +621,6 @@ class Box( object ):
             raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
                                   % ( resource, to_state, state ) )
 
-
     def _config_file_path( self, file_name, mkdir=False, role=None ):
         """
         Returns the path to a role-specific config file.
@@ -668,7 +632,6 @@ class Box( object ):
         if role is None: role = self.role( )
         return self.ctx.config_file_path( [ role, file_name ], mkdir=mkdir )
 
-
     def _read_config_file( self, file_name, **kwargs ):
         """
         Returns the contents of the given config file. Accepts the same parameters as
@@ -678,28 +641,20 @@ class Box( object ):
         with open( path, 'r' ) as f:
             return f.read( )
 
-
     @needs_instance
-    def ssh( self, options=None, user=None, command=None ):
-        if not command: command = [ ]
-        if not options: options = [ ]
-        subprocess.call( self._ssh_args( options, user, command ) )
+    def ssh( self, user=None, command=None ):
+        if command is None: command = [ ]
+        subprocess.call( self._ssh_args( user, command ) )
 
-
-    def _ssh_args( self, options, user, command ):
+    def _ssh_args( self, user, command ):
         if user is None:
             user = self.username( )
-        args = [ 'ssh', '-A' ] + options
         # Using host name instead of IP allows for more descriptive known_hosts entries and
         # enables using wildcards like *.compute.amazonaws.com Host entries in ~/.ssh/config.
-        args.append( '%s@%s' % ( user, self.host_name ) )
-        args += command
-        return args
-
+        return [ 'ssh', '%s@%s' % ( user, self.host_name ), '-A' ] + command
 
     def absolute_role( self ):
         return self.ctx.absolute_name( self.role( ) )
-
 
     @fabric_task
     def __inject_authorized_keys( self, ec2_keypairs ):
@@ -715,7 +670,6 @@ class Box( object ):
             authorized_keys.write( '\n'.join( ssh_pubkeys ) )
             authorized_keys.write( '\n' )
             put( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
-
 
     @fabric_task
     def _propagate_authorized_keys( self, user, group=None ):
@@ -742,10 +696,8 @@ class Box( object ):
         sudo( 'install -t ~{dst_user}/.ssh ~{src_user}/.ssh/authorized_keys '
               '-m 644 -o {dst_user} -g {dst_group}'.format( **args ) )
 
-
     def recommended_instance_type( self ):
         return 't1.micro'
-
 
     def list_images( self ):
         """
@@ -755,7 +707,6 @@ class Box( object ):
         images = self.ctx.ec2.get_all_images( filters={ 'name': image_name_pattern } )
         images.sort( key=attrgetter( 'name' ) ) # that sorts by date, effectively
         return images
-
 
     @fabric_task
     def _prepend_remote_shell_script( self, script, remote_path, **put_kwargs ):
@@ -775,17 +726,17 @@ class Box( object ):
             out_file.seek( 0 )
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
 
-
-    def get_instance_profile_arn( self ):
+    def _get_instance_profile_arn( self ):
+        role_name = self.ctx.setup_iam_ec2_role( )
+        instance_profile_name = self.ctx.to_safe_name( self.absolute_role( ) )
         try:
-            profile = self.ctx.iam.get_instance_profile( self.role( ) )
+            profile = self.ctx.iam.get_instance_profile( instance_profile_name )
             profile = profile[
                 'get_instance_profile_response' ][
                 'get_instance_profile_result' ]
         except BotoServerError as e:
             if e.status == 404:
-                profile = self.ctx.iam.create_instance_profile( self.role( ),
-                                                                path=self.ctx.namespace )
+                profile = self.ctx.iam.create_instance_profile( instance_profile_name )
                 profile = profile[
                     'create_instance_profile_response' ][
                     'create_instance_profile_result' ]
@@ -795,8 +746,9 @@ class Box( object ):
         # Boto 2.13.3.returns some unparsed 'garbage' in the roles entry but IAM only allows one
         # role per profile so we're just gonna brute force it.
         try:
-            self.ctx.iam.add_role_to_instance_profile( self.role( ), 'cghub-cloud-utils' )
+            self.ctx.iam.add_role_to_instance_profile( instance_profile_name, role_name=role_name )
         except BotoServerError as e:
             if e.status != 409:
                 raise
         return profile[ 'arn' ]
+

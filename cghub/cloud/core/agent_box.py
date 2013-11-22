@@ -15,6 +15,9 @@ class AgentBox( SourceControlClient ):
     install the agent directly from its source repository.
     """
 
+    def _manages_keys_internally( self ):
+        return True
+
     def _list_packages_to_install( self ):
         return super( AgentBox, self )._list_packages_to_install( ) + [
             'python',
@@ -39,7 +42,7 @@ class AgentBox( SourceControlClient ):
             run( '~/agent/bin/pip install hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-agent'
                  '@default'
                  '#egg=cghub-cloud-agent-1.0.dev1' )
-        authorized_keys = '~/authorized_keys'
+        authorized_keys = run( 'echo ~/authorized_keys' )
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
             namespace=self.ctx.namespace,

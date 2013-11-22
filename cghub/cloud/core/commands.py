@@ -124,15 +124,14 @@ class SshCommand( BoxCommand ):
         super( SshCommand, self ).__init__( application )
         self.option( '--user', '--login', '-u', '-l', default=None,
                      help="Name of user to login as." )
-        self.option( '--command', '-c', nargs=argparse.REMAINDER, default=[ ],
-                     help="Additional arguments to pass to ssh. This can be anything that you "
-                          "would pass to SSH with the exception of user name or host." )
+        self.option( 'command', metavar='...', nargs=argparse.REMAINDER, default=[ ],
+                     help="Additional arguments to pass to ssh. This can be anything that one "
+                          "would normally pass to the ssh program excluding user name and host "
+                          "but including, for example, the remote command to execute." )
 
     def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal )
-        i = next( ( i for i, v in enumerate( options.command ) if not v.startswith( '-' ) ),
-                  len( options.command ) )
-        box.ssh( options=options.command[ :i ], user=options.user, command=options.command[ i: ] )
+        box.ssh( user=options.user, command=options.command )
 
 
 class ImageCommand( BoxCommand ):
@@ -331,9 +330,12 @@ class RegisterKeyCommand( ContextCommand ):
     def run_in_ctx( self, options, ctx ):
         with open( options.ssh_public_key ) as f:
             ssh_public_key = f.read( )
-        ctx.register_ssh_pubkey( ec2_keypair_name=ctx.resolve_me( options.ec2_keypair_name ),
-                                 ssh_pubkey=ssh_public_key,
-                                 force=options.force )
+        try:
+            ctx.register_ssh_pubkey( ec2_keypair_name=ctx.resolve_me( options.ec2_keypair_name ),
+                                     ssh_pubkey=ssh_public_key,
+                                     force=options.force )
+        except ValueError as e:
+            raise UserError( cause=e )
 
 
 class ListRolesCommand( Command ):
