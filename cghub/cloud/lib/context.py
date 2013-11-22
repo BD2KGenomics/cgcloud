@@ -18,6 +18,7 @@ from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
 
 from cghub.util import memoize
+from cghub.cloud.lib.message import Message
 
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, mkdir_p, app_name
 
@@ -46,6 +47,11 @@ class Context( object ):
         strings consisting only of alphanumeric characters, '.', '-' or '_'. Components my not
         start with '_'. The namespace argument will be encoded as ASCII. Unicode strings that
         can't be encoded as ASCII will be rejected.
+
+        A note about our namespaces vs IAM's resource paths. IAM paths don't provide namespace
+        isolation. In other words, it is not possible to have two users of the same name in two
+        different paths. The by itself name has to be unique. For that reason, IAM resource paths
+        are pretty much useless.
 
         >>> ctx = Context( 'us-west-1b', None )
         Traceback (most recent call last):
@@ -296,7 +302,7 @@ class Context( object ):
 
         :param force: overwrite existing EC2 keypair of the given name
         """
-        fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
+        fingerprint = ec2_keypair_fingerprint( ssh_pubkey, reject_private_keys=True )
         ec2_keypair = self.ec2.get_key_pair( ec2_keypair_name )
         if ec2_keypair is not None:
             if ec2_keypair.name != ec2_keypair_name:
@@ -312,13 +318,12 @@ class Context( object ):
                         "the force option to overwrite the existing key pair." %
                         ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
 
-        self.upload_ssh_pubkey( ssh_pubkey, fingerprint )
-
         if ec2_keypair is None:
             ec2_keypair = self.ec2.import_key_pair( ec2_keypair_name, ssh_pubkey )
-
         assert ec2_keypair.fingerprint == fingerprint
 
+        self.upload_ssh_pubkey( ssh_pubkey, fingerprint )
+        self.publish_agent_message( Message( type=Message.TYPE_UPDATE_SSH_KEYS ) )
         return ec2_keypair
 
     def expand_keypair_globs( self, globs ):
@@ -377,7 +382,7 @@ class Context( object ):
         return ssh_pubkey
 
     @staticmethod
-    def to_sns_name( name ):
+    def to_safe_name( name ):
         """
         :type name: str|unicode
 
@@ -408,7 +413,7 @@ class Context( object ):
         return ''.join( map( f, name.encode( 'ascii' ) ) )
 
     @staticmethod
-    def from_sns_name( name ):
+    def from_safe_name( name ):
         """
         :type name: str|unicode
 
@@ -440,11 +445,11 @@ class Context( object ):
 
     @property
     def agent_topic_name( self ):
-        return self.to_sns_name( self.absolute_name( "cghub_cloud_agent" ) )
+        return self.to_safe_name( self.absolute_name( "cghub_cloud_agent" ) )
 
     @property
     def agent_queue_name( self ):
-        return self.to_sns_name(
+        return self.to_safe_name(
             self.agent_topic_name + "/" + socket.gethostname( ).replace( '.', '-' ) )
 
     @property
@@ -531,11 +536,6 @@ class Context( object ):
         if mkdir: mkdir_p( os.path.dirname( path ) )
         return path
 
-    iam_ec2_role_name = 'cghub-cloud-utils'
-    """
-    The name of the IAM role assumed by EC2 instances
-    """
-
     iam_ec2_role_policies = {
         'ec2_read_only': {
             "Version": "2012-10-17",
@@ -576,7 +576,7 @@ class Context( object ):
     """
 
     def setup_iam_ec2_role( self ):
-        role_name = self.iam_ec2_role_name
+        role_name = self.to_safe_name( self.absolute_name( 'ec2' ) )
         policies = self.iam_ec2_role_policies
 
         # Create role if necessary
@@ -623,3 +623,15 @@ class Context( object ):
                                           policy_document=json.dumps( policy ) )
 
         return role_name
+
+    @property
+    @memoize
+    def agent_topic_arn( self ):
+        return self.sns.create_topic( self.agent_topic_name )[
+            'CreateTopicResponse' ][ 'CreateTopicResult' ][ 'TopicArn' ]
+
+    def publish_agent_message( self, message ):
+        """
+        :type message: Message
+        """
+        self.sns.publish( self.agent_topic_arn, message.to_sns( ) )
