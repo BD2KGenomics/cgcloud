@@ -7,7 +7,6 @@ from cghub.cloud.core.box import fabric_task
 from cghub.cloud.devenv.jenkins_master import Jenkins, JenkinsMaster
 from cghub.cloud.core.source_control_client import SourceControlClient
 
-
 BUILD_USER = Jenkins.user
 BUILD_DIR = '/home/jenkins/builds'
 
@@ -138,6 +137,6 @@ class JenkinsSlave( SourceControlClient ):
                   E.tags(
                       E( 'hudson.plugins.ec2.EC2Tag',
                          E.name( 'Name' ),
-                         E.value( self.absolute_role( ) )
+                         E.value( self.ctx.to_aws_name( self.role( ) ) )
                       ) ),
                   E.usePrivateDnsName( 'false' ) )

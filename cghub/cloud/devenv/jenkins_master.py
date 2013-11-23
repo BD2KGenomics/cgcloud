@@ -185,7 +185,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
 
     @classmethod
     def ec2_keypair_name( cls, ctx ):
-        return Jenkins.user + '@' + ctx.absolute_name( cls.role( ) )
+        return Jenkins.user + '@' + ctx.to_aws_name( cls.role( ) )
 
     def __create_jenkins_keypair( self ):
         ec2_keypair_name = self.ec2_keypair_name( self.ctx )

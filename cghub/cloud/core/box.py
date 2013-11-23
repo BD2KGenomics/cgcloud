@@ -239,7 +239,7 @@ class Box( object ):
         :type instance: boto.ec2.instance.Instance
         """
         self._log( 'tagging instance ... ', newline=False )
-        instance.add_tag( 'Name', self.absolute_role( ) )
+        instance.add_tag( 'Name', self.ctx.to_aws_name( self.role( ) ) )
 
     def _on_instance_running( self, first_boot ):
         """
@@ -259,7 +259,7 @@ class Box( object ):
         :param first_boot: True if this is the first time the instance becomes ready since
         its creation
         """
-        if first_boot and not self._manages_keys_internally():
+        if first_boot and not self._manages_keys_internally( ):
             self.__inject_authorized_keys( self.ec2_keypairs[ 1: ] )
 
     def adopt( self, ordinal=None, wait_ready=True ):
@@ -297,7 +297,7 @@ class Box( object ):
         :return tuple of role name and list of instances
         :rtype: string, list of boto.ec2.instance.Instance
         """
-        name = self.absolute_role( )
+        name = self.ctx.to_aws_name( self.role( ) )
         reservations = self.ctx.ec2.get_all_instances( filters={ 'tag:Name': name } )
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
         instances.sort( key=attrgetter( 'launch_time' ) )
@@ -342,7 +342,8 @@ class Box( object ):
         self.__assert_state( 'stopped' )
 
         self._log( "Creating image, ... ", newline=False )
-        image_name = "%s %s" % ( self.absolute_role( ), time.strftime( '%Y-%m-%d %H-%M-%S' ) )
+        image_name = self.ctx.to_aws_name(
+            "%s_%s" % ( self.role( ), time.strftime( '%Y-%m-%d_%H-%M-%S' ) ) )
         image_id = self.ctx.ec2.create_image(
             instance_id=self.instance_id,
             name=image_name,
@@ -621,26 +622,6 @@ class Box( object ):
             raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
                                   % ( resource, to_state, state ) )
 
-    def _config_file_path( self, file_name, mkdir=False, role=None ):
-        """
-        Returns the path to a role-specific config file.
-
-        :param file_name: the desired file name
-        :param mkdir: ensure that the directies in the returned path exist
-        :return: the absolute path of the config file
-        """
-        if role is None: role = self.role( )
-        return self.ctx.config_file_path( [ role, file_name ], mkdir=mkdir )
-
-    def _read_config_file( self, file_name, **kwargs ):
-        """
-        Returns the contents of the given config file. Accepts the same parameters as
-        self._config_file_path() with the exception of 'mkdir' which must be omitted.
-        """
-        path = self._config_file_path( file_name, mkdir=False, **kwargs )
-        with open( path, 'r' ) as f:
-            return f.read( )
-
     @needs_instance
     def ssh( self, user=None, command=None ):
         if command is None: command = [ ]
@@ -649,12 +630,9 @@ class Box( object ):
     def _ssh_args( self, user, command ):
         if user is None:
             user = self.username( )
-        # Using host name instead of IP allows for more descriptive known_hosts entries and
+            # Using host name instead of IP allows for more descriptive known_hosts entries and
         # enables using wildcards like *.compute.amazonaws.com Host entries in ~/.ssh/config.
         return [ 'ssh', '%s@%s' % ( user, self.host_name ), '-A' ] + command
-
-    def absolute_role( self ):
-        return self.ctx.absolute_name( self.role( ) )
 
     @fabric_task
     def __inject_authorized_keys( self, ec2_keypairs ):
@@ -703,7 +681,7 @@ class Box( object ):
         """
         :rtype: list of boto.ec2.image.Image
         """
-        image_name_pattern = '%s *' % self.absolute_role( )
+        image_name_pattern = self.ctx.to_aws_name( self.role( ) + '_' ) + '*'
         images = self.ctx.ec2.get_all_images( filters={ 'name': image_name_pattern } )
         images.sort( key=attrgetter( 'name' ) ) # that sorts by date, effectively
         return images
@@ -728,7 +706,7 @@ class Box( object ):
 
     def _get_instance_profile_arn( self ):
         role_name = self.ctx.setup_iam_ec2_role( )
-        instance_profile_name = self.ctx.to_safe_name( self.absolute_role( ) )
+        instance_profile_name = self.ctx.to_aws_name( self.role( ) )
         try:
             profile = self.ctx.iam.get_instance_profile( instance_profile_name )
             profile = profile[
