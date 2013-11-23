@@ -298,3 +298,27 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
         bdm = self.get_instance( ).block_device_mapping
         bdm[ Jenkins.data_device_ext ].no_device = True
         return bdm
+
+    def _get_iam_ec2_role( self ):
+        role_name, policies = super( JenkinsMaster, self )._get_iam_ec2_role( )
+        policies.update( {
+            'ec2_full': {
+                "Version": "2012-10-17",
+                "Statement": [
+                    { "Action": "ec2:*", "Resource": "*", "Effect": "Allow" },
+                    { "Effect": "Allow", "Resource": "*", "Action": "elasticloadbalancing:*" },
+                    { "Effect": "Allow", "Resource": "*", "Action": "cloudwatch:*" },
+                    { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:*" } ] },
+            's3_custom': {
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Resource": "arn:aws:s3:::*",
+                        "Action": "s3:ListAllMyBuckets" },
+                    {
+                        "Effect": "Allow",
+                        "Action": "s3:*",
+                        "Resource": [
+                            "arn:aws:s3:::public-artifacts.cghub.ucsc.edu",
+                            "arn:aws:s3:::public-artifacts.cghub.ucsc.edu/*" ] } ] } } )
+        return role_name + '-jenkins-master', policies
