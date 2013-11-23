@@ -196,5 +196,5 @@ class AgentBox( SourceControlClient ):
                         "sns:CreateTopic",
                         "sns:Subscribe" ] } ] }
         } )
-        return 'cghub-cloud-agent', policies
+        return role_name + '-agent', policies
 
