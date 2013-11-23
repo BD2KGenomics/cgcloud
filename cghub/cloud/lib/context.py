@@ -485,53 +485,8 @@ class Context( object ):
         # avoid invoking self.iam_user_name unnecessarily
         return s.replace( placeholder, self.iam_user_name ) if placeholder in s  else s
 
-    iam_agent_policies = {
-        'ec2_read_only': {
-            "Version": "2012-10-17",
-            "Statement": [
-                { "Effect": "Allow", "Resource": "*", "Action": "ec2:Describe*" },
-                { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:Describe*" },
-                { "Effect": "Allow", "Resource": "*", "Action": "elasticloadbalancing:Describe*" },
-                { "Effect": "Allow", "Resource": "*", "Action": [
-                    "cloudwatch:ListMetrics",
-                    "cloudwatch:GetMetricStatistics",
-                    "cloudwatch:Describe*" ] } ] },
-        's3_read_only': {
-            "Version": "2012-10-17",
-            "Statement": [
-                { "Effect": "Allow", "Resource": "*", "Action": [ "s3:Get*", "s3:List*" ] } ] },
-        'iam_read_only': {
-            "Version": "2012-10-17",
-            "Statement": [
-                { "Effect": "Allow", "Resource": "*", "Action": [ "iam:List*", "iam:Get*" ] } ] },
-        'sqs_custom': {
-            "Version": "2012-10-17",
-            "Statement": [
-                { "Effect": "Allow", "Resource": "*", "Action": [
-                    "sqs:Get*",
-                    "sqs:List*",
-                    "sqs:CreateQueue",
-                    "sqs:SetQueueAttributes",
-                    "sqs:ReceiveMessage",
-                    "sqs:DeleteMessageBatch" ] } ] },
-        'sns_custom': {
-            "Version": "2012-10-17",
-            "Statement": [
-                { "Effect": "Allow", "Resource": "*", "Action": [
-                    "sns:Get*",
-                    "sns:List*",
-                    "sns:CreateTopic",
-                    "sns:Subscribe" ] } ] }
-    }
-    """
-    The policies belonging to the role assumed by EC2 instances. This effectively controls
-    what code running on our EC2 instances can do on AWS.
-    """
-
-    def setup_iam_ec2_role( self ):
-        role_name = self.to_aws_name( 'agent' )
-        policies = self.iam_agent_policies
-
+    def setup_iam_ec2_role( self, role_name, policies ):
+        role_name = self.to_aws_name( role_name )
         # Create role if necessary
         try:
             self.iam.create_role( role_name=role_name,
@@ -574,8 +529,6 @@ class Context( object ):
                 self.iam.put_role_policy( role_name=role_name,
                                           policy_name=policy_name,
                                           policy_document=json.dumps( policy ) )
-
-        return role_name
 
     _agent_topic_name = "cghub-cloud-agent-notifications"
 
