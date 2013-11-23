@@ -21,7 +21,7 @@ class Agent( object ):
         self.options = options
         self.fingerprints = None
 
-        queue_name = self.ctx.agent_queue_name
+        queue_name = self.ctx.to_aws_name( self.ctx.agent_queue_name )
         self.queue = self.ctx.sqs.get_queue( queue_name )
         if self.queue is None:
             # The create_queue API call handles races gracefully,
