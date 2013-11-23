@@ -705,7 +705,9 @@ class Box( object ):
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
 
     def _get_instance_profile_arn( self ):
-        role_name = self.ctx.setup_iam_ec2_role( )
+        role_name, policies = self._get_iam_ec2_role( )
+        self.ctx.setup_iam_ec2_role( role_name, policies )
+        role_name = self.to_aws_name( role_name )
         instance_profile_name = self.ctx.to_aws_name( self.role( ) )
         try:
             profile = self.ctx.iam.get_instance_profile( instance_profile_name )
@@ -730,3 +732,5 @@ class Box( object ):
                 raise
         return profile[ 'arn' ]
 
+    def _get_iam_ec2_role( self ):
+        return 'cghub-cloud-utils-default', { }

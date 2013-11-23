@@ -152,3 +152,49 @@ class AgentBox( SourceControlClient ):
         lines[ i ] = '%s%s %s\n' % ( m.group( 2 ), authorized_keys, m.group( 3 ) )
         sshd_config.truncate( 0 )
         sshd_config.writelines( lines )
+
+    def _get_iam_ec2_role( self ):
+        role_name, policies = super( AgentBox, self )._get_iam_ec2_role( )
+        policies.update( {
+            'ec2_read_only': {
+                "Version": "2012-10-17",
+                "Statement": [
+                    { "Effect": "Allow", "Resource": "*", "Action": "ec2:Describe*" },
+                    { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:Describe*" },
+                    { "Effect": "Allow", "Resource": "*",
+                        "Action": "elasticloadbalancing:Describe*" },
+                    { "Effect": "Allow", "Resource": "*", "Action": [
+                        "cloudwatch:ListMetrics",
+                        "cloudwatch:GetMetricStatistics",
+                        "cloudwatch:Describe*" ] } ] },
+            's3_read_only': {
+                "Version": "2012-10-17",
+                "Statement": [
+                    { "Effect": "Allow", "Resource": "*",
+                        "Action": [ "s3:Get*", "s3:List*" ] } ] },
+            'iam_read_only': {
+                "Version": "2012-10-17",
+                "Statement": [
+                    { "Effect": "Allow", "Resource": "*",
+                        "Action": [ "iam:List*", "iam:Get*" ] } ] },
+            'sqs_custom': {
+                "Version": "2012-10-17",
+                "Statement": [
+                    { "Effect": "Allow", "Resource": "*", "Action": [
+                        "sqs:Get*",
+                        "sqs:List*",
+                        "sqs:CreateQueue",
+                        "sqs:SetQueueAttributes",
+                        "sqs:ReceiveMessage",
+                        "sqs:DeleteMessageBatch" ] } ] },
+            'sns_custom': {
+                "Version": "2012-10-17",
+                "Statement": [
+                    { "Effect": "Allow", "Resource": "*", "Action": [
+                        "sns:Get*",
+                        "sns:List*",
+                        "sns:CreateTopic",
+                        "sns:Subscribe" ] } ] }
+        } )
+        return 'cghub-cloud-agent', policies
+
