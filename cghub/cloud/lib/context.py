@@ -1,12 +1,10 @@
 # coding=utf-8
 import json
 import urllib
-from cghub.util import fnmatch
-import os
 import re
 import socket
-import itertools
 
+from cghub.util import fnmatch
 from boto import ec2, s3, iam, sns, sqs
 from boto.s3.key import Key as S3Key
 from boto.exception import S3ResponseError, BotoServerError
@@ -15,12 +13,10 @@ from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
 from boto.iam.connection import IAMConnection
-from boto.ec2.keypair import KeyPair
-
 from cghub.util import memoize
-from cghub.cloud.lib.message import Message
 
-from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, mkdir_p, app_name
+from cghub.cloud.lib.message import Message
+from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError
 
 
 class Context( object ):
@@ -30,9 +26,10 @@ class Context( object ):
     s3_bucket_name = 'cghub-cloud-utils.cghub.ucsc.edu'
 
     availability_zone_re = re.compile( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$' )
-    path_prefix_re = re.compile( r'^(/([0-9a-zA-Z.-][_0-9a-zA-Z.-]*))*' )
-    path_re = re.compile( path_prefix_re.pattern + '/?$' )
-    namespace_re = re.compile( path_prefix_re.pattern + '/$' )
+
+    name_prefix_re = re.compile( r'^(/([0-9a-zA-Z.-][_0-9a-zA-Z.-]*))*' )
+    name_re = re.compile( name_prefix_re.pattern + '/?$' )
+    namespace_re = re.compile( name_prefix_re.pattern + '/$' )
 
     def __init__( self, availability_zone, namespace ):
         """
@@ -44,9 +41,9 @@ class Context( object ):
 
         :param namespace: The prefix for names of EC2 resources. The namespace is string starting
         in '/' followed by zero or more components, separated by '/'. Components are non-empty
-        strings consisting only of alphanumeric characters, '.', '-' or '_'. Components my not
-        start with '_'. The namespace argument will be encoded as ASCII. Unicode strings that
-        can't be encoded as ASCII will be rejected.
+        strings consisting only of alphanumeric characters, '.', '-' or '_' and that don't start
+        with '_'. The namespace argument will be encoded as ASCII. Unicode strings that can't be
+        encoded as ASCII will be rejected.
 
         A note about our namespaces vs IAM's resource paths. IAM paths don't provide namespace
         isolation. In other words, it is not possible to have two users of the same name in two
@@ -267,9 +264,100 @@ class Context( object ):
             result = name
         else:
             result = self.namespace + name
-        if not self.path_re.match( result ):
+        if not self.name_re.match( result ):
             raise ValueError( "Invalid path '%s'" % result )
         return result
+
+    def to_aws_name( self, name ):
+        """
+        Returns a transliteration of the name that safe to use for resource names on AWS. If the
+        given name is relative, it converted to its absolute form before the transliteration.
+
+        The transliteration uses two consequitive '_' to encode a single '_' and a single '_' to
+        separate the name components. AWS-safe names are by definition absolute such that the
+        leading separator can be removed. This leads to fairly readable AWS-safe names,
+        especially for names in the root namespace, where the transliteration is the identity
+        function if the input does not contain any '_'.
+
+        This scheme only works if name components don't start with '_'. Without that condition,
+        '/_' would become '___' the inverse of which is '_/'.
+
+        >>> ctx = Context( 'us-west-1b', namespace='/' )
+
+        >>> ctx.to_aws_name( 'foo' )
+        'foo'
+        >>> ctx.from_aws_name( 'foo' )
+        'foo'
+
+        Illegal paths that would introduce ambiguity need to raise an exception
+        >>> ctx.to_aws_name('/_')
+        Traceback (most recent call last):
+        ....
+        ValueError: Invalid path '/_'
+        >>> ctx.to_aws_name('/_/')
+        Traceback (most recent call last):
+        ....
+        ValueError: Invalid path '/_/'
+        >>> ctx.from_aws_name('___')
+        Traceback (most recent call last):
+        ....
+        ValueError: Invalid path '/_/'
+
+        >>> ctx.to_aws_name( 'foo_bar')
+        'foo__bar'
+        >>> ctx.from_aws_name( 'foo__bar')
+        'foo_bar'
+
+        >>> ctx.to_aws_name( '/sub_ns/foo_bar')
+        'sub__ns_foo__bar'
+        >>> ctx.to_aws_name( 'sub_ns/foo_bar')
+        'sub__ns_foo__bar'
+        >>> ctx.from_aws_name( 'sub__ns_foo__bar' )
+        'sub_ns/foo_bar'
+
+        >>> ctx.to_aws_name( 'g_/' )
+        'g___'
+        >>> ctx.from_aws_name( 'g___' )
+        'g_/'
+
+        >>> ctx = Context( 'us-west-1b', namespace='/this_ns/' )
+
+        >>> ctx.to_aws_name( 'foo' )
+        'this__ns_foo'
+        >>> ctx.from_aws_name( 'this__ns_foo' )
+        'foo'
+
+        >>> ctx.to_aws_name( 'foo_bar')
+        'this__ns_foo__bar'
+        >>> ctx.from_aws_name( 'this__ns_foo__bar')
+        'foo_bar'
+
+        >>> ctx.to_aws_name( '/other_ns/foo_bar' )
+        'other__ns_foo__bar'
+        >>> ctx.from_aws_name( 'other__ns_foo__bar' )
+        '/other_ns/foo_bar'
+
+        >>> ctx.to_aws_name( '/this_ns/foo_bar' )
+        'this__ns_foo__bar'
+        >>> ctx.from_aws_name( 'this__ns_foo__bar' )
+        'foo_bar'
+        """
+        name = self.absolute_name( name )
+        assert name.startswith( '/' )
+        return name[ 1: ].replace( '_', '__' ).replace( '/', '_' )
+
+    def from_aws_name( self, name ):
+        """
+        The inverse of to_aws_name(), except that the namespace is stripped from the input if it
+        is relative to this context's name space.
+        """
+        name = '_'.join( s.replace( '_', '/' ) for s in name.split( '__' ) )
+        name = '/' + name
+        if not self.name_re.match( name ):
+            raise ValueError( "Invalid path '%s'" % name )
+        if name.startswith( self.namespace ):
+            name = name[ len( self.namespace ): ]
+        return name
 
     @staticmethod
     def ssh_pubkey_s3_key( fingerprint ):
@@ -381,77 +469,6 @@ class Context( object ):
                     ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
         return ssh_pubkey
 
-    @staticmethod
-    def to_safe_name( name ):
-        """
-        :type name: str|unicode
-
-        >>> Context.to_sns_name('/foo/bar')
-        '_2ffoo_2fbar'
-        >>> Context.to_sns_name('/foo\\tbar')
-        '_2ffoo_09bar'
-        >>> Context.to_sns_name('_')
-        '_5f'
-        >>> Context.to_sns_name('-') == '-'
-        True
-        >>> import string
-        >>> Context.to_sns_name(string.ascii_letters) == string.ascii_letters
-        True
-        >>> Context.to_sns_name(string.digits) == string.digits
-        True
-        """
-
-        def f( c ):
-            """
-            :type c: str
-            """
-            if c.isalpha( ) or c == '-' or c.isdigit( ):
-                return c
-            else:
-                return "_" + hex( ord( c ) )[ 2: ].zfill( 2 )
-
-        return ''.join( map( f, name.encode( 'ascii' ) ) )
-
-    @staticmethod
-    def from_safe_name( name ):
-        """
-        :type name: str|unicode
-
-        >>> Context.from_sns_name( '_2ffoo_2fbar' )
-        '/foo/bar'
-
-        >>> Context.from_sns_name( '_2ffoo_09bar' )
-        '/foo\\tbar'
-
-        >>> Context.from_sns_name( 'foo_bar' ) # 0xBA is not a valid ASCII code point
-        Traceback (most recent call last):
-        ....
-        UnicodeDecodeError: 'ascii' codec can't decode byte 0xba in position 3: ordinal not in range(128)
-
-        >>> Context.from_sns_name('-') == '-'
-        True
-
-        >>> import string
-        >>> Context.from_sns_name(string.ascii_letters) == string.ascii_letters
-        True
-
-        >>> Context.from_sns_name(string.digits) == string.digits
-        True
-        """
-        subs = name.split( '_' )
-        return ''.join( itertools.chain( ( subs[ 0 ], ),
-                                         ( chr( int( sub[ :2 ], 16 ) ) + sub[ 2: ]
-                                             for sub in subs[ 1: ] ) ) ).encode( 'ascii' )
-
-    @property
-    def agent_topic_name( self ):
-        return self.to_safe_name( self.absolute_name( "agent" ) )
-
-    @property
-    def agent_queue_name( self ):
-        host_qualifier = socket.gethostname( ).replace( '.', '-' )
-        return self.agent_topic_name + self.to_safe_name( + "/" + host_qualifier )
-
     @property
     @memoize
     def iam_user_name( self ):
@@ -467,74 +484,6 @@ class Context( object ):
         placeholder = self.current_user_placeholder
         # avoid invoking self.iam_user_name unnecessarily
         return s.replace( placeholder, self.iam_user_name ) if placeholder in s  else s
-
-    def config_file_path( self, path_components, mkdir=False ):
-        """
-        Returns the absolute path to a local configuration file. If this context is
-        namespace-aware, configuration files will be located in a namespace-specific subdirectory.
-
-        >>> os.environ['HOME']='/home/foo'
-
-        >>> ctx = Context('us-west-1b', namespace='/')
-        >>> ctx.config_file_path(['foo'])
-        '/home/foo/.config/docrunner/_namespaces/_root/foo'
-        >>> ctx.config_file_path(['foo','bar'])
-        '/home/foo/.config/docrunner/_namespaces/_root/foo/bar'
-
-        >>> ctx = Context('us-west-1b', namespace='/hannes/')
-        >>> ctx.config_file_path(['foo'])
-        '/home/foo/.config/docrunner/_namespaces/hannes/foo'
-        >>> ctx.config_file_path(['foo','bar'])
-        '/home/foo/.config/docrunner/_namespaces/hannes/foo/bar'
-
-        >>> ctx = Context('us-west-1b', namespace='/hannes/test/')
-        >>> ctx.config_file_path(['foo'])
-        '/home/foo/.config/docrunner/_namespaces/hannes/test/foo'
-        >>> ctx.config_file_path(['foo','bar'])
-        '/home/foo/.config/docrunner/_namespaces/hannes/test/foo/bar'
-
-        """
-        if self.namespace is not None:
-            bare_ns = self.namespace[ 1:-1 ]
-            if not bare_ns:
-                path_components[ 0:0 ] = [ '_root' ]
-            else:
-                path_components[ 0:0 ] = bare_ns.split( '/' )
-            path_components[ 0:0 ] = [ '_namespaces' ]
-        file_path = self._config_file_path( path_components, mkdir=mkdir )
-        return file_path
-
-    @staticmethod
-    def _config_file_path( path_components, mkdir=False ):
-        """
-        Returns the path of a configuration file. In accordance with freedesktop.org's XDG Base
-        `Directory Specification <http://standards.freedesktop.org/basedir-spec/basedir-spec-latest
-        .html>`_, the configuration files are located in the ~/.config/cgcloud directory.
-
-        :param path_components: EITHER a string containing the desired name of the
-        configuration file OR an iterable of strings, the last component of which denotes the desired
-        name of the config file, all preceding components denoting a chain of nested subdirectories
-        of the config directory.
-
-        :param mkdir: if True, this method ensures that all directories in the returned path exist,
-        creating them if necessary
-
-        :return: the full path to the configuration file
-
-        >>> os.environ['HOME']='/home/foo'
-
-        >>> Context._config_file_path(['bar'])
-        '/home/foo/.config/docrunner/bar'
-
-        >>> Context._config_file_path(['dir','file'])
-        '/home/foo/.config/docrunner/dir/file'
-        """
-        default_config_dir_path = os.path.join( os.path.expanduser( '~' ), '.config' )
-        config_dir_path = os.environ.get( 'XDG_CONFIG_HOME', default_config_dir_path )
-        app_config_dir_path = os.path.join( config_dir_path, app_name( ) )
-        path = os.path.join( app_config_dir_path, *path_components )
-        if mkdir: mkdir_p( os.path.dirname( path ) )
-        return path
 
     iam_agent_policies = {
         'ec2_read_only': {
@@ -580,7 +529,7 @@ class Context( object ):
     """
 
     def setup_iam_ec2_role( self ):
-        role_name = self.to_safe_name( self.absolute_name( 'agent' ) )
+        role_name = self.to_aws_name( 'agent' )
         policies = self.iam_agent_policies
 
         # Create role if necessary
@@ -628,10 +577,21 @@ class Context( object ):
 
         return role_name
 
+    _agent_topic_name = "cghub-cloud-agent-notifications"
+
+    @property
+    def agent_queue_name( self ):
+        host_qualifier = socket.gethostname( ).replace( '.', '-' )
+        return self._agent_topic_name + '/' + host_qualifier
+
     @property
     @memoize
     def agent_topic_arn( self ):
-        return self.sns.create_topic( self.agent_topic_name )[
+        """
+        The ARN of the SNS topic on which the agents listen for messages and returns its ARN.
+        """
+        # Note that CreateTopic is idempotent
+        return self.sns.create_topic( self._agent_topic_name )[
             'CreateTopicResponse' ][ 'CreateTopicResult' ][ 'TopicArn' ]
 
     def publish_agent_message( self, message ):
