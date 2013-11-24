@@ -29,4 +29,5 @@ COMMANDS = [
     SshCommand,
     ListCommand,
     ListImages,
-    RegisterKeyCommand ]
+    RegisterKeyCommand,
+    CleanupCommand ]
