@@ -60,7 +60,7 @@ class AgentBox( SourceControlClient ):
                       '| gzip -c | base64'.format( **kwargs ) )
         script = self.gunzip_base64_decode( script )
         self._register_init_script( script, 'cgcloudagent' )
-        sudo( '/etc/init.d/cgcloudagent start' )
+        self._run_init_script( script )
 
         sshd_config_path = '/etc/ssh/sshd_config'
         sshd_config = sudo( 'gzip -c %s | base64' % sshd_config_path )

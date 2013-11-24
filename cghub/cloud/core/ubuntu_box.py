@@ -91,4 +91,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
             local_path=StringIO( script ),
             remote_path='/etc/init/%s.conf' % name,
             use_sudo=True )
-        sudo( 'service %s start' % name )
+
+    @fabric_task
+    def _run_init_script( self, script, name, command='start' ):
+        sudo( "service %s %s" % ( name, command ) )
