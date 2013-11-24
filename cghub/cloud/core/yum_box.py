@@ -70,11 +70,23 @@ class YumBox( PackageManagerBox ):
             ( 'python-dev', 'python-devel' ),
         ]
 
+    @staticmethod
+    def __init_script_path( name ):
+        return '/etc/init.d/%s' % name
+
     @fabric_task
-    def _register_init_script( self, script, name ):
+    def _register_init_script( self, script, name, start=False ):
+        script_path = self.__init_script_path( name )
         put(
             local_path=StringIO( script ),
-            remote_path='/etc/init.d/%s' % name,
+            remote_path=script_path,
             mode=0755,
             use_sudo=True )
         sudo( 'sudo chkconfig --add %s' % name )
+
+    @fabric_task
+    def _run_init_script( self, script, name, command='start' ):
+        script_path = self.__init_script_path( name )
+        sudo( '%s %s' % ( script_path, command ) )
+
+

@@ -28,29 +28,11 @@ class GenericCentos5Box( CentosBox ):
         self._yum_local( is_update=True, rpm_urls=[
             'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.7-1.el5.x86_64.rpm' ] )
 
-    @fabric_task
-    def __update_openssh( self ):
-        """
-        Our cghub-cloud-agent needs a newer version of OpenSSH that support listing with multiple
-        files for the sshd_conf option AuthorizedKeysFile. The stock CentOS 5 doesn't have one so
-        we'll install a custom RPM.
-
-        This method should to be invoked early on during setup.
-        """
-        # I wwasn't able to cusotm build openssh-askpass as it depends on X11 and whatnot,
-        # but it's not crucial so we'll skip it, or rather remove the old version of it
-        self._yum_remove( 'openssh-askpass' )
-        base_url = 'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/'
-        self._yum_local( is_update=True, rpm_urls=[
-            base_url + 'openssh-6.3p1-1.x86_64.rpm',
-            base_url + 'openssh-clients-6.3p1-1.x86_64.rpm',
-            base_url + 'openssh-server-6.3p1-1.x86_64.rpm' ] )
-
     def _on_instance_ready( self, first_boot ):
         super( GenericCentos5Box, self )._on_instance_ready( first_boot )
         if self.generation == 0 and first_boot:
             self.__update_sudo( )
-            self.__update_openssh( )
+            self._update_openssh( )
 
     def _ephemeral_mount_point( self ):
         return "/mnt"
@@ -89,6 +71,11 @@ class GenericCentos6Box( CentosBox ):
 
     def _ephemeral_mount_point( self ):
         return "/mnt/ephemeral"
+
+    def _on_instance_ready( self, first_boot ):
+        super( GenericCentos6Box, self )._on_instance_ready( first_boot )
+        if self.generation == 0 and first_boot:
+            self._update_openssh( )
 
 
 class GenericUbuntuLucidBox( UbuntuBox ):
