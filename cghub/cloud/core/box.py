@@ -422,7 +422,7 @@ class Box( object ):
         :param name: the name of the volume
         """
         name = self.ctx.absolute_name( name )
-        volumes = self.ctx.ec2.get_all_volumes( filters={ 'tag:Name': name } )
+        volumes = self.ctx.ec2.get_all_volumes( filters={ 'tag:Name': self.ctx.to_aws_name( name ) } )
         if len( volumes ) < 1: return None
         if len( volumes ) > 1: raise UserError( "More than one EBS volume named %s" % name )
         volume = volumes[ 0 ]
@@ -438,22 +438,21 @@ class Box( object ):
         """
         Ensure that an EBS volume of the given name is available in the current availability zone.
         If the EBS volume exists but has been placed into a different zone, or if it is not
-        available, an exception will be thrown. If the volume does not exist it will be created in
-        the current zone with the specified size.
+        available, an exception will be thrown. If the volume does not exist, it will be created
+        in the current zone with the specified size.
 
         :param name: the name of the volume
         :param size: the size to be used if it needs to be created
         :param kwargs: additional parameters for boto.connection.create_volume()
         :return: the volume
         """
-        name = self.ctx.absolute_name( name )
         volume = self.get_attachable_volume( name )
         if volume is None:
             self._log( "Creating volume %s, ... " % name, newline=False )
             zone = self.ctx.availability_zone
             volume = self.ctx.ec2.create_volume( size, zone, **kwargs )
             self.__wait_volume_transition( volume, { 'creating' }, 'available' )
-            volume.add_tag( 'Name', name )
+            volume.add_tag( 'Name', self.ctx.to_aws_name( name ) )
             self._log( 'done.' )
             volume = self.get_attachable_volume( name )
         return volume
