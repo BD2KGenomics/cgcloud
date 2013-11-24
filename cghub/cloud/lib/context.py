@@ -487,48 +487,61 @@ class Context( object ):
 
     def setup_iam_ec2_role( self, role_name, policies ):
         role_name = self.to_aws_name( role_name )
-        # Create role if necessary
         try:
-            self.iam.create_role( role_name=role_name,
-                                  assume_role_policy_document=json.dumps( {
-                                      "Version": "2012-10-17",
-                                      "Statement": [ {
-                                          "Effect": "Allow",
-                                          "Principal": { "Service": [ "ec2.amazonaws.com" ] },
-                                          "Action": [ "sts:AssumeRole" ] }
-                                      ] } ) )
+            self.iam.create_role( role_name, assume_role_policy_document=json.dumps( {
+                "Version": "2012-10-17",
+                "Statement": [ {
+                    "Effect": "Allow",
+                    "Principal": { "Service": [ "ec2.amazonaws.com" ] },
+                    "Action": [ "sts:AssumeRole" ] }
+                ] } ) )
         except BotoServerError as e:
             if e.status == 409 and e.error_code == 'EntityAlreadyExists':
                 pass
             else:
                 raise
 
+        self.__setup_entity_policies( role_name, policies,
+                                    list_policies=self.iam.list_role_policies,
+                                    delete_policy=self.iam.delete_role_policy,
+                                    get_policy=self.iam.get_role_policy,
+                                    put_policy=self.iam.put_role_policy )
+
+    def setup_iam_user_policies( self, user_name, policies ):
+        try:
+            self.iam.create_user( user_name )
+        except BotoServerError as e:
+            if e.status == 409 and e.error_code == 'EntityAlreadyExists':
+                pass
+            else:
+                raise
+
+        self.__setup_entity_policies( user_name, policies,
+                                    list_policies=self.iam.get_all_user_policies,
+                                    delete_policy=self.iam.delete_user_policy,
+                                    get_policy=self.iam.get_user_policy,
+                                    put_policy=self.iam.put_user_policy )
+
+    def __setup_entity_policies( self, entity_name, policies,
+                               list_policies, delete_policy, get_policy, put_policy ):
         # Delete superfluous policies
-        policy_names = set( self.iam.list_role_policies( role_name=role_name )[
-            'list_role_policies_response' ][ 'list_role_policies_result' ][ 'policy_names' ] )
+        policy_names = set( list_policies( entity_name ).policy_names )
         for policy_name in policy_names.difference( set( policies.keys( ) ) ):
-            self.iam.delete_role_policy( role_name=role_name,
-                                         policy_name=policy_name )
+            delete_policy( entity_name, policy_name )
 
         # Create expected policies
         for policy_name, policy in policies.iteritems( ):
             current_policy = None
             try:
                 current_policy = json.loads( urllib.unquote(
-                    self.iam.get_role_policy( role_name=role_name,
-                                              policy_name=policy_name )[
-                        'get_role_policy_response' ][
-                        'get_role_policy_result' ][
-                        'policy_document' ] ) )
+                    get_policy( entity_name, policy_name ).policy_document ) )
             except BotoServerError as e:
                 if e.status == 404 and e.error_code == 'NoSuchEntity':
                     pass
                 else:
                     raise
             if current_policy != policy:
-                self.iam.put_role_policy( role_name=role_name,
-                                          policy_name=policy_name,
-                                          policy_document=json.dumps( policy ) )
+                put_policy( entity_name, policy_name, json.dumps( policy ) )
 
     _agent_topic_name = "cghub-cloud-agent-notifications"
 
