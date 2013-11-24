@@ -1,5 +1,7 @@
 from StringIO import StringIO
+import json
 from textwrap import dedent
+from boto.exception import BotoServerError
 
 from lxml import etree
 from fabric.context_managers import settings, hide
@@ -7,6 +9,7 @@ from fabric.operations import run, sudo, put, get
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key
 
 from cghub.cloud.core.box import fabric_task
+from cghub.cloud.core.generic_boxes import GenericUbuntuRaringBox
 from cghub.cloud.core.source_control_client import SourceControlClient
 from cghub.cloud.core.ubuntu_box import UbuntuBox
 
@@ -66,10 +69,10 @@ class Jenkins:
     """
 
 
-jenkins = Jenkins.__dict__
+jenkins = vars( Jenkins )
 
 
-class JenkinsMaster( UbuntuBox, SourceControlClient ):
+class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
     """
     An instance of this class represents the build master in EC2
     """
@@ -77,9 +80,6 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
     def __init__( self, ctx ):
         super( JenkinsMaster, self ).__init__( ctx )
         self.volume = None
-
-    def release( self ):
-        return 'raring'
 
     def create( self, *args, **kwargs ):
         self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
@@ -244,9 +244,11 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
 
     @fabric_task
     def _post_install_packages( self ):
+        super( JenkinsMaster, self )._post_install_packages( )
         self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
         self.__create_jenkins_keypair( )
         self.setup_repo_host_keys( user=Jenkins.user )
+        self.__inject_aws_credentials( )
 
     def _ssh_args( self, user, command ):
         # Add port forwarding to Jenkins' web UI
@@ -291,7 +293,7 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                               pretty_print=True )
         put( local_path=jenkins_config_file,
              remote_path=jenkins_config_path )
-        run( "curl -X POST http://localhost:8080/reload" )
+        self.__reload_jenkins( )
 
     def _image_block_device_mapping( self ):
         # Do not include the data volume in the snapshot
@@ -322,3 +324,57 @@ class JenkinsMaster( UbuntuBox, SourceControlClient ):
                             "arn:aws:s3:::public-artifacts.cghub.ucsc.edu",
                             "arn:aws:s3:::public-artifacts.cghub.ucsc.edu/*" ] } ] } } )
         return role_name + '-jenkins-master', policies
+
+    def __patch_config_file( self, path, text_by_xpath ):
+        config_file = StringIO( )
+        with settings( warn_only=True ):
+            if get( remote_path=path, local_path=config_file ).failed:
+                self._log( "Warning: Cannot find config file '%s' to patch" % path )
+                return
+        config_file.seek( 0 )
+        parser = etree.XMLParser( remove_blank_text=True )
+        config = etree.parse( config_file, parser )
+        for xpath, text in text_by_xpath.iteritems( ):
+            for element in config.iterfind( xpath ):
+                element.text = text
+        config_file.truncate( 0 )
+        config.write( config_file,
+                      encoding=config.docinfo.encoding,
+                      xml_declaration=True,
+                      pretty_print=True )
+        put( local_path=config_file, remote_path=path )
+
+    @fabric_task
+    def __reload_jenkins( self ):
+        run( 'curl -X POST http://localhost:8080/reload' )
+
+    @fabric_task
+    def __restart_jenkins( self ):
+        sudo( 'service jenkins restart' )
+
+    @fabric_task( user=Jenkins.user )
+    def __inject_aws_credentials( self ):
+        """
+        Neither the Jenkins EC2 plugin nor the Jenkins S3 Publisher plugin support getting
+        temporary credentials from STS. In the interim, we'll have to attach the policies to a
+        IAM user object and inject that user's credentials in Jenkins' configuration.
+        """
+        role_name, policies = self._get_iam_ec2_role( )
+        user_name = self.ec2_keypair_name( self.ctx )
+        self.ctx.setup_iam_user_policies( user_name, policies )
+        access_keys = self.ctx.iam.get_all_access_keys( user_name ).access_key_metadata
+        for access_key in access_keys:
+            self.ctx.iam.delete_access_key( access_key.access_key_id, user_name )
+        access_key = self.ctx.iam.create_access_key( user_name ).access_key
+        access_key_id = access_key.access_key_id
+        secret_key = access_key.secret_access_key
+        self.__patch_config_file( path='~/config.xml',
+                                  text_by_xpath={
+                                      './/hudson.plugins.ec2.EC2Cloud/accessId': access_key_id,
+                                      './/hudson.plugins.ec2.EC2Cloud/secretKey': secret_key } )
+        self.__patch_config_file( path='~/hudson.plugins.s3.S3BucketPublisher.xml',
+                                  text_by_xpath={
+                                      './/accessKey': access_key_id,
+                                      './/secretKey': secret_key } )
+        # reload won't update the S3 plugin's configuration for some reason
+        self.__restart_jenkins( )
