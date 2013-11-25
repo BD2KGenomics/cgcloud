@@ -85,7 +85,7 @@ class YumBox( PackageManagerBox ):
         sudo( 'sudo chkconfig --add %s' % name )
 
     @fabric_task
-    def _run_init_script( self, script, name, command='start' ):
+    def _run_init_script( self, name, command='start' ):
         script_path = self.__init_script_path( name )
         sudo( '%s %s' % ( script_path, command ) )
 

@@ -86,7 +86,7 @@ class PackageManagerBox( Box ):
     def _register_init_script(self, script, name ):
         raise NotImplementedError()
 
-    def _run_init_script(self, script, name, command='start' ):
+    def _run_init_script(self, name, command='start' ):
         raise NotImplementedError()
 
 

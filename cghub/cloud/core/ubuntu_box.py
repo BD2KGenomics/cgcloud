@@ -93,5 +93,5 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
             use_sudo=True )
 
     @fabric_task
-    def _run_init_script( self, script, name, command='start' ):
+    def _run_init_script( self, name, command='start' ):
         sudo( "service %s %s" % ( name, command ) )
