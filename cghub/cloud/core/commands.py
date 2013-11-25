@@ -404,20 +404,6 @@ class CreateCommand( CreationCommand ):
 
 class CleanupCommand( ContextCommand ):
     def run_in_ctx( self, options, ctx ):
-        all_snapshots = set( snapshot.id for snapshot in ctx.ec2.get_all_snapshots(
-            owner='self', filters=dict( description='Created by CreateImage*' ) ) )
-        used_snapshots = set( bdt.snapshot_id
-            for image in ctx.ec2.get_all_images( owners=[ 'self' ] )
-            for bdt in image.block_device_mapping.itervalues( )
-            if bdt.snapshot_id is not None )
-        unused_snapshots = all_snapshots - used_snapshots
-        if unused_snapshots:
-            print 'The following snapshots are not referenced by any images.'
-            for snapshot_id in unused_snapshots:
-                print( snapshot_id )
-            if 'yes' == prompt( 'Delete these snapshots? (yes/no)', default='no' ):
-                for snapshot_id in unused_snapshots:
-                    print 'Deleting snapshot %s' % snapshot_id
-                    ctx.ec2.delete_snapshot( snapshot_id )
-        else:
-            print 'No unused snapshots.'
+        ctx.cleanup_image_snapshots( )
+        ctx.cleanup_ssh_pubkeys( )
+
