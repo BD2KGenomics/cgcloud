@@ -13,7 +13,9 @@ from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
 from boto.iam.connection import IAMConnection
+from boto.ec2.keypair import KeyPair
 from cghub.util import memoize
+from fabric.operations import prompt
 
 from cghub.cloud.lib.message import Message
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError
@@ -359,9 +361,7 @@ class Context( object ):
             name = name[ len( self.namespace ): ]
         return name
 
-    @staticmethod
-    def ssh_pubkey_s3_key( fingerprint ):
-        return 'ssh_pubkey:%s' % fingerprint
+    ssh_pubkey_s3_key_prefix = 'ssh_pubkey:'
 
     def upload_ssh_pubkey( self, ssh_pubkey, fingerprint ):
         bucket = self.s3.lookup( self.s3_bucket_name )
@@ -369,7 +369,7 @@ class Context( object ):
             bucket = self.s3.create_bucket( self.s3_bucket_name,
                                             location=self.region )
         s3_entry = S3Key( bucket )
-        s3_entry.key = self.ssh_pubkey_s3_key( fingerprint )
+        s3_entry.key = self.ssh_pubkey_s3_key_prefix + fingerprint
         s3_entry.set_contents_from_string( ssh_pubkey )
 
     def register_ssh_pubkey( self, ec2_keypair_name, ssh_pubkey, force=False ):
@@ -411,7 +411,7 @@ class Context( object ):
         assert ec2_keypair.fingerprint == fingerprint
 
         self.upload_ssh_pubkey( ssh_pubkey, fingerprint )
-        self.publish_agent_message( Message( type=Message.TYPE_UPDATE_SSH_KEYS ) )
+        self.__publish_key_update_agent_message( )
         return ec2_keypair
 
     def expand_keypair_globs( self, globs ):
@@ -422,7 +422,7 @@ class Context( object ):
         with all key pairs matching the first glob, followed by key pairs matching the second
         glob but not the first glob and so on.
 
-        :rtype: list of Keypair
+        :rtype: list of KeyPair
         """
         result = [ ]
         keypairs = dict( (keypair.name, keypair) for keypair in self.ec2.get_all_key_pairs( ) )
@@ -441,7 +441,7 @@ class Context( object ):
         try:
             bucket = self.s3.get_bucket( self.s3_bucket_name )
             s3_entry = S3Key( bucket )
-            s3_entry.key = self.ssh_pubkey_s3_key( ec2_keypair.fingerprint )
+            s3_entry.key = self.ssh_pubkey_s3_key_prefix + ec2_keypair.fingerprint
             ssh_pubkey = s3_entry.get_contents_as_string( )
         except S3ResponseError as e:
             if e.status == 404:
@@ -502,10 +502,10 @@ class Context( object ):
                 raise
 
         self.__setup_entity_policies( role_name, policies,
-                                    list_policies=self.iam.list_role_policies,
-                                    delete_policy=self.iam.delete_role_policy,
-                                    get_policy=self.iam.get_role_policy,
-                                    put_policy=self.iam.put_role_policy )
+                                      list_policies=self.iam.list_role_policies,
+                                      delete_policy=self.iam.delete_role_policy,
+                                      get_policy=self.iam.get_role_policy,
+                                      put_policy=self.iam.put_role_policy )
 
     def setup_iam_user_policies( self, user_name, policies ):
         try:
@@ -517,13 +517,13 @@ class Context( object ):
                 raise
 
         self.__setup_entity_policies( user_name, policies,
-                                    list_policies=self.iam.get_all_user_policies,
-                                    delete_policy=self.iam.delete_user_policy,
-                                    get_policy=self.iam.get_user_policy,
-                                    put_policy=self.iam.put_user_policy )
+                                      list_policies=self.iam.get_all_user_policies,
+                                      delete_policy=self.iam.delete_user_policy,
+                                      get_policy=self.iam.get_user_policy,
+                                      put_policy=self.iam.put_user_policy )
 
     def __setup_entity_policies( self, entity_name, policies,
-                               list_policies, delete_policy, get_policy, put_policy ):
+                                 list_policies, delete_policy, get_policy, put_policy ):
         # Delete superfluous policies
         policy_names = set( list_policies( entity_name ).policy_names )
         for policy_name in policy_names.difference( set( policies.keys( ) ) ):
@@ -565,3 +565,42 @@ class Context( object ):
         :type message: Message
         """
         self.sns.publish( self.agent_topic_arn, message.to_sns( ) )
+
+    def __publish_key_update_agent_message( self ):
+        self.publish_agent_message( Message( type=Message.TYPE_UPDATE_SSH_KEYS ) )
+
+    def cleanup_ssh_pubkeys( self ):
+        keypairs = self.expand_keypair_globs( '*' )
+        ec2_fingerprints = set( keypair.fingerprint for keypair in keypairs )
+        bucket = self.s3.get_bucket( self.s3_bucket_name )
+        prefix = self.ssh_pubkey_s3_key_prefix
+        s3_fingerprints = set( key.name[ len( prefix ): ] for key in bucket.list( prefix=prefix ) )
+        unused_fingerprints = s3_fingerprints - ec2_fingerprints
+        if unused_fingerprints:
+            print 'The following public keys in S3 are not referenced by any EC2 keypairs:'
+            for fingerprint in unused_fingerprints:
+                print fingerprint
+            if 'yes' == prompt( 'Delete these public keys from S3? (yes/no)', default='no' ):
+                bucket.delete_keys( self.ssh_pubkey_s3_key_prefix + fingerprint
+                    for fingerprint in unused_fingerprints )
+        else:
+            print 'No orphaned public keys in S3.'
+
+    def cleanup_image_snapshots( self ):
+        all_snapshots = set( snapshot.id for snapshot in self.ec2.get_all_snapshots(
+            owner='self', filters=dict( description='Created by CreateImage*' ) ) )
+        used_snapshots = set( bdt.snapshot_id
+            for image in self.ec2.get_all_images( owners=[ 'self' ] )
+            for bdt in image.block_device_mapping.itervalues( )
+            if bdt.snapshot_id is not None )
+        unused_snapshots = all_snapshots - used_snapshots
+        if unused_snapshots:
+            print 'The following snapshots are not referenced by any images:'
+            for snapshot_id in unused_snapshots:
+                print( snapshot_id )
+            if 'yes' == prompt( 'Delete these snapshots? (yes/no)', default='no' ):
+                for snapshot_id in unused_snapshots:
+                    print 'Deleting snapshot %s' % snapshot_id
+                    self.ec2.delete_snapshot( snapshot_id )
+        else:
+            print 'No unused snapshots.'
