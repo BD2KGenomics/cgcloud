@@ -253,11 +253,13 @@ class Box( object ):
 
     def _on_instance_ready( self, first_boot ):
         """
-        Invoked while creating, adopting or starting an instance, right after the instance became
-        ready.
+        Invoked while creating, adopting or starting an instance, right after the instance was
+        found to ready.
 
-        :param first_boot: True if this is the first time the instance becomes ready since
-        its creation
+        :param first_boot: True if the instance was booted for the first time, i.e. if this is
+        the first time the instance becomes ready since its creation, False if the instance was
+        booted but not for the first time, None if it is not clear whether the instance was
+        booted, e.g. after adoption.
         """
         if first_boot and not self._manages_keys_internally( ):
             self.__inject_authorized_keys( self.ec2_keypairs[ 1: ] )
@@ -276,7 +278,7 @@ class Box( object ):
             self.instance_id = instance.id
             self.__read_generation( instance.image_id )
             if wait_ready:
-                self.__wait_ready( instance, from_states={ 'pending' } )
+                self.__wait_ready( instance, from_states={ 'pending' }, first_boot=None )
             else:
                 self._log( 'done.' )
 
@@ -384,7 +386,7 @@ class Box( object ):
         # Not 100% sure why from_states includes 'stopped' but I think I noticed that there is a
         # short interval after start_instances returns during which the instance is still in
         # stopped before it goes into pending
-        self.__wait_ready( instance, from_states={ 'stopped', 'pending' } )
+        self.__wait_ready( instance, from_states={ 'stopped', 'pending' }, first_boot=False )
 
     @needs_instance
     def reboot( self ):
@@ -422,7 +424,8 @@ class Box( object ):
         :param name: the name of the volume
         """
         name = self.ctx.absolute_name( name )
-        volumes = self.ctx.ec2.get_all_volumes( filters={ 'tag:Name': self.ctx.to_aws_name( name ) } )
+        volumes = self.ctx.ec2.get_all_volumes(
+            filters={ 'tag:Name': self.ctx.to_aws_name( name ) } )
         if len( volumes ) < 1: return None
         if len( volumes ) > 1: raise UserError( "More than one EBS volume named %s" % name )
         volume = volumes[ 0 ]
@@ -508,12 +511,21 @@ class Box( object ):
         reservations = self.ctx.ec2.get_all_instances( self.instance_id )
         return unpack_singleton( unpack_singleton( reservations ).instances )
 
-    def __wait_ready( self, instance, from_states, first_boot=False ):
+    def __wait_ready( self, instance, from_states, first_boot ):
         """
         Wait until the given instance transistions from stopped or pending state to being fully
         running and accessible via SSH.
 
+        :param instance: the instance to wait for
         :type instance: boto.ec2.instance.Instance
+
+        :param from_states: the set of states the instance may be in when this methods is
+        invoked, any other state will raise an exception.
+        :type from_states: set of str
+
+         :param first_boot: True if the instance is currently booting for the first time,
+         None if the instance isn't booting, False if the instance is booting but not for the
+         first time.
         """
         self._log( "waiting for instance ... ", newline=False )
         self.__wait_transition( instance, from_states, 'running' )
@@ -522,9 +534,12 @@ class Box( object ):
         self.__wait_public_ip_assigned( instance )
         self._log( "assigned, waiting for ssh ... ", newline=False )
         self.__wait_ssh_port_open( )
-        self._log( "port open, testing ... ", newline=False )
-        self.__wait_ssh_working( )
-        self._log( "working, done." )
+        self._log( "port open, ", newline=False )
+        if first_boot is not None:
+            self._log( "testing ... ", newline=False )
+            self.__wait_ssh_working( )
+            self._log( "working, " )
+        self._log( "done." )
         self._on_instance_ready( first_boot )
 
     def __wait_public_ip_assigned( self, instance ):
