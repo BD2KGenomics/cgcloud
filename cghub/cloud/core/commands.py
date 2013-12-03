@@ -403,7 +403,48 @@ class CreateCommand( CreationCommand ):
 
 
 class CleanupCommand( ContextCommand ):
-    def run_in_ctx( self, options, ctx ):
-        ctx.cleanup_image_snapshots( )
-        ctx.cleanup_ssh_pubkeys( )
+    """
+    Lists and optionally deletes unused AWS resources after prompting for confirmation.
+    """
 
+    def run_in_ctx( self, options, ctx ):
+        self.cleanup_image_snapshots( ctx )
+        self.cleanup_ssh_pubkeys( ctx )
+
+    @staticmethod
+    def cleanup_ssh_pubkeys( ctx ):
+        keypairs = ctx.expand_keypair_globs( '*' )
+        ec2_fingerprints = set( keypair.fingerprint for keypair in keypairs )
+        bucket = ctx.s3.get_bucket( ctx.s3_bucket_name )
+        prefix = ctx.ssh_pubkey_s3_key_prefix
+        s3_fingerprints = set( key.name[ len( prefix ): ] for key in bucket.list( prefix=prefix ) )
+        unused_fingerprints = s3_fingerprints - ec2_fingerprints
+        if unused_fingerprints:
+            print 'The following public keys in S3 are not referenced by any EC2 keypairs:'
+            for fingerprint in unused_fingerprints:
+                print fingerprint
+            if 'yes' == prompt( 'Delete these public keys from S3? (yes/no)', default='no' ):
+                bucket.delete_keys( ctx.ssh_pubkey_s3_key_prefix + fingerprint
+                    for fingerprint in unused_fingerprints )
+        else:
+            print 'No orphaned public keys in S3.'
+
+    @staticmethod
+    def cleanup_image_snapshots( ctx ):
+        all_snapshots = set( snapshot.id for snapshot in ctx.ec2.get_all_snapshots(
+            owner='self', filters=dict( description='Created by CreateImage*' ) ) )
+        used_snapshots = set( bdt.snapshot_id
+            for image in ctx.ec2.get_all_images( owners=[ 'self' ] )
+            for bdt in image.block_device_mapping.itervalues( )
+            if bdt.snapshot_id is not None )
+        unused_snapshots = all_snapshots - used_snapshots
+        if unused_snapshots:
+            print 'The following snapshots are not referenced by any images:'
+            for snapshot_id in unused_snapshots:
+                print( snapshot_id )
+            if 'yes' == prompt( 'Delete these snapshots? (yes/no)', default='no' ):
+                for snapshot_id in unused_snapshots:
+                    print 'Deleting snapshot %s' % snapshot_id
+                    ctx.ec2.delete_snapshot( snapshot_id )
+        else:
+            print 'No unused EBS volume snapshots in EC2.'
