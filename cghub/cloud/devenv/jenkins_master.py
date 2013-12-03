@@ -187,38 +187,38 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
     def ec2_keypair_name( cls, ctx ):
         return Jenkins.user + '@' + ctx.to_aws_name( cls.role( ) )
 
+    @fabric_task( user=Jenkins.user )
     def __create_jenkins_keypair( self ):
+        # Get keypair or create it if it doesn't exist
         ec2_keypair_name = self.ec2_keypair_name( self.ctx )
         ec2_keypair = self.ctx.ec2.get_key_pair( ec2_keypair_name )
         if ec2_keypair is None:
             ec2_keypair = self.ctx.ec2.create_key_pair( ec2_keypair_name )
             if not ec2_keypair.material:
                 raise AssertionError( "Created key pair but didn't get back private key" )
-        key_file_exists = sudo( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
-        #
-        # Create an SSH key pair in Jenkin's home and upload the public key to S3.
-        #
+
+        key_file_exists = run( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
+
         if ec2_keypair.material:
+            # Creation will yield new private key, download it
             ssh_privkey = ec2_keypair.material
             if key_file_exists:
                 # TODO: make this more prominent, e.g. by displaying all warnings at the end
                 self._log( 'Warning: Overwriting private key with new one from EC2.' )
-                # store private key on box
-            put( local_path=StringIO( ssh_privkey ),
-                 remote_path=Jenkins.key_path,
-                 use_sudo=True )
+            put( local_path=StringIO( ssh_privkey ), remote_path=Jenkins.key_path )
             assert ec2_keypair.fingerprint == ec2_keypair_fingerprint( ssh_privkey )
-            sudo( 'chown {user}:{group} {key_path}'.format( **jenkins ) )
-            sudo( 'chmod go= {key_path}'.format( **jenkins ), user=Jenkins.user )
+            run( 'chmod go= {key_path}'.format( **jenkins ) )
             ssh_pubkey = private_to_public_key( ssh_privkey )
+
             # Note that we are uploading the public key using the private key's fingerprint
             self.ctx.upload_ssh_pubkey( ssh_pubkey, ec2_keypair.fingerprint )
         else:
+            # With an existing keypair there is no way to get the private key from AWS,
+            # all we can do is check whether the locally stored private key is consistent.
             if key_file_exists:
-                # Must use sudo('cat') since get() doesn't support use_sudo
-                # See https://github.com/fabric/fabric/issues/700
-                with settings( hide( 'stdout' ) ):
-                    ssh_privkey = sudo( "cat %s" % Jenkins.key_path, user=Jenkins.user )
+                ssh_privkey = StringIO( )
+                get( remote_path=Jenkins.key_path, local_path=ssh_privkey )
+                ssh_privkey = ssh_privkey.getvalue( )
                 fingerprint = ec2_keypair_fingerprint( ssh_privkey )
                 if ec2_keypair.fingerprint != fingerprint:
                     raise UserError(
@@ -227,6 +227,8 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
                         "currently present on the instance. "
                         "Please delete the key pair from EC2 before retrying."
                         .format( key_pair=ec2_keypair, fingerprint=fingerprint ) )
+                # The fingerprints match, now get the public key we stored in S3 and make sure it
+                # matches the private key.
                 ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
                 if ssh_pubkey != private_to_public_key( ssh_privkey ):
                     raise RuntimeError( "The private key on the data volume doesn't match the "
@@ -238,17 +240,22 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
                     "create the private key file, the key pair must be created at the same time. "
                     "Please delete the key pair from EC2 before retrying."
                     .format( key_pair=ec2_keypair, **jenkins ) )
-        put( local_path=StringIO( ssh_pubkey ),
-             remote_path=Jenkins.key_path + '.pub',
-             use_sudo=True )
+        put( local_path=StringIO( ssh_pubkey ), remote_path=Jenkins.key_path + '.pub' )
+        return self.__patch_config_file(
+            path='~/config.xml',
+            text_by_xpath={ './/hudson.plugins.ec2.EC2Cloud/privateKey/privateKey': ssh_privkey } )
 
     @fabric_task
     def _post_install_packages( self ):
         super( JenkinsMaster, self )._post_install_packages( )
         self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
-        self.__create_jenkins_keypair( )
         self.setup_repo_host_keys( user=Jenkins.user )
-        self.__inject_aws_credentials( )
+        restart_needed = self.__create_jenkins_keypair( )
+        restart_needed = self.__inject_aws_credentials( ) or restart_needed
+        # For some reason, simply reloading Jenkins via its WS API won't update the configuration
+        # of certain plugins (s3-publisher-plugin, for example) so since we might have touched
+        # plugin configuration, we need to restart Jenkins.
+        if restart_needed: self.__restart_jenkins( )
 
     def _ssh_args( self, user, command ):
         # Add port forwarding to Jenkins' web UI
@@ -259,8 +266,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
     def register_slaves( self, slave_clss ):
         jenkins_config_file = StringIO( )
         jenkins_config_path = '~/config.xml'
-        get( local_path=jenkins_config_file,
-             remote_path=jenkins_config_path )
+        get( local_path=jenkins_config_file, remote_path=jenkins_config_path )
         jenkins_config_file.seek( 0 )
         parser = etree.XMLParser( remove_blank_text=True )
         jenkins_config = etree.parse( jenkins_config_file, parser )
@@ -291,8 +297,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
                               encoding=jenkins_config.docinfo.encoding,
                               xml_declaration=True,
                               pretty_print=True )
-        put( local_path=jenkins_config_file,
-             remote_path=jenkins_config_path )
+        put( local_path=jenkins_config_file, remote_path=jenkins_config_path )
         self.__reload_jenkins( )
 
     def _image_block_device_mapping( self ):
@@ -326,6 +331,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
         return role_name + '-jenkins-master', policies
 
     def __patch_config_file( self, path, text_by_xpath ):
+        dirty = False
         config_file = StringIO( )
         with settings( warn_only=True ):
             if get( remote_path=path, local_path=config_file ).failed:
@@ -336,13 +342,17 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
         config = etree.parse( config_file, parser )
         for xpath, text in text_by_xpath.iteritems( ):
             for element in config.iterfind( xpath ):
-                element.text = text
-        config_file.truncate( 0 )
-        config.write( config_file,
-                      encoding=config.docinfo.encoding,
-                      xml_declaration=True,
-                      pretty_print=True )
-        put( local_path=config_file, remote_path=path )
+                if element.text != text:
+                    element.text = text
+                    dirty = True
+        if dirty:
+            config_file.truncate( 0 )
+            config.write( config_file,
+                          encoding=config.docinfo.encoding,
+                          xml_declaration=True,
+                          pretty_print=True )
+            put( local_path=config_file, remote_path=path )
+        return dirty
 
     @fabric_task
     def __reload_jenkins( self ):
@@ -368,13 +378,12 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
         access_key = self.ctx.iam.create_access_key( user_name ).access_key
         access_key_id = access_key.access_key_id
         secret_key = access_key.secret_access_key
-        self.__patch_config_file( path='~/config.xml',
-                                  text_by_xpath={
-                                      './/hudson.plugins.ec2.EC2Cloud/accessId': access_key_id,
-                                      './/hudson.plugins.ec2.EC2Cloud/secretKey': secret_key } )
-        self.__patch_config_file( path='~/hudson.plugins.s3.S3BucketPublisher.xml',
-                                  text_by_xpath={
-                                      './/accessKey': access_key_id,
-                                      './/secretKey': secret_key } )
-        # reload won't update the S3 plugin's configuration for some reason
-        self.__restart_jenkins( )
+        dirty = self.__patch_config_file( path='~/config.xml',
+                                          text_by_xpath={
+                                              './/hudson.plugins.ec2.EC2Cloud/accessId': access_key_id,
+                                              './/hudson.plugins.ec2.EC2Cloud/secretKey': secret_key } )
+        dirty = self.__patch_config_file( path='~/hudson.plugins.s3.S3BucketPublisher.xml',
+                                          text_by_xpath={
+                                              './/accessKey': access_key_id,
+                                              './/secretKey': secret_key } ) or dirty
+        return dirty
