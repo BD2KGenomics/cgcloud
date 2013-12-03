@@ -15,7 +15,6 @@ from boto.ec2.connection import EC2Connection
 from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
 from cghub.util import memoize
-from fabric.operations import prompt
 
 from cghub.cloud.lib.message import Message
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError
@@ -568,39 +567,3 @@ class Context( object ):
 
     def __publish_key_update_agent_message( self ):
         self.publish_agent_message( Message( type=Message.TYPE_UPDATE_SSH_KEYS ) )
-
-    def cleanup_ssh_pubkeys( self ):
-        keypairs = self.expand_keypair_globs( '*' )
-        ec2_fingerprints = set( keypair.fingerprint for keypair in keypairs )
-        bucket = self.s3.get_bucket( self.s3_bucket_name )
-        prefix = self.ssh_pubkey_s3_key_prefix
-        s3_fingerprints = set( key.name[ len( prefix ): ] for key in bucket.list( prefix=prefix ) )
-        unused_fingerprints = s3_fingerprints - ec2_fingerprints
-        if unused_fingerprints:
-            print 'The following public keys in S3 are not referenced by any EC2 keypairs:'
-            for fingerprint in unused_fingerprints:
-                print fingerprint
-            if 'yes' == prompt( 'Delete these public keys from S3? (yes/no)', default='no' ):
-                bucket.delete_keys( self.ssh_pubkey_s3_key_prefix + fingerprint
-                    for fingerprint in unused_fingerprints )
-        else:
-            print 'No orphaned public keys in S3.'
-
-    def cleanup_image_snapshots( self ):
-        all_snapshots = set( snapshot.id for snapshot in self.ec2.get_all_snapshots(
-            owner='self', filters=dict( description='Created by CreateImage*' ) ) )
-        used_snapshots = set( bdt.snapshot_id
-            for image in self.ec2.get_all_images( owners=[ 'self' ] )
-            for bdt in image.block_device_mapping.itervalues( )
-            if bdt.snapshot_id is not None )
-        unused_snapshots = all_snapshots - used_snapshots
-        if unused_snapshots:
-            print 'The following snapshots are not referenced by any images:'
-            for snapshot_id in unused_snapshots:
-                print( snapshot_id )
-            if 'yes' == prompt( 'Delete these snapshots? (yes/no)', default='no' ):
-                for snapshot_id in unused_snapshots:
-                    print 'Deleting snapshot %s' % snapshot_id
-                    self.ec2.delete_snapshot( snapshot_id )
-        else:
-            print 'No unused snapshots.'
