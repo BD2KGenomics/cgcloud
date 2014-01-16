@@ -1,5 +1,6 @@
 from StringIO import StringIO
 import base64
+from distutils.version import LooseVersion
 from cghub.util import shell, ilen
 from fabric.context_managers import settings
 from fabric.operations import sudo, run, get, put
@@ -30,6 +31,33 @@ class AgentBox( SourceControlClient ):
             'gcc',
             'make'
         ]
+
+    @fabric_task
+    def __has_multi_file_authorized_keys( self ):
+        self.__has_multi_file_authorized_keys( run( 'ssh -V' ) )
+
+    @staticmethod
+    def has_multi_file_authorized_keys( version ):
+        """
+        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_6.2p2, OSSLShim 0.9.8r 8 Dec 2011' )
+        True
+        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_5.9, Bla, Bla' )
+        True
+        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_5.9p1, Bla, Bla' )
+        True
+        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_5.8, Bla, Bla' )
+        False
+        >>> AgentBox.has_multi_file_authorized_keys( 'Bla, Bla' )
+        Traceback (most recent call last):
+        ....
+        RuntimeError: Can't determine OpenSSH version from 'Bla'
+        """
+        version = version.split( ',' )[ 0 ]
+        prefix = 'OpenSSH_'
+        if version.startswith( prefix ):
+            return LooseVersion( version[ len( prefix ): ] ) >= LooseVersion( '5.9' )
+        else:
+            raise RuntimeError( "Can't determine OpenSSH version from '%s'" % version )
 
     @fabric_task
     def _post_install_packages( self ):
@@ -65,7 +93,11 @@ class AgentBox( SourceControlClient ):
         sshd_config_path = '/etc/ssh/sshd_config'
         sshd_config = sudo( 'gzip -c %s | base64' % sshd_config_path )
         sshd_config = StringIO( self.gunzip_base64_decode( sshd_config ) )
-        self.patch_sshd_config( sshd_config, authorized_keys )
+        if self.__has_multi_file_authorized_keys( ):
+            patch_method = self.patch_sshd_config
+        else:
+            patch_method = self.patch_sshd_config2
+        patch_method( sshd_config, authorized_keys )
         put( remote_path=sshd_config_path, local_path=sshd_config, use_sudo=True )
 
     @staticmethod
@@ -129,17 +161,25 @@ class AgentBox( SourceControlClient ):
         ....
         RuntimeError: Ambiguous AuthorizedKeysFile statements
 
-        Two active statements statements:
+        Two active statements:
 
         >>> f = StringIO('AuthorizedKeysFile bar1\\nAuthorizedKeysFile bar2' )
         >>> AgentBox.patch_sshd_config(f, 'foo')
         Traceback (most recent call last):
         ....
         RuntimeError: Ambiguous AuthorizedKeysFile statements
+
+        No statements, add one:
+
+        >>> f = StringIO('bla\\n' )
+        >>> AgentBox.patch_sshd_config(f, 'foo')
+        >>> f.getvalue()
+        'bla\\nAuthorizedKeysFile foo\\n'
         """
+        statement = 'AuthorizedKeysFile'
         sshd_config.seek( 0 )
         lines = sshd_config.readlines( )
-        regex = re.compile( r'(\s*#)?\s*(AuthorizedKeysFile\s+)(.*)$' )
+        regex = re.compile( r'(\s*#)?\s*%s\s+(.*)$' % statement )
         matches = [ ( i, regex.match( line ) ) for i, line in enumerate( lines ) ]
         commented_lines = [ (i, m) for i, m in matches if m and m.group( 1 ) ]
         active_lines = [ (i, m) for i, m in matches if m and not m.group( 1 ) ]
@@ -147,9 +187,67 @@ class AgentBox( SourceControlClient ):
             i, m = active_lines[ 0 ]
         elif len( active_lines ) == 0 and len( commented_lines ) == 1:
             i, m = commented_lines[ 0 ]
+        elif len( active_lines ) == 0 and len( commented_lines ) == 0:
+            i, m = None, None
         else:
-            raise RuntimeError( "Ambiguous AuthorizedKeysFile statements" )
-        lines[ i ] = '%s%s %s\n' % ( m.group( 2 ), authorized_keys, m.group( 3 ) )
+            raise RuntimeError( "Ambiguous %s statements" % statement )
+        if i is None:
+            lines.append( "%s %s\n" % ( statement, authorized_keys) )
+        else:
+            lines[ i ] = '%s %s %s\n' % ( statement, authorized_keys, m.group( 2 ) )
+        sshd_config.truncate( 0 )
+        sshd_config.writelines( lines )
+
+    @staticmethod
+    def patch_sshd_config2( sshd_config, authorized_keys ):
+        """
+        Adds the undocumented AuthorizedKeysFile2 statement to the given config file. If there
+        already is such a statement, an exception will raised. If there are one or more commented
+        statements, the last one will be uncommented and modified to refer to the given
+        authorized keys file. If there are neither commented or active statements, one will be
+        appended to the end of the file.
+
+        This method targets OpenSSH installations prior to 5.9 in which the AuthorizedKeysFile
+        statement was extended to support multiple files and the AuthorizedKeysFile2 statement
+        was deprecated.
+
+        A single statement, don't override it
+
+        >>> f = StringIO('bla\\n AuthorizedKeysFile2 bar\\nbla' )
+        >>> AgentBox.patch_sshd_config2(f, 'foo')
+        Traceback (most recent call last):
+        ....
+        RuntimeError: AuthorizedKeysFile2 statement already present
+
+        A single commented statement, modify it:
+
+        >>> f = StringIO('bla\\n # AuthorizedKeysFile2 bar\\nbla' )
+        >>> AgentBox.patch_sshd_config2(f, 'foo')
+        >>> f.getvalue()
+        'bla\\nAuthorizedKeysFile2 foo\\nbla'
+
+        No statements, add one:
+
+        >>> f = StringIO('bla\\n' )
+        >>> AgentBox.patch_sshd_config2(f, 'foo')
+        >>> f.getvalue()
+        'bla\\nAuthorizedKeysFile2 foo\\n'
+        """
+        statement = 'AuthorizedKeysFile2'
+        sshd_config.seek( 0 )
+        lines = sshd_config.readlines( )
+        regex = re.compile( r'(\s*#)?\s*(%s\s+)(.*)$' % statement )
+        matches = [ ( i, regex.match( line ) ) for i, line in enumerate( lines ) ]
+        commented_lines = [ (i, m) for i, m in matches if m and m.group( 1 ) ]
+        active_lines = [ (i, m) for i, m in matches if m and not m.group( 1 ) ]
+        if len( active_lines ) > 0:
+            raise RuntimeError( "%s statement already present" % statement )
+        elif len( commented_lines ) > 0:
+            i, m = commented_lines[ -1 ]
+            lines[ i ] = '%s%s\n' % ( m.group( 2 ), authorized_keys )
+        else:
+            lines.append( '%s %s\n' % ( statement, authorized_keys ) )
+
         sshd_config.truncate( 0 )
         sshd_config.writelines( lines )
 

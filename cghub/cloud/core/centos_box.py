@@ -88,23 +88,30 @@ class CentosBox( YumBox, AgentBox ):
     def __setup_admin( self ):
         run( "echo 'export PATH=\"/usr/local/sbin:/usr/sbin:/sbin:$PATH\"' >> ~/.bash_profile" )
 
-    @fabric_task
-    def _update_openssh( self ):
-        """
-        Our cghub-cloud-agent needs a newer version of OpenSSH that support listing with multiple
-        files for the sshd_conf option AuthorizedKeysFile. The stock CentOS 5 and 6doesn't have
-        one so we'll install a custom RPM.
+    if False:
+        # I recently discovered the undocumented AuthorizedKeysFile2 option which had been
+        # supported by OpenSSH for a long time. Considering that Ubuntu, too, lacks multi-file
+        # AuthorizedKeysFile in releases before Raring, we would have to update OpenSSH on those
+        # releases as well.
 
-        This method should to be invoked early on during setup.
-        """
-        # I wwasn't able to cusotm build openssh-askpass as it depends on X11 and whatnot,
-        # but it's not crucial so we'll skip it, or rather remove the old version of it
-        self._yum_remove( 'openssh-askpass' )
-        base_url = 'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/'
-        self._yum_local( is_update=True, rpm_urls=[
-            base_url + 'openssh-6.3p1-1.x86_64.rpm',
-            base_url + 'openssh-clients-6.3p1-1.x86_64.rpm',
-            base_url + 'openssh-server-6.3p1-1.x86_64.rpm' ] )
-        self._run_init_script( 'sshd', 'restart' )
+        @fabric_task
+        def _update_openssh( self ):
+            """
+            Our cghub-cloud-agent needs a newer version of OpenSSH that support listing with
+            multiple files for the sshd_conf option AuthorizedKeysFile. The stock CentOS 5 and 6
+            don't have one so we'll install a custom RPM. The multiple file support was added in
+            version 5.9 of OpenSSH.
+
+            This method should to be invoked early on during setup.
+            """
+            # I wwasn't able to cusotm build openssh-askpass as it depends on X11 and whatnot,
+            # but it's not crucial so we'll skip it, or rather remove the old version of it
+            self._yum_remove( 'openssh-askpass' )
+            base_url = 'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/'
+            self._yum_local( is_update=True, rpm_urls=[
+                base_url + 'openssh-6.3p1-1.x86_64.rpm',
+                base_url + 'openssh-clients-6.3p1-1.x86_64.rpm',
+                base_url + 'openssh-server-6.3p1-1.x86_64.rpm' ] )
+            self._run_init_script( 'sshd', 'restart' )
 
 
