@@ -11,7 +11,7 @@ def setup(*args, **kwargs):
 
 setup(
     name="cghub-cloud-agent",
-    version="0.1.dev1",
+    version="1.0.dev1",
     packages=find_packages( ),
     scripts=[ 'cgcloudagent' ],
     install_requires=[
