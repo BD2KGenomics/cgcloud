@@ -34,7 +34,7 @@ class AgentBox( SourceControlClient ):
 
     @fabric_task
     def __has_multi_file_authorized_keys( self ):
-        self.__has_multi_file_authorized_keys( run( 'ssh -V' ) )
+        self.has_multi_file_authorized_keys( run( 'ssh -V' ) )
 
     @staticmethod
     def has_multi_file_authorized_keys( version ):
@@ -62,14 +62,14 @@ class AgentBox( SourceControlClient ):
     @fabric_task
     def _post_install_packages( self ):
         super( AgentBox, self )._post_install_packages( )
-        sudo( 'pip install --upgrade pip' ) # some distros (lucid & centos5 ) have an ancient pip
+        sudo( 'pip install --upgrade pip==1.5.2' ) # some distros (lucid & centos5 ) have an ancient pip
         sudo( 'pip install --upgrade virtualenv' )
         self.setup_repo_host_keys( )
         run( 'virtualenv ~/agent' )
         with settings( forward_agent=True ):
-            run( '~/agent/bin/pip install hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-agent'
-                 '@default'
-                 '#egg=cghub-cloud-agent-1.0.dev1' )
+            run( '~/agent/bin/pip install '
+                 '--process-dependency-links '# pip 1.5.x deprecates dependency_links in setup.py
+                 'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-agent@default' )
         authorized_keys = run( 'echo ~/authorized_keys' )
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
