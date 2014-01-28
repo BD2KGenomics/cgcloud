@@ -69,6 +69,7 @@ class AgentBox( SourceControlClient ):
         with settings( forward_agent=True ):
             run( '~/agent/bin/pip install '
                  '--process-dependency-links '# pip 1.5.x deprecates dependency_links in setup.py
+                 '--allow-external argparse ' # needed on CentOS 5 and 6 for some reason
                  'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-agent@default' )
         authorized_keys = run( 'echo ~/authorized_keys' )
         kwargs = dict(
