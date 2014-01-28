@@ -1,3 +1,6 @@
+import re
+from operator import attrgetter
+
 from cghub.cloud.core.agent_box import AgentBox
 from cghub.cloud.core.cloud_init_box import CloudInitBox
 from cghub.cloud.core.yum_box import YumBox
@@ -24,9 +27,12 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox ):
                                               filters={
                                                   'name': 'Fedora-x86_64-%i-*' % release,
                                                   'root-device-type': 'ebs' } )
+        images = [ i for i in images if not re.search( 'Alpha|Beta', i.name ) ]
         if not images:
             raise RuntimeError( "Can't find any suitable AMIs for Fedora %i" % release )
-        if len( images ) > 1:
-            raise RuntimeError( "Found more than one AMI for Fedora %i" % release )
+        images.sort( key=attrgetter( 'name' ), reverse=True )
+        if False:
+            if len( images ) > 1:
+                raise RuntimeError( "Found more than one AMI for Fedora %i" % release )
 
         return images[ 0 ]
