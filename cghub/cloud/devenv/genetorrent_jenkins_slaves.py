@@ -13,7 +13,7 @@ class GenetorrentJenkinsSlave( JenkinsSlave ):
     A Jenkins slave for building GeneTorrent
     """
 
-    def recommended_instance_type(self):
+    def recommended_instance_type( self ):
         """
         A micro instance does not have enough RAM to build Boost, so we need to go one up.
         """
@@ -25,7 +25,7 @@ class CentosGenetorrentJenkinsSlave( CentosBox, GenetorrentJenkinsSlave ):
     A Jenkins slave for building GeneTorrent on CentOS
     """
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         # TODO: List JRE explicitly (it is already installed on RightScale CentOS images)
         return super( CentosGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             'gcc-c++',
@@ -41,14 +41,14 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     A Jenkins slave for building GeneTorrent on CentOS 5
     """
 
-    def recommended_instance_type(self):
+    def recommended_instance_type( self ):
         return 'm1.medium'
 
-    def _get_package_substitutions(self):
+    def _get_package_substitutions( self ):
         return super( Centos5GenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
             ( 'libcurl-devel', 'curl-devel' ) ]
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         return super( Centos5GenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             # On CentOS 6 this is installed automatically but on 5 it is missing. It is needed
             # for the %{dist} tag in .spec files. Without it, the CentOS 5 RPM build fails in
@@ -58,7 +58,7 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
         ]
 
     @fabric_task
-    def _post_install_packages(self):
+    def _post_install_packages( self ):
         """
         CentOS 5's autoconf is too old for building genetorrent so we dug up this RPM to replace
         it, the m4 RPM is a dependency of the autoconf RPM.
@@ -87,7 +87,7 @@ class Centos6GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     A Jenkins slave for building GeneTorrent on CentOS 6
     """
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         return super( Centos6GenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             'xerces-c-devel',
             'xqilla-devel',
@@ -100,7 +100,7 @@ class UbuntuGenetorrentJenkinsSlave( UbuntuBox, GenetorrentJenkinsSlave ):
     A Jenkins slave for building GeneTorrent on Ubuntu
     """
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         packages = super( UbuntuGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         return packages + [
             'autoconf',
@@ -123,11 +123,11 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
     A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
     """
 
-    def _get_package_substitutions(self):
+    def _get_package_substitutions( self ):
         return super( UbuntuLucidGenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
             ('openjdk-7-jre-headless', 'openjdk-6-jre') ]
 
-    def _pre_install_packages(self):
+    def _pre_install_packages( self ):
         super( UbuntuLucidGenetorrentJenkinsSlave, self )._pre_install_packages( )
         # On Lucid, somehow postfix gets pulled in as a dependency kicking the frontend into
         # interactive mode.
@@ -151,7 +151,7 @@ class UbuntuPreciseGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave,
     A Jenkins slave for building GeneTorrent on Ubuntu 12.04 LTS (EOL April 2017)
     """
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         return super( UbuntuPreciseGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             'libboost1.48-dev',
             'libboost-filesystem1.48-dev',
@@ -165,7 +165,7 @@ class UbuntuRaringGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generi
     A Jenkins slave for building GeneTorrent on Ubuntu 13.04 (EOL January 2014)
     """
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         return super( UbuntuRaringGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             'libboost1.49-dev',
             'libboost-filesystem1.49-dev',
@@ -180,7 +180,7 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
     A Jenkins slave for building GeneTorrent on Fedora
     """
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         packages = super( FedoraGenetorrentJenkinsSlave, self )._list_packages_to_install( )
         return packages + [
             'autoconf',
@@ -198,9 +198,8 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
             'redhat-rpm-config',
             'java-1.7.0-openjdk' ]
 
-
     @fabric_task
-    def _get_rc_local_path(self):
+    def _get_rc_local_path( self ):
         rc_local_path = '/etc/rc.d/rc.local'
         sudo( 'test -f {f} || echo "#!/bin/sh" > {f} && chmod +x {f}'.format( f=rc_local_path ) )
         return rc_local_path
@@ -213,9 +212,18 @@ class Fedora19GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFed
     pass
 
 
+class Fedora20GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFedora20Box ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora 20
+    """
+    pass
+
+
 class Fedora18GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFedora18Box ):
     """
     A Jenkins slave for building GeneTorrent on Fedora 18
+
+    NOTE: This one doesn't work since the AMI was deleted by the Fedora guys
     """
     pass
 
@@ -223,9 +231,11 @@ class Fedora18GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFed
 class Fedora17GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFedora17Box ):
     """
     A Jenkins slave for building GeneTorrent on Fedora 17
+
+    NOTE: This one doesn't work since the AMI was deleted by the Fedora guys
     """
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         return super( Fedora17GenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             # This isn't pre-installed on Fedora 17 and without it, autoreconf says things like
             # "libtoolize: can not copy `/usr/share/aclocal/libtool.m4' to `m4/'" since

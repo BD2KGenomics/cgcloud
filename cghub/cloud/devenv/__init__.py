@@ -11,9 +11,8 @@ BOXES = [
     UbuntuRaringGenetorrentJenkinsSlave,
     Centos5GenetorrentJenkinsSlave,
     Centos6GenetorrentJenkinsSlave,
-    Fedora17GenetorrentJenkinsSlave,
-    Fedora18GenetorrentJenkinsSlave,
     Fedora19GenetorrentJenkinsSlave,
+    Fedora20GenetorrentJenkinsSlave,
     Centos5RpmbuildJenkinsSlave,
     Centos6RpmbuildJenkinsSlave ]
 

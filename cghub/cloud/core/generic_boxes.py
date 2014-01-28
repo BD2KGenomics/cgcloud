@@ -1,4 +1,5 @@
-from fabric.operations import run, sudo
+from urlparse import urlparse
+from fabric.operations import run, sudo, os
 from cghub.cloud.core.box import fabric_task
 from cghub.cloud.core.centos_box import CentosBox
 from cghub.cloud.core.fedora_box import FedoraBox
@@ -26,13 +27,14 @@ class GenericCentos5Box( CentosBox ):
         This method should to be invoked early on during setup.
         """
         self._yum_local( is_update=True, rpm_urls=[
-            'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.7-1.el5.x86_64.rpm' ] )
+            'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.9-5.el5.x86_64.rpm' ] )
 
     def _on_instance_ready( self, first_boot ):
         super( GenericCentos5Box, self )._on_instance_ready( first_boot )
         if self.generation == 0 and first_boot:
             self.__update_sudo( )
-            self._update_openssh( )
+            if False:
+                self._update_openssh( )
 
     def _ephemeral_mount_point( self ):
         return "/mnt"
@@ -75,7 +77,8 @@ class GenericCentos6Box( CentosBox ):
     def _on_instance_ready( self, first_boot ):
         super( GenericCentos6Box, self )._on_instance_ready( first_boot )
         if self.generation == 0 and first_boot:
-            self._update_openssh( )
+            if False:
+                self._update_openssh( )
 
 
 class GenericUbuntuLucidBox( UbuntuBox ):
@@ -91,9 +94,11 @@ class GenericUbuntuLucidBox( UbuntuBox ):
         """
         See GenericCentos5Box
         """
-        run( 'wget ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.7-1_amd64.deb' )
-        sudo( 'sudo dpkg --force-confold -i sudo_1.8.7-1_amd64.deb' )
-        run( 'rm sudo_1.8.7-1_amd64.deb' )
+        url = 'ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.9-5_amd64.deb'
+        url = os.path.basename( urlparse( url ).path )
+        run( 'wget ' + url )
+        sudo( 'sudo dpkg --force-confold -i ' + file )
+        run( 'rm ' + file )
 
     def _on_instance_ready( self, first_boot ):
         super( GenericUbuntuLucidBox, self )._on_instance_ready( first_boot )
@@ -169,11 +174,19 @@ class GenericUbuntuSaucyBox( UbuntuBox ):
 
 
 class GenericFedora17Box( FedoraBox ):
+    """
+    This one doesn't work since the AMI was deleted by the Fedora guys
+    """
+
     def release( self ):
         return 17
 
 
 class GenericFedora18Box( FedoraBox ):
+    """
+    This one doesn't work since the AMI was deleted by the Fedora guys
+    """
+
     def release( self ):
         return 18
 
@@ -181,3 +194,8 @@ class GenericFedora18Box( FedoraBox ):
 class GenericFedora19Box( FedoraBox ):
     def release( self ):
         return 19
+
+
+class GenericFedora20Box( FedoraBox ):
+    def release( self ):
+        return 20
