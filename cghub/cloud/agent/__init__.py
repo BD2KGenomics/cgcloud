@@ -6,6 +6,7 @@ from boto.sqs.message import RawMessage
 
 from cghub.cloud.lib.context import Context
 from cghub.cloud.lib.message import Message, UnknownVersion
+from cghub.cloud.lib.util import UserError
 from cghub.util.throttle import LocalThrottle
 
 log = logging.getLogger( __name__ )
@@ -65,7 +66,8 @@ class Agent( object ):
         keypairs = self.ctx.expand_keypair_globs( self.options.ec2_keypair_names )
         fingerprints = set( keypair.fingerprint for keypair in keypairs )
         if fingerprints != self.fingerprints:
-            ssh_keys = set( self.ctx.download_ssh_pubkey( keypair ).strip() for keypair in keypairs )
+            ssh_keys = set( self.download_ssh_key( keypair ) for keypair in keypairs )
+            if None in ssh_keys: ssh_keys.remove( None )
             path = self.options.authorized_keys_path
             try:
                 with open( path ) as f:
@@ -84,4 +86,11 @@ class Agent( object ):
                 os.rename( temp_file.name, path )
 
             self.fingerprints = fingerprints
+
+    def download_ssh_key( self, keypair ):
+        try:
+            return self.ctx.download_ssh_pubkey( keypair ).strip( )
+        except UserError:
+            log.warn( 'Exception while downloading SSH public key from S3.', exc_info=True )
+            return None
 
