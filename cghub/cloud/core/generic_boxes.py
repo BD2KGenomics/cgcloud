@@ -95,10 +95,10 @@ class GenericUbuntuLucidBox( UbuntuBox ):
         See GenericCentos5Box
         """
         url = 'ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.9-5_amd64.deb'
-        url = os.path.basename( urlparse( url ).path )
+        package = os.path.basename( urlparse( url ).path )
         run( 'wget ' + url )
-        sudo( 'sudo dpkg --force-confold -i ' + file )
-        run( 'rm ' + file )
+        sudo( 'sudo dpkg --force-confold -i ' + package )
+        run( 'rm ' + package )
 
     def _on_instance_ready( self, first_boot ):
         super( GenericUbuntuLucidBox, self )._on_instance_ready( first_boot )
