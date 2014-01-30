@@ -226,8 +226,8 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
                         "doesn't match the fingerprint {fingerprint} of the private key file "
                         "currently present on the instance. "
                         "Please delete the key pair from EC2 before retrying."
-                        .format( key_pair=ec2_keypair, fingerprint=fingerprint ) )
-                # The fingerprints match, now get the public key we stored in S3 and make sure it
+                        .format( ec2_keypair=ec2_keypair, fingerprint=fingerprint ) )
+                    # The fingerprints match, now get the public key we stored in S3 and make sure it
                 # matches the private key.
                 ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
                 if ssh_pubkey != private_to_public_key( ssh_privkey ):
@@ -239,7 +239,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
                     "private key file {key_path} does not exist on the instance. In order to "
                     "create the private key file, the key pair must be created at the same time. "
                     "Please delete the key pair from EC2 before retrying."
-                    .format( key_pair=ec2_keypair, **jenkins ) )
+                    .format( ec2_keypair=ec2_keypair, **jenkins ) )
         put( local_path=StringIO( ssh_pubkey ), remote_path=Jenkins.key_path + '.pub' )
         return self.__patch_config_file(
             path='~/config.xml',
