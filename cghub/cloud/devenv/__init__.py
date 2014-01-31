@@ -6,9 +6,8 @@ from cghub.cloud.devenv.rpmbuild_jenkins_slaves import *
 BOXES = [
     JenkinsMaster,
     UbuntuLucidGenetorrentJenkinsSlave,
-    UbuntuOneiricGenetorrentJenkinsSlave,
     UbuntuPreciseGenetorrentJenkinsSlave,
-    UbuntuRaringGenetorrentJenkinsSlave,
+    UbuntuSaucyGenetorrentJenkinsSlave,
     Centos5GenetorrentJenkinsSlave,
     Centos6GenetorrentJenkinsSlave,
     Fedora19GenetorrentJenkinsSlave,
