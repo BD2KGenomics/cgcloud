@@ -123,6 +123,14 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
     A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
     """
 
+    def _setup_package_repos( self ):
+        super( UbuntuLucidGenetorrentJenkinsSlave, self )._setup_package_repos( )
+        self.__add_git_ppa( )
+
+    @fabric_task
+    def __add_git_ppa( self ):
+        sudo( 'sudo add-apt-repository ppa:git-core/ppa' )
+
     def _get_package_substitutions( self ):
         return super( UbuntuLucidGenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
             ('openjdk-7-jre-headless', 'openjdk-6-jre') ]
@@ -167,6 +175,21 @@ class UbuntuRaringGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generi
 
     def _list_packages_to_install( self ):
         return super( UbuntuRaringGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            'libboost1.49-dev',
+            'libboost-filesystem1.49-dev',
+            'libboost-system1.49-dev',
+            'libboost-program-options1.49-dev',
+            'libboost-regex1.49-dev',
+        ]
+
+
+class UbuntuSaucyGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuSaucyBox ):
+    """
+    A Jenkins slave for building GeneTorrent on Ubuntu 13.10 (EOL July 2014)
+    """
+
+    def _list_packages_to_install( self ):
+        return super( UbuntuSaucyGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
             'libboost1.49-dev',
             'libboost-filesystem1.49-dev',
             'libboost-system1.49-dev',
