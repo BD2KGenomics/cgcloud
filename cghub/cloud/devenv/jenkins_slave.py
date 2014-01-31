@@ -132,6 +132,7 @@ class JenkinsSlave( SourceControlClient ):
                   E.jvmopts( '' ),
                   E.subnetId( '' ),
                   E.idleTerminationMinutes( '30' ),
+                  E.iamInstanceProfile( self._get_instance_profile_arn() ),
                   E.instanceCap( '1' ),
                   E.stopOnTerminate( 'false' ),
                   E.tags(

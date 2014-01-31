@@ -8,7 +8,7 @@ from fabric.context_managers import settings, hide
 from fabric.operations import run, sudo, put, get
 from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key
 
-from cghub.cloud.core.box import fabric_task
+from cghub.cloud.core.box import fabric_task, Box
 from cghub.cloud.core.generic_boxes import GenericUbuntuRaringBox
 from cghub.cloud.core.source_control_client import SourceControlClient
 from cghub.cloud.core.ubuntu_box import UbuntuBox
@@ -263,7 +263,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
         return super( JenkinsMaster, self )._ssh_args( user, command )
 
     @fabric_task( user=Jenkins.user )
-    def register_slaves( self, slave_clss ):
+    def register_slaves( self, slave_clss, clean=False ):
         jenkins_config_file = StringIO( )
         jenkins_config_path = '~/config.xml'
         get( local_path=jenkins_config_file, remote_path=jenkins_config_path )
@@ -271,6 +271,10 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
         parser = etree.XMLParser( remove_blank_text=True )
         jenkins_config = etree.parse( jenkins_config_file, parser )
         templates = jenkins_config.find( './/hudson.plugins.ec2.EC2Cloud/templates' )
+        template_element_name = 'hudson.plugins.ec2.SlaveTemplate'
+        if clean:
+            for old_template in templates.findall( template_element_name ):
+                old_template.getparent( ).remove( old_template )
         for slave_cls in slave_clss:
             slave = slave_cls( self.ctx )
             images = slave.list_images( )
@@ -281,7 +285,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
             new_template = slave.slave_config_template( image )
             description = new_template.find( 'description' ).text
             found = False
-            for old_template in templates.findall( 'hudson.plugins.ec2.SlaveTemplate' ):
+            for old_template in templates.findall( template_element_name ):
                 if old_template.find( 'description' ).text == description:
                     if found:
                         raise RuntimeError( 'More than one existing slave definition for %s. '
@@ -308,6 +312,8 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( JenkinsMaster, self )._get_iam_ec2_role( )
+        account_id = self.ctx.iam.get_user( ).user.arn.split(':')[4]
+        pass_role_arn = "arn:aws:iam::%s:role/%s*" % ( account_id, Box.role_prefix )
         policies.update( {
             'ec2_full': {
                 "Version": "2012-10-17",
@@ -315,7 +321,8 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
                     { "Action": "ec2:*", "Resource": "*", "Effect": "Allow" },
                     { "Effect": "Allow", "Resource": "*", "Action": "elasticloadbalancing:*" },
                     { "Effect": "Allow", "Resource": "*", "Action": "cloudwatch:*" },
-                    { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:*" } ] },
+                    { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:*" },
+                    { "Effect": "Allow", "Resource": pass_role_arn, "Action": "iam:PassRole" } ] },
             's3_custom': {
                 "Statement": [
                     {
@@ -362,16 +369,30 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
     def __restart_jenkins( self ):
         sudo( 'service jenkins restart' )
 
+
+    # Neither the Jenkins EC2 plugin nor the Jenkins S3 Publisher plugin support getting
+    # temporary credentials from STS. In the interim, we'll have to attach the policies to a IAM
+    # user object and inject that user's credentials in Jenkins' configuration.
+
+
+    def _get_instance_profile_arn( self ):
+        """
+        Setup the IAM user using the same privileges as contained in the IAM role. Piggy-backed
+        onto instance profile creation.
+        """
+        arn = super( JenkinsMaster, self )._get_instance_profile_arn( )
+        user_name = self.ec2_keypair_name( self.ctx )
+        role_name, policies = self._get_iam_ec2_role( )
+        self.ctx.setup_iam_user_policies( user_name, policies )
+        return arn
+
+
     @fabric_task( user=Jenkins.user )
     def __inject_aws_credentials( self ):
         """
-        Neither the Jenkins EC2 plugin nor the Jenkins S3 Publisher plugin support getting
-        temporary credentials from STS. In the interim, we'll have to attach the policies to a
-        IAM user object and inject that user's credentials in Jenkins' configuration.
+        Create an access key and inject it into Jenkin's configuration
         """
-        role_name, policies = self._get_iam_ec2_role( )
         user_name = self.ec2_keypair_name( self.ctx )
-        self.ctx.setup_iam_user_policies( user_name, policies )
         access_keys = self.ctx.iam.get_all_access_keys( user_name ).access_key_metadata
         for access_key in access_keys:
             self.ctx.iam.delete_access_key( access_key.access_key_id, user_name )

@@ -746,5 +746,7 @@ class Box( object ):
                 raise
         return profile[ 'arn' ]
 
+    role_prefix = 'cghub-cloud'
+
     def _get_iam_ec2_role( self ):
-        return 'cghub-cloud', { }
+        return self.role_prefix, { }
