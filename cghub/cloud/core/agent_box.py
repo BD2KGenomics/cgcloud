@@ -1,7 +1,7 @@
 from StringIO import StringIO
 import base64
 from distutils.version import LooseVersion
-from cghub.util import shell, ilen
+from cghub.util import shell, strict_bool
 from fabric.context_managers import settings
 from fabric.operations import sudo, run, get, put
 import re
@@ -16,38 +16,54 @@ class AgentBox( SourceControlClient ):
     install the agent directly from its source repository.
     """
 
+    def __init__( self, ctx ):
+        super( AgentBox, self ).__init__( ctx )
+        self.enable_agent = None
+
+    def _set_instance_options( self, options ):
+        super( AgentBox, self )._set_instance_options( options )
+        self.enable_agent = strict_bool( options.get( 'enable_agent', 'True' ) )
+
+    def _get_instance_options( self ):
+        options = super( AgentBox, self )._get_instance_options(  )
+        options['enable_agent' ] = str( self.enable_agent )
+        return options
+
     def _manages_keys_internally( self ):
-        return True
+        return self.enable_agent
 
     def _list_packages_to_install( self ):
-        return super( AgentBox, self )._list_packages_to_install( ) + [
-            'python',
-            'python-pip',
-            # for PyCrypto:
-            'python-dev',
-            'autoconf',
-            'automake',
-            'binutils',
-            'gcc',
-            'make'
-        ]
+        packages = super( AgentBox, self )._list_packages_to_install( )
+        if self.enable_agent:
+            packages += [
+                'python',
+                'python-pip',
+                # for PyCrypto:
+                'python-dev',
+                'autoconf',
+                'automake',
+                'binutils',
+                'gcc',
+                'make' ]
+        return packages
 
     @fabric_task
     def __has_multi_file_authorized_keys( self ):
-        self.has_multi_file_authorized_keys( run( 'ssh -V' ) )
+        self.__ssh_version_has_multi_file_authorized_keys( run( 'ssh -V' ) )
 
     @staticmethod
-    def has_multi_file_authorized_keys( version ):
+    def __ssh_version_has_multi_file_authorized_keys( version ):
         """
-        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_6.2p2, OSSLShim 0.9.8r 8 Dec 2011' )
+        >>> m = AgentBox._AgentBox__ssh_version_has_multi_file_authorized_keys
+        >>> m( 'OpenSSH_6.2p2, OSSLShim 0.9.8r 8 Dec 2011' )
         True
-        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_5.9, Bla, Bla' )
+        >>> m( 'OpenSSH_5.9, Bla, Bla' )
         True
-        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_5.9p1, Bla, Bla' )
+        >>> m( 'OpenSSH_5.9p1, Bla, Bla' )
         True
-        >>> AgentBox.has_multi_file_authorized_keys( 'OpenSSH_5.8, Bla, Bla' )
+        >>> m( 'OpenSSH_5.8, Bla, Bla' )
         False
-        >>> AgentBox.has_multi_file_authorized_keys( 'Bla, Bla' )
+        >>> m( 'Bla, Bla' )
         Traceback (most recent call last):
         ....
         RuntimeError: Can't determine OpenSSH version from 'Bla'
@@ -62,45 +78,46 @@ class AgentBox( SourceControlClient ):
     @fabric_task
     def _post_install_packages( self ):
         super( AgentBox, self )._post_install_packages( )
-        sudo( 'pip install --upgrade pip==1.5.2' ) # lucid & centos5 have an ancient pip
-        sudo( 'pip install --upgrade virtualenv' )
-        self.setup_repo_host_keys( )
-        run( 'virtualenv ~/agent' )
-        with settings( forward_agent=True ):
-            run( '~/agent/bin/pip install '
-                 '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
-                 '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
-                 'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-agent@default' )
-        authorized_keys = run( 'echo ~/authorized_keys' )
-        kwargs = dict(
-            availability_zone=self.ctx.availability_zone,
-            namespace=self.ctx.namespace,
-            ec2_keypair_globs=' '.join(
-                shell.quote( glob ) for glob in self.ec2_keypair_globs ),
-            authorized_keys=authorized_keys,
-            user=self.username( ),
-            group=self.username( ) )
-        script = run( '~/agent/bin/cgcloudagent --init-script'
-                      ' --zone {availability_zone}'
-                      ' --namespace {namespace}'
-                      ' --authorized-keys-file {authorized_keys}'
-                      ' --keypairs {ec2_keypair_globs}'
-                      ' --user {user}'
-                      ' --group {group}'
-                      '| gzip -c | base64'.format( **kwargs ) )
-        script = self.__gunzip_base64_decode( script )
-        self._register_init_script( script, 'cgcloudagent' )
-        self._run_init_script( 'cgcloudagent' )
+        if self.enable_agent:
+            sudo( 'pip install --upgrade pip==1.5.2' )  # lucid & centos5 have an ancient pip
+            sudo( 'pip install --upgrade virtualenv' )
+            self.setup_repo_host_keys( )
+            run( 'virtualenv ~/agent' )
+            with settings( forward_agent=True ):
+                run( '~/agent/bin/pip install '
+                     '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
+                     '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
+                     'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-agent@default' )
+            authorized_keys = run( 'echo ~/authorized_keys' )
+            kwargs = dict(
+                availability_zone=self.ctx.availability_zone,
+                namespace=self.ctx.namespace,
+                ec2_keypair_globs=' '.join(
+                    shell.quote( glob ) for glob in self.ec2_keypair_globs ),
+                authorized_keys=authorized_keys,
+                user=self.username( ),
+                group=self.username( ) )
+            script = run( '~/agent/bin/cgcloudagent --init-script'
+                          ' --zone {availability_zone}'
+                          ' --namespace {namespace}'
+                          ' --authorized-keys-file {authorized_keys}'
+                          ' --keypairs {ec2_keypair_globs}'
+                          ' --user {user}'
+                          ' --group {group}'
+                          '| gzip -c | base64'.format( **kwargs ) )
+            script = self.__gunzip_base64_decode( script )
+            self._register_init_script( script, 'cgcloudagent' )
+            self._run_init_script( 'cgcloudagent' )
 
-        sshd_config_path = '/etc/ssh/sshd_config'
-        sshd_config = sudo( 'gzip -c %s | base64' % sshd_config_path )
-        sshd_config = StringIO( self.__gunzip_base64_decode( sshd_config ) )
-        if self.__has_multi_file_authorized_keys( ):
-            patch_method = self.__patch_sshd_config
-        else:
-            patch_method = self.__patch_sshd_config2
-        patch_method( sshd_config, authorized_keys )
-        put( remote_path=sshd_config_path, local_path=sshd_config, use_sudo=True )
+            sshd_config_path = '/etc/ssh/sshd_config'
+            sshd_config = sudo( 'gzip -c %s | base64' % sshd_config_path )
+            sshd_config = StringIO( self.__gunzip_base64_decode( sshd_config ) )
+            if self.__has_multi_file_authorized_keys( ):
+                patch_method = self.__patch_sshd_config
+            else:
+                patch_method = self.__patch_sshd_config2
+            patch_method( sshd_config, authorized_keys )
+            put( remote_path=sshd_config_path, local_path=sshd_config, use_sudo=True )
 
     @staticmethod
     def __gunzip_base64_decode( s ):
@@ -255,46 +272,48 @@ class AgentBox( SourceControlClient ):
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( AgentBox, self )._get_iam_ec2_role( )
-        policies.update( {
-            'ec2_read_only': {
-                "Version": "2012-10-17",
-                "Statement": [
-                    { "Effect": "Allow", "Resource": "*", "Action": "ec2:Describe*" },
-                    { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:Describe*" },
-                    { "Effect": "Allow", "Resource": "*",
-                        "Action": "elasticloadbalancing:Describe*" },
-                    { "Effect": "Allow", "Resource": "*", "Action": [
-                        "cloudwatch:ListMetrics",
-                        "cloudwatch:GetMetricStatistics",
-                        "cloudwatch:Describe*" ] } ] },
-            's3_read_only': {
-                "Version": "2012-10-17",
-                "Statement": [
-                    { "Effect": "Allow", "Resource": "*",
-                        "Action": [ "s3:Get*", "s3:List*" ] } ] },
-            'iam_read_only': {
-                "Version": "2012-10-17",
-                "Statement": [
-                    { "Effect": "Allow", "Resource": "*",
-                        "Action": [ "iam:List*", "iam:Get*" ] } ] },
-            'sqs_custom': {
-                "Version": "2012-10-17",
-                "Statement": [
-                    { "Effect": "Allow", "Resource": "*", "Action": [
-                        "sqs:Get*",
-                        "sqs:List*",
-                        "sqs:CreateQueue",
-                        "sqs:SetQueueAttributes",
-                        "sqs:ReceiveMessage",
-                        "sqs:DeleteMessageBatch" ] } ] },
-            'sns_custom': {
-                "Version": "2012-10-17",
-                "Statement": [
-                    { "Effect": "Allow", "Resource": "*", "Action": [
-                        "sns:Get*",
-                        "sns:List*",
-                        "sns:CreateTopic",
-                        "sns:Subscribe" ] } ] }
-        } )
-        return role_name + '-agent', policies
+        if self.enable_agent:
+            role_name += '-agent'
+            policies.update( {
+                'ec2_read_only': {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        { "Effect": "Allow", "Resource": "*", "Action": "ec2:Describe*" },
+                        { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:Describe*" },
+                        { "Effect": "Allow", "Resource": "*",
+                            "Action": "elasticloadbalancing:Describe*" },
+                        { "Effect": "Allow", "Resource": "*", "Action": [
+                            "cloudwatch:ListMetrics",
+                            "cloudwatch:GetMetricStatistics",
+                            "cloudwatch:Describe*" ] } ] },
+                's3_read_only': {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        { "Effect": "Allow", "Resource": "*",
+                            "Action": [ "s3:Get*", "s3:List*" ] } ] },
+                'iam_read_only': {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        { "Effect": "Allow", "Resource": "*",
+                            "Action": [ "iam:List*", "iam:Get*" ] } ] },
+                'sqs_custom': {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        { "Effect": "Allow", "Resource": "*", "Action": [
+                            "sqs:Get*",
+                            "sqs:List*",
+                            "sqs:CreateQueue",
+                            "sqs:SetQueueAttributes",
+                            "sqs:ReceiveMessage",
+                            "sqs:DeleteMessageBatch" ] } ] },
+                'sns_custom': {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        { "Effect": "Allow", "Resource": "*", "Action": [
+                            "sns:Get*",
+                            "sns:List*",
+                            "sns:CreateTopic",
+                            "sns:Subscribe" ] } ] }
+            } )
+        return role_name, policies
 

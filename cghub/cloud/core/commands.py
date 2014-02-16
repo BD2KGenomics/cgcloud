@@ -15,8 +15,8 @@ from fabric.operations import prompt
 class ContextCommand( Command ):
     """
     A command that runs in a context. Contexts encapsulate the necessary environment for
-    boxes to run in. The most important aspect of a context is its namespace. Namespaces isolate
-    boxes and other resources into separate groups.
+    boxes to run in. The most important aspect of a context is its namespace. Namespaces group
+    boxes and other resources into isolated groups.
     """
 
     def run_in_ctx( self, options, ctx ):
@@ -162,8 +162,8 @@ class ShowCommand( BoxCommand ):
         for k, v in sorted( d.iteritems( ), key=itemgetter( 0 ) ):
             k = str( k )
             if k[ 0:1 ] != '_' \
-                and k != 'connection' \
-                and not isinstance( v, EC2Connection ):
+                    and k != 'connection' \
+                    and not isinstance( v, EC2Connection ):
                 sys.stdout.write( '\n%s%s: ' % ('\t' * depth, k) )
                 if isinstance( v, str ):
                     sys.stdout.write( v.strip( ) )
@@ -174,7 +174,7 @@ class ShowCommand( BoxCommand ):
                 elif hasattr( v, '__iter__' ):
                     self.print_dict( dict( enumerate( v ) ), visited, depth + 1 )
                 elif isinstance( v, BlockDeviceType ) \
-                    or isinstance( v, Group ):
+                        or isinstance( v, Group ):
                     self.print_object( v, visited, depth + 1 )
                 else:
                     sys.stdout.write( repr( v ) )
@@ -292,11 +292,17 @@ class CreationCommand( RoleCommand ):
         """
         raise NotImplementedError( )
 
+    def instance_options( self, options ):
+        """
+        Return instance options to be passed box.create()
+        """
+        raise NotImplementedError( )
+
     def run_on_box( self, options, box ):
         try:
             box.create( ec2_keypair_globs=map( box.ctx.resolve_me, options.ec2_keypair_names ),
                         instance_type=options.instance_type,
-                        boot_image=options.boot_image )
+                        **self.instance_options( options ) )
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
@@ -357,7 +363,7 @@ class RecreateCommand( CreationCommand ):
     def __init__( self, application ):
         super( RecreateCommand, self ).__init__( application )
         self.option( '--boot-image', '-i', metavar='ORDINAL',
-                     type=int, default=-1, # default to the last one
+                     type=int, default=-1,  # default to the last one
                      help='An image ordinal, i.e. the index of an image in the list of images '
                           'created from previous incarnations performing the given role, '
                           'sorted by creation time. Use the list-images command to see a list of '
@@ -368,6 +374,9 @@ class RecreateCommand( CreationCommand ):
                           'from the number of images created from boxes performing the specified '
                           'role. Passing -1, for example, selects image that was created most '
                           'recently.' )
+
+    def instance_options( self, options ):
+        return dict( boot_image=options.boot_image )
 
     def run_on_creation( self, box, options ):
         pass
@@ -384,17 +393,26 @@ class CreateCommand( CreationCommand ):
         self.option( '--boot-image', '-i', metavar='IMAGE_ID',
                      help='An image ID (aka AMI ID) from which to create the box. This is argument '
                           'optional and the default is determined automatically based on the role.' )
+        self.option( '--no-agent',
+                     default=False, action='store_true',
+                     help="Don't install the cghub-cloud-agent package on the box. A note-worthy "
+                          "effect of this is that SSH keys will be installed once, but the list "
+                          "of keys will not be maintained over time." )
         self.option( '--image', '-I',
                      default=False, action='store_true',
                      help='Create an image of the box when setup is complete.' )
-        self.option( '--update', '-U',
+        self.option( '--upgrade', '-U',
                      default=False, action='store_true',
                      help="Bring the package repository as well as any installed packages up to "
                           "date, i.e. do what on Ubuntu is achieved by doing "
                           "'sudo apt-get update ; sudo apt-get upgrade'." )
 
+    def instance_options( self, options ):
+        return dict( boot_image=options.boot_image,
+                     enable_agent=not options.no_agent )
+
     def run_on_creation( self, box, options ):
-        box.setup( options.update )
+        box.setup( upgrade_installed_packages=options.update )
         if options.image:
             box.stop( )
             box.image( )

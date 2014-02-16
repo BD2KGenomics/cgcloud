@@ -79,12 +79,12 @@ class DevEnvTest( unittest.TestCase ):
 
     """
 
-    def cgcloud( self, op, pane, role, **run_args ):
-        cmd = 'export CGCLOUD_NAMESPACE="%s" && %s %s %s ' % ( namespace, cgcloud, op, role )
+    def cgcloud( self, op, pane, role, options='', **run_args ):
+        cmd = 'export CGCLOUD_NAMESPACE="%s" && %s %s %s %s' % ( namespace, cgcloud, op, role, options )
         return pane.run( cmd, **run_args )
 
     def test_slave_creation( self ):
-        self._test( partial( self.cgcloud, 'create' ) )
+        self._test( partial( self.cgcloud, 'create', options='--no-agent' ) )
 
     def test_slave_stop( self ):
         self._test( partial( self.cgcloud, 'stop' ), reverse=True )

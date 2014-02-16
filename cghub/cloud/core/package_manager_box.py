@@ -69,6 +69,11 @@ class PackageManagerBox( Box ):
         return [ ]
 
     def setup(self, upgrade_installed_packages=False):
+        """
+        :param upgrade_installed_packages:
+            Bring the package repository as well as any installed packages up to date, i.e. do
+            what on Ubuntu is achieved by doing 'sudo apt-get update ; sudo apt-get upgrade'.
+        """
         self._setup_package_repos( )
         self._sync_package_repos( )
         self._pre_install_packages( )

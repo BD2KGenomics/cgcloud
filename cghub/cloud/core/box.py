@@ -93,14 +93,10 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    def setup( self, update=False ):
+    def setup( self, **kwargs ):
         """
         Create the EC2 instance represented by this box, install OS and additional packages on,
         optionally create an AMI image of it, and/or terminate it.
-
-        :param update:
-            Bring the package repository as well as any installed packages up to date, i.e. do
-            what on Ubuntu is achieved by doing 'sudo apt-get update ; sudo apt-get upgrade'.
         """
         raise NotImplementedError( )
 
@@ -119,9 +115,9 @@ class Box( object ):
 
     def __init__( self, ctx ):
         """
-        Initialize an instance of this class. Before calling any of the methods on this object,
+        Initialize an instance of this class. Before invoking any methods on this object,
         you must ensure that a corresponding EC2 instance exists by calling either create() or
-        adopt(). The former creates a new EC2 instance, the latter looks up an existing one.
+        adopt().
 
         :type ctx: Context
         """
@@ -157,11 +153,7 @@ class Box( object ):
                 return
         raise RuntimeError( "Can't determine root volume from image" )
 
-    def __read_generation( self, image_id ):
-        image = self.ctx.ec2.get_image( image_id )
-        self.generation = int( image.tags.get( 'generation', '0' ) )
-
-    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None ):
+    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -199,7 +191,10 @@ class Box( object ):
             image = self._base_image( )
             self._log( "found %s." % image.id )
 
-        self.__read_generation( image.id )
+        str_options = dict( image.tags )
+        for k, v in options.iteritems( ):
+            str_options[ k ] = str( v )
+        self._set_instance_options( str_options )
 
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
         if not ec2_keypairs:
@@ -208,15 +203,15 @@ class Box( object ):
             raise UserError( "The first key pair name can't be a glob." )
 
         self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
-        kwargs = dict( instance_type=instance_type,
-                       key_name=ec2_keypairs[ 0 ].name,
-                       placement=self.ctx.availability_zone,
-                       instance_profile_arn=self._get_instance_profile_arn( ) )
-        self._populate_instance_creation_args( image, kwargs )
+        options = dict( instance_type=instance_type,
+                        key_name=ec2_keypairs[ 0 ].name,
+                        placement=self.ctx.availability_zone,
+                        instance_profile_arn=self._get_instance_profile_arn( ) )
+        self._populate_instance_creation_args( image, options )
 
         while True:
             try:
-                reservation = self.ctx.ec2.run_instances( image.id, **kwargs )
+                reservation = self.ctx.ec2.run_instances( image.id, **options )
                 break
             except EC2ResponseError as e:
                 if 'Invalid IAM Instance Profile' in e.error_message:
@@ -232,6 +227,26 @@ class Box( object ):
         self._on_instance_created( instance )
         self.__wait_ready( instance, { 'pending' }, first_boot=True )
 
+    def _set_instance_options( self, options ):
+        """
+        Initialize optional instance attributes from the given dictionary mapping option names to
+        option values. Both keys and values are strings.
+        """
+        self.generation = int( options.get( 'generation', '0' ) )
+
+    def _get_instance_options( self ):
+        """
+        Return a dictionary mapping option names to option values. Both keys and values are strings.
+        """
+        return dict( generation=str( self.generation ) )
+
+    def __write_options( self, tagged_ec2_object ):
+        """
+        :type tagged_ec2_object: boto.ec2.TaggedEC2Object
+        """
+        for k, v in self._get_instance_options( ).iteritems( ):
+            tagged_ec2_object.add_tag( k, v )
+
     def _on_instance_created( self, instance ):
         """
         Invoked right after an instance was created.
@@ -240,6 +255,7 @@ class Box( object ):
         """
         self._log( 'tagging instance ... ', newline=False )
         instance.add_tag( 'Name', self.ctx.to_aws_name( self.role( ) ) )
+        self.__write_options( instance )
 
     def _on_instance_running( self, first_boot ):
         """
@@ -276,7 +292,10 @@ class Box( object ):
             self._log( 'Adopting instance ... ', newline=False )
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
-            self.__read_generation( instance.image_id )
+            image = self.ctx.ec2.get_image( instance.image_id )
+            options = dict( image.tags )
+            options.update( instance.tags )
+            self._set_instance_options( options )
             if wait_ready:
                 self.__wait_ready( instance, from_states={ 'pending' }, first_boot=None )
             else:
@@ -353,7 +372,11 @@ class Box( object ):
         while True:
             try:
                 image = self.ctx.ec2.get_image( image_id )
-                image.add_tag( 'generation', str( self.generation + 1 ) )
+                self.generation += 1
+                try:
+                    self.__write_options( image )
+                finally:
+                    self.generation -= 1
                 self.__wait_transition( image, { 'pending' }, 'available' )
                 self._log( "done. Created image %s (%s)." % ( image.id, image.name ) )
                 return image_id
@@ -655,13 +678,21 @@ class Box( object ):
             authorized_keys.seek( 0 )
             ssh_pubkeys = set( l.strip( ) for l in authorized_keys.readlines( ) )
             for ec2_keypair in ec2_keypairs:
-                ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
-                ssh_pubkeys.add( ssh_pubkey.strip( ) )
+                ssh_pubkey = self.__download_ssh_pubkey( ec2_keypair )
+                if ssh_pubkey: ssh_pubkeys.add( ssh_pubkey )
             authorized_keys.seek( 0 )
             authorized_keys.truncate( )
             authorized_keys.write( '\n'.join( ssh_pubkeys ) )
             authorized_keys.write( '\n' )
             put( local_path=authorized_keys, remote_path='~/.ssh/authorized_keys' )
+
+    def __download_ssh_pubkey( self, keypair ):
+        try:
+            return self.ctx.download_ssh_pubkey( keypair ).strip( )
+        except UserError as e:
+            self._log( 'Exception while downloading SSH public key from S3: {}', e )
+            return None
+
 
     @fabric_task
     def _propagate_authorized_keys( self, user, group=None ):
@@ -697,7 +728,7 @@ class Box( object ):
         """
         image_name_pattern = self.ctx.to_aws_name( self.role( ) + '_' ) + '*'
         images = self.ctx.ec2.get_all_images( filters={ 'name': image_name_pattern } )
-        images.sort( key=attrgetter( 'name' ) ) # that sorts by date, effectively
+        images.sort( key=attrgetter( 'name' ) )  # that sorts by date, effectively
         return images
 
     @fabric_task
