@@ -62,20 +62,21 @@ class AgentBox( SourceControlClient ):
     @fabric_task
     def _post_install_packages( self ):
         super( AgentBox, self )._post_install_packages( )
-        sudo( 'pip install --upgrade pip==1.5.2' ) # some distros (lucid & centos5 ) have an ancient pip
+        sudo( 'pip install --upgrade pip==1.5.2' ) # lucid & centos5 have an ancient pip
         sudo( 'pip install --upgrade virtualenv' )
         self.setup_repo_host_keys( )
         run( 'virtualenv ~/agent' )
         with settings( forward_agent=True ):
             run( '~/agent/bin/pip install '
-                 '--process-dependency-links '# pip 1.5.x deprecates dependency_links in setup.py
-                 '--allow-external argparse ' # needed on CentOS 5 and 6 for some reason
+                 '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
+                 '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
                  'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-agent@default' )
         authorized_keys = run( 'echo ~/authorized_keys' )
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
             namespace=self.ctx.namespace,
-            ec2_keypair_globs=' '.join( shell.quote( glob ) for glob in self.ec2_keypair_globs ),
+            ec2_keypair_globs=' '.join(
+                shell.quote( glob ) for glob in self.ec2_keypair_globs ),
             authorized_keys=authorized_keys,
             user=self.username( ),
             group=self.username( ) )
@@ -87,22 +88,22 @@ class AgentBox( SourceControlClient ):
                       ' --user {user}'
                       ' --group {group}'
                       '| gzip -c | base64'.format( **kwargs ) )
-        script = self.gunzip_base64_decode( script )
+        script = self.__gunzip_base64_decode( script )
         self._register_init_script( script, 'cgcloudagent' )
         self._run_init_script( 'cgcloudagent' )
 
         sshd_config_path = '/etc/ssh/sshd_config'
         sshd_config = sudo( 'gzip -c %s | base64' % sshd_config_path )
-        sshd_config = StringIO( self.gunzip_base64_decode( sshd_config ) )
+        sshd_config = StringIO( self.__gunzip_base64_decode( sshd_config ) )
         if self.__has_multi_file_authorized_keys( ):
-            patch_method = self.patch_sshd_config
+            patch_method = self.__patch_sshd_config
         else:
-            patch_method = self.patch_sshd_config2
+            patch_method = self.__patch_sshd_config2
         patch_method( sshd_config, authorized_keys )
         put( remote_path=sshd_config_path, local_path=sshd_config, use_sudo=True )
 
     @staticmethod
-    def gunzip_base64_decode( s ):
+    def __gunzip_base64_decode( s ):
         """
         Fabric doesn't have get( ..., use_sudo=True ) [1] so we need to use
 
@@ -122,7 +123,7 @@ class AgentBox( SourceControlClient ):
         return zlib.decompress( base64.b64decode( s ), 16 + zlib.MAX_WBITS )
 
     @staticmethod
-    def patch_sshd_config( sshd_config, authorized_keys ):
+    def __patch_sshd_config( sshd_config, authorized_keys ):
         """
         Modifies the AuthorizedKeysFile statement in the given file-like object containing a
         valid sshd_config file to include the given path. If the AuthorizedKeysFile statement is
@@ -136,28 +137,28 @@ class AgentBox( SourceControlClient ):
         A single active statement:
 
         >>> f = StringIO('bla\\n AuthorizedKeysFile bar\\nbla' )
-        >>> AgentBox.patch_sshd_config(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile foo bar\\nbla'
 
         A single commented statement:
 
         >>> f = StringIO('bla\\n # AuthorizedKeysFile bar\\nbla' )
-        >>> AgentBox.patch_sshd_config(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile foo bar\\nbla'
 
         A single active statement and two commented statements:
 
         >>> f = StringIO('AuthorizedKeysFile bar1\\n#AuthorizedKeysFile bar2\\n#AuthorizedKeysFile bar3' )
-        >>> AgentBox.patch_sshd_config(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'AuthorizedKeysFile foo bar1\\n#AuthorizedKeysFile bar2\\n#AuthorizedKeysFile bar3'
 
         Two commented statements:
 
         >>> f = StringIO('#AuthorizedKeysFile bar1\\n#AuthorizedKeysFile bar2' )
-        >>> AgentBox.patch_sshd_config(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
         Traceback (most recent call last):
         ....
         RuntimeError: Ambiguous AuthorizedKeysFile statements
@@ -165,7 +166,7 @@ class AgentBox( SourceControlClient ):
         Two active statements:
 
         >>> f = StringIO('AuthorizedKeysFile bar1\\nAuthorizedKeysFile bar2' )
-        >>> AgentBox.patch_sshd_config(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
         Traceback (most recent call last):
         ....
         RuntimeError: Ambiguous AuthorizedKeysFile statements
@@ -173,7 +174,7 @@ class AgentBox( SourceControlClient ):
         No statements, add one:
 
         >>> f = StringIO('bla\\n' )
-        >>> AgentBox.patch_sshd_config(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile foo\\n'
         """
@@ -200,7 +201,7 @@ class AgentBox( SourceControlClient ):
         sshd_config.writelines( lines )
 
     @staticmethod
-    def patch_sshd_config2( sshd_config, authorized_keys ):
+    def __patch_sshd_config2( sshd_config, authorized_keys ):
         """
         Adds the undocumented AuthorizedKeysFile2 statement to the given config file. If there
         already is such a statement, an exception will raised. If there are one or more commented
@@ -215,7 +216,7 @@ class AgentBox( SourceControlClient ):
         A single statement, don't override it
 
         >>> f = StringIO('bla\\n AuthorizedKeysFile2 bar\\nbla' )
-        >>> AgentBox.patch_sshd_config2(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config2(f, 'foo')
         Traceback (most recent call last):
         ....
         RuntimeError: AuthorizedKeysFile2 statement already present
@@ -223,14 +224,14 @@ class AgentBox( SourceControlClient ):
         A single commented statement, modify it:
 
         >>> f = StringIO('bla\\n # AuthorizedKeysFile2 bar\\nbla' )
-        >>> AgentBox.patch_sshd_config2(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config2(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile2 foo\\nbla'
 
         No statements, add one:
 
         >>> f = StringIO('bla\\n' )
-        >>> AgentBox.patch_sshd_config2(f, 'foo')
+        >>> AgentBox._AgentBox__patch_sshd_config2(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile2 foo\\n'
         """
