@@ -412,7 +412,7 @@ class CreateCommand( CreationCommand ):
                      enable_agent=not options.no_agent )
 
     def run_on_creation( self, box, options ):
-        box.setup( upgrade_installed_packages=options.update )
+        box.setup( upgrade_installed_packages=options.upgrade )
         if options.image:
             box.stop( )
             box.image( )
