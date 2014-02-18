@@ -25,10 +25,17 @@ To install and use cghub-cloud-utils, you need
 
 Once those are installed, use ``pip`` to install cghub-cloud-utils::
 
-   sudo pip install hg+ssh://bitbucket.org/cghub/cghub-cloud-utils/
+   sudo pip install hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-utils
 
-At the moment, the project is hosted in a *private* repository on Bitbucket, meaning that you will
-be asked to enter your Bitbucket credentials.
+If you get
+
+    ::
+
+         Could not find any downloads that satisfy the requirement cghub-cloud-...
+
+try adding ``--process-dependency-links`` after ``install``. This is a known `issue`_ with pip 1.5.x.
+
+.. _issue: https://mail.python.org/pipermail/distutils-sig/2014-January/023453.html
 
 If you get an error message during the installation of the ``lxml`` dependency, you might have to install the ``libxml2`` and ``libxslt`` headers. On Ubuntu, for example, run::
 
