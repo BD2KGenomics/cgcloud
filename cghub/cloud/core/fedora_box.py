@@ -36,3 +36,13 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox ):
                 raise RuntimeError( "Found more than one AMI for Fedora %i" % release )
 
         return images[ 0 ]
+
+    def _get_package_substitutions( self ):
+        return super( FedoraBox, self )._get_package_substitutions( ) + [
+            # Without openssl-devel, the httplib module disables HTTPS support. The underlying
+            # 'import _ssl' fails with ImportError: /usr/lib64/python2.7/lib-dynload/_ssl.so:
+            # symbol SSLeay_version, version OPENSSL_1.0.1 not defined in file libcrypto.so.10
+            # with link time reference. This packet substitution ensures that if Python is to be installed, openssl-devel is too.
+            ( 'python', ( 'python', 'openssl-devel' ) )
+        ]
+
