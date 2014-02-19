@@ -1,3 +1,5 @@
+from itertools import chain
+
 from cghub.cloud.core.box import Box
 
 
@@ -6,20 +8,20 @@ class PackageManagerBox( Box ):
     A box that uses a package manager like apt-get or yum.
     """
 
-    def _sync_package_repos(self):
+    def _sync_package_repos( self ):
         """
         Update the cached package descriptions from remote package repositories,
         e.g. apt-get update on Ubuntu
         """
         raise NotImplementedError( )
 
-    def _upgrade_installed_packages(self):
+    def _upgrade_installed_packages( self ):
         """
         Update all installed package to their lates version, e.g. apt-get update on Ubuntu.
         """
         raise NotImplementedError( )
 
-    def _install_packages(self, packages):
+    def _install_packages( self, packages ):
         """
         Install the given packages
 
@@ -27,48 +29,47 @@ class PackageManagerBox( Box ):
         """
         raise NotImplementedError( )
 
-    def _setup_package_repos(self):
+    def _setup_package_repos( self ):
         """
         Set up additional remote package repositories.
         """
         pass
 
-    def _list_packages_to_install(self):
+    def _list_packages_to_install( self ):
         """
         Return the list of packages to be installed.
         """
         return [ 'htop' ]
 
-    def _pre_install_packages(self):
+    def _pre_install_packages( self ):
         """
         Invoked immediately before package installation.
         """
         pass
 
-    def _post_install_packages(self):
+    def _post_install_packages( self ):
         """
         Invoked immediately after package installation.
         """
         pass
 
-    def _get_package_substitutions(self):
+    def _get_package_substitutions( self ):
         """
         Return a list of package substitutions. Each substitution is a tuple of two elements. The
-        first element, the original, is the name of a package to be installed,
-        the second element, aka the substitute, is the name of the package that should be used
-        instead. The dictionary may contain cycles, None keys and None value.
+        first element, aka the original, is the name of a package to be installed, the second
+        element, aka the substitutes, is an iterable of names of the packages that should be used
+        instead. An empty iterable will prevent the original from being installed. If the second
+        element is an instance of basestring, it will be treated like a singleton of that string.
+        If the second ekement is None, it will be treated like an empty iterable. Substitutes are
+        subjected to substitution, too. The dictionary may contain cycles.
 
-        Substitutes are subjected to substitution, too. An None substitute will cause original to
-        be ignored. A None original will cause any ignored packages to be replaced by the
-        corresponding substitute, a less common scenario.
-
-        The returned list will be passed to the dict() constructor. If there are more than one
-        substitution for a particular original, all but the last one will be ignored. For example,
-        [ ('o','s1'), ('o'),('s2') ]  is equivalent to [ ('o'),('s2') ].
+        The returned list will be passed to the dict() constructor. If it contains more than one
+        tuple with the same first element, only the last entry will be significant. For example,
+        [ ('a','b'), ('a','c') ] is equivalent to [ ('a','c') ].
         """
         return [ ]
 
-    def setup(self, upgrade_installed_packages=False):
+    def setup( self, upgrade_installed_packages=False ):
         """
         :param upgrade_installed_packages:
             Bring the package repository as well as any installed packages up to date, i.e. do
@@ -79,8 +80,7 @@ class PackageManagerBox( Box ):
         self._pre_install_packages( )
         substitutions = dict( self._get_package_substitutions( ) )
         packages = self._list_packages_to_install( )
-        packages = ( substitute_package( substitutions, p ) for p in packages )
-        packages = [ p for p in packages if p is not None ]
+        packages = list( self.__substitute_packages( substitutions, packages ) )
         self._install_packages( packages )
         self._post_install_packages( )
         if upgrade_installed_packages:
@@ -88,45 +88,70 @@ class PackageManagerBox( Box ):
             # The upgrade might involve a kernel update, so we'll reboot to be safe
             self.reboot( )
 
-    def _register_init_script(self, script, name ):
-        raise NotImplementedError()
+    def _register_init_script( self, script, name ):
+        raise NotImplementedError( )
 
-    def _run_init_script(self, name, command='start' ):
-        raise NotImplementedError()
+    def _run_init_script( self, name, command='start' ):
+        raise NotImplementedError( )
 
+    @classmethod
+    def __substitute_package( cls, substitutions, package, history=None ):
+        """
+        Apply the given substitutions map on the package argument. Handles cycles as well as None
+        keys and values.
 
-def substitute_package(substitutions, package):
-    """
-    Apply the given substitutions map on the package argument. Handles cycles as well as None
-    keys and values.
-
-    >>> substitute_package( {}, None ) is None
-    True
-    >>> substitute_package( { None: 'a' }, None )
-    'a'
-    >>> substitute_package( { 'a': 'a' }, 'a' )
-    'a'
-    >>> substitute_package( { 'a': None }, 'a' ) is None
-    True
-    >>> substitute_package( { 'a': 'b' }, 'b' )
-    'b'
-    >>> substitute_package( { 'a': 'b' }, 'a' )
-    'b'
-    >>> substitute_package( { 'a': None, None:'c', 'c':'a' }, 'a' )
-    'c'
-    >>> substitute_package( { 'a': None, None:'c', 'c':'a' }, None )
-    'a'
-    >>> substitute_package( { 'a': None, None:'c', 'c':'a' }, 'c' ) is None
-    True
-    """
-    history = set( )
-    while True:
-        history.add( package )
+        >>> substitute_package = PackageManagerBox._PackageManagerBox__substitute_package
+        >>> substitute_package( {}, 'a' )
+        set(['a'])
+        >>> substitute_package( { 'a': 'a' }, 'a' )
+        set(['a'])
+        >>> substitute_package( { 'a': None }, 'a' )
+        set([])
+        >>> substitute_package( { 'a': [] }, 'a' )
+        set([])
+        >>> substitute_package( { 'a': 'b' }, 'a' )
+        set(['b'])
+        >>> substitute_package( { 'a': ['b'] }, 'a' )
+        set(['b'])
+        >>> substitute_package( { 'a': 'b' }, 'b' )
+        set(['b'])
+        >>> substitute_package( { 'a': ['b'] }, 'b' )
+        set(['b'])
+        >>> substitute_package( { 'a': 'b' }, 'a' )
+        set(['b'])
+        >>> substitute_package( { 'a': 'b', 'b':'c', 'c':'a' }, 'a' )
+        set(['a'])
+        >>> substitute_package( { 'a':['a','b'], 'b':['b','c'], 'c':['c','a'] }, 'a' ) == {'a','b','c'}
+        True
+        >>> substitute_package( { 'a':['a','b'], 'b':None }, 'a' )
+        set(['a'])
+        >>> substitute_package( { 'a':['a','b'], 'b':[] }, 'a' )
+        set(['a'])
+        >>> substitute_package( { 'a':['a','b'], 'b':'c' }, 'a' ) ==  {'a', 'c'}
+        True
+        """
+        if not isinstance( package, basestring ):
+            raise ValueError( "Package must be a string" )
+        if history is None:
+            history = { package }
+        else:
+            if package in history: return { package }
+            history.add( package )
         try:
-            substitution = substitutions[ package ]
+            substitutes = substitutions[ package ]
         except KeyError:
-            return package
-        if substitution in history: return package
-        package = substitution
-    return package
+            return { package }
+        if substitutes is None: return set( )
+        elif isinstance( substitutes, basestring ):
+            substitute = substitutes
+            return cls.__substitute_package( substitutions, substitute, history )
+        else:
+            return cls.__substitute_packages( substitutions, substitutes, history )
+
+    @classmethod
+    def __substitute_packages( cls, substitutions, substitutes, history=None ):
+        return set( chain.from_iterable(
+            cls.__substitute_package( substitutions, substitute, history )
+                for substitute in substitutes ) )
+
 
