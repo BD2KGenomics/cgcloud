@@ -106,7 +106,8 @@ class JenkinsSlave( SourceControlClient ):
         :return: an XML element containing the slave template
         :rtype: lxml.etree._Element
         """
-        creation_kwargs = { }
+        instance_type = self.recommended_instance_type( )
+        creation_kwargs = dict( instance_type=instance_type )
         self._populate_instance_creation_args( image, creation_kwargs )
         return E( 'hudson.plugins.ec2.SlaveTemplate',
                   E.ami( image.id ),
@@ -120,8 +121,7 @@ class JenkinsSlave( SourceControlClient ):
                   E.securityGroups( '' ),
                   E.remoteFS( BUILD_DIR ),
                   E.sshPort( '22' ),
-                  E.type( snake_to_camel( self.recommended_instance_type( ),
-                                          separator='.' ) ),
+                  E.type( snake_to_camel( instance_type, separator='.' ) ),
                   E.labels( ' '.join( self.__jenkins_labels( ) ) ),
                   E.mode( 'EXCLUSIVE' ),
                   E.initScript( 'while ! touch %s/.writable; do sleep 1; done' % BUILD_DIR ),

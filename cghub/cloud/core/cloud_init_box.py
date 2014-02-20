@@ -13,7 +13,7 @@ class CloudInitBox( Box ):
     def _ephemeral_mount_point(self):
         return '/mnt/ephemeral'
 
-    def _populate_cloud_config(self, user_data):
+    def _populate_cloud_config(self, instance_type, user_data):
         """
         Populate cloud-init's configuration for injection into a newly created instance
 
@@ -29,8 +29,14 @@ class CloudInitBox( Box ):
         # /mnt/ephemeral, Fedora doesn't mount it at all. To keep it consistent across
         # releases and platforms we should be explicit.
         #
+        # Also note that Lucid's mountall waits on the disk device. On t1.micro instances this
+        # doesn't show up causing Lucid to hang on boot on this type. Ubuntu does have the
+        # nobootwait mount option that we could use but it seems simpler to remove the ephemeral
+        # fstab entry altogether.
+        #
         user_data.setdefault( 'mounts', [ ] ).append(
-            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,nofail' ] )
+            [ 'ephemeral0', None ] if instance_type == 't1.micro' else
+            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,nofail' ]  )
 
     def _populate_instance_creation_args(self, image, kwargs):
         super( CloudInitBox, self )._populate_instance_creation_args( image, kwargs )
@@ -39,7 +45,7 @@ class CloudInitBox( Box ):
         # instance storage, we force one here, such that cloud-init can mount it.
         #
         cloud_config = { }
-        self._populate_cloud_config( cloud_config )
+        self._populate_cloud_config( kwargs[ 'instance_type' ], cloud_config )
         if cloud_config:
             if 'user_data' in kwargs:
                 raise ReferenceError( "Conflicting user-data" )
