@@ -37,6 +37,11 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox ):
 
         return images[ 0 ]
 
+    def _list_packages_to_install( self ):
+        return super( FedoraBox, self )._list_packages_to_install( ) + [
+            'redhat-lsb' # gets us lsb_release
+        ]
+
     def _get_package_substitutions( self ):
         return super( FedoraBox, self )._get_package_substitutions( ) + [
             # Without openssl-devel, the httplib module disables HTTPS support. The underlying
