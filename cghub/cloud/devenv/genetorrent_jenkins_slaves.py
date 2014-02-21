@@ -35,6 +35,14 @@ class CentosGenetorrentJenkinsSlave( CentosBox, GenetorrentJenkinsSlave ):
             'rpm-build',
             'redhat-rpm-config' ]
 
+    def _post_install_packages( self ):
+        super( CentosGenetorrentJenkinsSlave, self )._post_install_packages( )
+        self._yum_local( is_update=False, rpm_urls=[
+            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-2.7.2-cghub.x86_64.rpm',
+            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-devel-2.7.2-cghub.x86_64.rpm',
+            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-setuptools-0.6c11-cghub.noarch.rpm'
+        ] )
+
 
 class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCentos5Box ):
     """
@@ -70,16 +78,6 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
             'ftp://ftp.pbone.net/mirror/ftp5.gwdg.de/pub/opensuse/repositories/home:/crt0solutions:/extras/CentOS_CentOS-5/noarch/automake-1.11.1-1.5.crt0.noarch.rpm',
             'http://dl.atrpms.net/el5-x86_64/atrpms/testing/libtool-2.2.6-15.5.el5.1.x86_64.rpm'
         ] )
-        self._yum_local( is_update=False, rpm_urls=[
-            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-2.7.2-cghub.x86_64.rpm',
-            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-devel-2.7.2-cghub.x86_64.rpm',
-            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-setuptools-0.6c11-cghub.noarch.rpm'
-        ] )
-        # Make 2.7 the default
-        # FIXME: This breaks yum which depends on 2.4 being the default
-        sudo( 'ln -snf /usr/bin/python2.7 /usr/bin/python' )
-        sudo( 'ln -snf /usr/bin/easy_install-2.7 /usr/bin/easy_install' )
-        sudo( 'mv /usr/bin/pydoc /usr/bin/pydoc2.4' )
 
 
 class Centos6GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCentos6Box ):
@@ -126,10 +124,21 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
     def _setup_package_repos( self ):
         super( UbuntuLucidGenetorrentJenkinsSlave, self )._setup_package_repos( )
         self.__add_git_ppa( )
+        self.__add_python_ppa( )
 
     @fabric_task
     def __add_git_ppa( self ):
         sudo( 'sudo add-apt-repository ppa:git-core/ppa' )
+
+    @fabric_task
+    def __add_python_ppa( self ):
+        sudo( 'sudo apt-add-repository ppa:fkrull/deadsnakes/ubuntu' )
+
+    def _list_packages_to_install( self ):
+        return super( UbuntuLucidGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            'python2.7',
+            'python2.7-dev'
+        ]
 
     def _get_package_substitutions( self ):
         return super( UbuntuLucidGenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
@@ -141,8 +150,7 @@ class UbuntuLucidGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
         # interactive mode.
         self._debconf_set_selection(
             "postfix postfix/main_mailer_type string 'No configuration'",
-            "postfix postfix/mailname string %s" % self.host_name
-        )
+            "postfix postfix/mailname string %s" % self.host_name )
 
 
 class UbuntuOneiricGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave,
