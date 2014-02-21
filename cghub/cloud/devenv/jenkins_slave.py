@@ -94,7 +94,7 @@ class JenkinsSlave( SourceControlClient ):
         labels = self.role( ).split( '-' )
         return [ l for l in labels if l not in [ 'jenkins', 'slave' ] ]
 
-    def slave_config_template( self, image ):
+    def slave_config_template( self, image, instance_type=None ):
         """
         Returns the slave template, i.e. a fragment of Jenkins configuration that,
         if added to the master's main config file, controls how EC2 instances of this slave box
@@ -106,7 +106,8 @@ class JenkinsSlave( SourceControlClient ):
         :return: an XML element containing the slave template
         :rtype: lxml.etree._Element
         """
-        instance_type = self.recommended_instance_type( )
+        if instance_type is None:
+            instance_type = self.recommended_instance_type( )
         creation_kwargs = dict( instance_type=instance_type )
         self._populate_instance_creation_args( image, creation_kwargs )
         return E( 'hudson.plugins.ec2.SlaveTemplate',

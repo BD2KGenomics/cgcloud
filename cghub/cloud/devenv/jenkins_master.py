@@ -263,7 +263,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
         return super( JenkinsMaster, self )._ssh_args( user, command )
 
     @fabric_task( user=Jenkins.user )
-    def register_slaves( self, slave_clss, clean=False ):
+    def register_slaves( self, slave_clss, clean=False, instance_type=None ):
         jenkins_config_file = StringIO( )
         jenkins_config_path = '~/config.xml'
         get( local_path=jenkins_config_file, remote_path=jenkins_config_path )
@@ -282,7 +282,7 @@ class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
                 image = images[ -1 ]
             except IndexError:
                 raise UserError( "No images for '%s'" % slave_cls.role( ) )
-            new_template = slave.slave_config_template( image )
+            new_template = slave.slave_config_template( image, instance_type )
             description = new_template.find( 'description' ).text
             found = False
             for old_template in templates.findall( template_element_name ):

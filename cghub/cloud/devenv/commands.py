@@ -1,4 +1,5 @@
 from fnmatch import fnmatch
+import os
 
 from cghub.cloud.core import BoxCommand
 
@@ -21,12 +22,20 @@ class RegisterSlaves( BoxCommand ):
                      help='Clear the list of slaves in the master before registering new slaves. '
                           'Beware that this option removes slaves that were registered through '
                           'other means, e.g. via the web UI.' )
+        self.option( '--instance-type', '-t', metavar='TYPE',
+                     default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
+                     help='The type of EC2 instance to register the slave with, e.g. t1.micro, '
+                          'm1.small, m1.medium, or m1.large etc. The value of the environment '
+                          'variable CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides '
+                          'the default, an instance type appropriate for the role.' )
 
     def run_on_box( self, options, master ):
         master.adopt( ordinal=options.ordinal )
         master.register_slaves( [ slave_cls
                                     for role, slave_cls in self.application.boxes.iteritems( )
                                     for role_glob in options.slaves
-                                    if fnmatch( role, role_glob ) ], clean=options.clean )
+                                    if fnmatch( role, role_glob ) ],
+                                clean=options.clean,
+                                instance_type=options.instance_type )
 
 
