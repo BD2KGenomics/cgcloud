@@ -58,14 +58,15 @@ class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
 
     def _list_packages_to_install( self ):
         return super( UbuntuGenericJenkinsSlave, self )._list_packages_to_install( ) + [
-            'openjdk-7-jre-headless' ]
+            'openjdk-7-jre-headless',
+            'gdebi-core' ] # comes in handy when installing .deb's with dependencies
 
     @fabric_task
     def _setup_build_user(self):
         super( UbuntuGenericJenkinsSlave, self )._setup_build_user( )
         sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
-        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/dpkg' >> /etc/sudoers" )
-        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/apt-get' >> /etc/sudoers" )
+        for prog in ( 'apt-get', 'dpkg', 'gdebi' ):
+            sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/%s' >> /etc/sudoers" % prog )
 
 class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLucidBox ):
     """
