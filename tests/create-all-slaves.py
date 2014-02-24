@@ -1,23 +1,42 @@
+from Queue import Queue
 from functools import partial
 from threading import Thread
 import unittest
-import subprocess32 as subprocess
 import os
 import uuid
-
-# Must have tmux, a fork of GNU Screen, installed for this
 import sys
-import signal
+
+from subprocess32 import check_call, check_output
+
+
+# This is more of an experiment rather than a full-fledged test. It works on multiple EC2
+# instances in parallel, therefore making it well suited for semi-interactive use since you
+# don't have to wait as long for errors to show up. It runs all cgcloud invocations in tmux panes
+# inside a detached session. The tests print the tmux session ID so you can attach to it while
+# the test is running or afterwards for a post-mortem.
+#
+# Caveats: A successfull test will leave the tmux session running. Each test creates a new
+# session so you should clean up once in a while. The easisest way to do so is to run 'tmux
+# kill-server'.
+
+# Must have tmux, a fork of GNU Screen, installed for this.
+
+# Subprocess32 a backport of Python 3.2 must also be installed (via pip). 2.7's stock subprocess
+# keeps dead-locking on me.
 
 project_root = os.path.dirname( os.path.dirname( __file__ ) )
 cgcloud = os.path.join( project_root, 'cgcloud' )
-production = False
+production = True
 if production:
     namespace = '/'
-    include_master=False
+    include_master = False
 else:
     namespace = '/hannes/'
-    include_master=True
+    include_master = True
+
+#slave_suffix = '-genetorrent-jenkins-slave'
+slave_suffix = '-generic-jenkins-slave'
+
 
 class Pane( object ):
     """
@@ -32,8 +51,6 @@ class Pane( object ):
     panes can be broken out manually after attaching to the session.
     """
 
-    # TODO: allow for multiple run()/join() cycles
-
     session = 'cgcloud-%s' % uuid.uuid4( )
     panes = [ ]
 
@@ -43,35 +60,48 @@ class Pane( object ):
 
     def __init__( self ):
         super( Pane, self ).__init__( )
-        self.channel_id = uuid.uuid4( )
+        # One tmux channel for success, one for failures. See tmux(1).
+        self.channel_ids = tuple( uuid.uuid4( ) for _ in range( 2 ) )
+        # A queue between the daemon threads that service the channels and the client code. The
+        # queue items are the channel index, 0 for failure, 1 or success.
+        self.queue = Queue( maxsize=1 )
+        # The pane index.
         self.index = len( self.panes )
         window = '%s:0' % self.session
         if self.index == 0:
             self.log( "Run 'tmux attach -t %s' to monitor output" % self.session )
-            subprocess.check_call(
+            check_call(
                 [ 'tmux', 'new-session', '-d', '-s', self.session, '-x', '100', '-y', '80' ] )
-            self.tmux_id = subprocess.check_output(
+            self.tmux_id = check_output(
                 [ 'tmux', 'list-panes', '-t', window, '-F', '#{pane_id}' ] ).strip( )
         else:
-            self.tmux_id = subprocess.check_output(
+            self.tmux_id = check_output(
                 [ 'tmux', 'split-window', '-v', '-t', window, '-PF', '#{pane_id}' ] ).strip( )
-            subprocess.check_call( [ 'tmux',
-                'select-layout', '-t', window, 'even-vertical' ] )
+            check_call( [ 'tmux', 'select-layout', '-t', window, 'even-vertical' ] )
         self.panes.append( self )
-        self.thread = Thread( target=self._wait )
-        self.thread.start( )
+        self.threads = tuple( self._start_thread( i ) for i in range( 2 ) )
 
-    def _wait( self ):
-        subprocess.check_call( [ 'tmux', 'wait', str( self.channel_id ) ] )
+    def _start_thread( self, channel_index ):
+        thread = Thread( target=partial( self._wait, channel_index ) )
+        thread.daemon = True
+        thread.start( )
+        return thread
+
+    def _wait( self, channel_index ):
+        while True:
+            check_call( [ 'tmux', 'wait', str( self.channel_ids[ channel_index ] ) ] )
+            self.queue.put( channel_index )
 
     def run( self, cmd, ignore_failure=False ):
-        operator = ';' if ignore_failure else '&&'
-        cmd = '( %s ) %s tmux wait -S %s' % ( cmd, operator, self.channel_id )
-        subprocess.check_call( [
-            'tmux', 'send-keys', '-t', self.tmux_id, cmd, 'C-m' ] )
+        fail_ch, success_ch = self.channel_ids
+        if ignore_failure:
+            cmd = '( %s ) ; tmux wait -S %s' % ( cmd, success_ch )
+        else:
+            cmd = '( %s ) && tmux wait -S %s || tmux wait -S %s' % ( cmd, success_ch, fail_ch )
+        check_call( [ 'tmux', 'send-keys', '-t', self.tmux_id, cmd, 'C-m' ] )
 
-    def join( self ):
-        self.thread.join( )
+    def result( self ):
+        return (False, True)[ self.queue.get( ) ]
 
 
 class DevEnvTest( unittest.TestCase ):
@@ -79,37 +109,53 @@ class DevEnvTest( unittest.TestCase ):
 
     """
 
-    def cgcloud( self, op, pane, role, options='', **run_args ):
-        cmd = 'export CGCLOUD_NAMESPACE="%s" && %s %s %s %s' % ( namespace, cgcloud, op, role, options )
+    def setUp( self ):
+        super( DevEnvTest, self ).setUp( )
+        slaves = [ slave
+            for slave in check_output( [ cgcloud, 'list-roles' ] ).split( '\n' )
+            if slave.endswith( slave_suffix ) ]
+        self.master_pane = Pane( ) if include_master else None
+        self.slave_panes = dict( (slave, Pane( ) ) for slave in slaves )
+
+    def test_everything( self ):
+        self._create( )
+        self._stop( )
+        self._image( )
+        # self._start( )
+        self._terminate( )
+        # self._recreate( )
+
+    def _create( self ):
+        self._test( partial( self._cgcloud, 'create', options="--never-terminate" ) )
+
+    def _start( self ):
+        self._test( partial( self._cgcloud, 'start' ) )
+
+    def _stop( self ):
+        self._test( partial( self._cgcloud, 'stop' ), reverse=True )
+
+    def _image( self ):
+        self._test( partial( self._cgcloud, 'image' ) )
+
+    def _terminate( self ):
+        self._test( partial( self._cgcloud, 'terminate', ignore_failure=True ), reverse=True )
+
+    def _recreate( self ):
+        self._test( partial( self._cgcloud, 'recreate', options="--never-terminate" ) )
+
+    def _cgcloud( self, command, pane, role, options='', **run_args ):
+        cmd = ' '.join( [ cgcloud, command, '-n', namespace, role, options ] )
         return pane.run( cmd, **run_args )
 
-    def test_slave_creation( self ):
-        self._test( partial( self.cgcloud, 'create', options='--no-agent' ) )
-
-    def test_slave_stop( self ):
-        self._test( partial( self.cgcloud, 'stop' ), reverse=True )
-
-    def test_slave_imaging( self ):
-        self._test( partial( self.cgcloud, 'image' ) )
-
-    def test_slave_termination( self ):
-        self._test( partial( self.cgcloud, 'terminate', ignore_failure=True ), reverse=True )
-
-    def _test( self, fn, reverse=False ):
-        slaves = [ slave
-            for slave in subprocess.check_output( [ cgcloud, 'list-roles' ] ).split( '\n' )
-            if slave.endswith( '-jenkins-slave' ) ]
-        master_pane = Pane( ) if include_master else None
-        slave_panes = dict( (slave, Pane( ) ) for slave in slaves )
-
+    def _test( self, command, reverse=False ):
         def test_master( ):
-            if master_pane is not None:
-                fn( master_pane, 'jenkins-master' )
-                master_pane.join( )
+            if self.master_pane is not None:
+                command( self.master_pane, 'jenkins-master' )
+                self.assertTrue( self.master_pane.result( ) )
 
         def test_slaves( ):
-            for slave, pane in slave_panes.iteritems( ): fn( pane, slave )
-            for pane in slave_panes.itervalues( ): pane.join( )
+            for slave, pane in self.slave_panes.iteritems( ): command( pane, slave )
+            for pane in self.slave_panes.itervalues( ): self.assertTrue( pane.result( ) )
 
         tests = [ test_master, test_slaves ]
         if reverse: tests.reverse( )
