@@ -1,0 +1,153 @@
+from cghub.cloud.core.generic_boxes import *
+
+from cghub.cloud.devenv.jenkins_slave import JenkinsSlave
+
+# TODO: These should be refactored into base classes of XyzGenetorrentJenkinsSlaves
+
+class GenericJenkinsSlave( JenkinsSlave ):
+    """
+    A Jenkins slave for building GeneTorrent
+    """
+    pass
+
+
+class CentosGenericJenkinsSlave( CentosBox, GenericJenkinsSlave ):
+    """
+    A Jenkins slave for building GeneTorrent on CentOS
+    """
+
+    def _list_packages_to_install( self ):
+        # TODO: List JRE explicitly (it is already installed on RightScale CentOS images)
+        return super( CentosGenericJenkinsSlave, self )._list_packages_to_install( ) + [ ]
+
+    @fabric_task
+    def _setup_build_user(self):
+        super( CentosGenericJenkinsSlave, self )._setup_build_user( )
+        sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
+        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /bin/rpm' >> /etc/sudoers" )
+        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/yum' >> /etc/sudoers" )
+
+    @fabric_task
+    def _post_install_packages( self ):
+        super( CentosGenericJenkinsSlave, self )._post_install_packages( )
+        self._yum_local( is_update=False, rpm_urls=[
+            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-2.7.2-cghub.x86_64.rpm',
+            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-devel-2.7.2-cghub.x86_64.rpm',
+            'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-setuptools-0.6c11-cghub.noarch.rpm'
+        ] )
+
+
+class Centos5GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos5Box ):
+    """
+    A Jenkins slave for building GeneTorrent on CentOS 5
+    """
+
+    pass
+
+class Centos6GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos6Box ):
+    """
+    A Jenkins slave for building GeneTorrent on CentOS 6
+    """
+    pass
+
+
+class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
+    """
+    A Jenkins slave for building GeneTorrent on Ubuntu
+    """
+
+    def _list_packages_to_install( self ):
+        return super( UbuntuGenericJenkinsSlave, self )._list_packages_to_install( ) + [
+            'openjdk-7-jre-headless' ]
+
+    @fabric_task
+    def _setup_build_user(self):
+        super( UbuntuGenericJenkinsSlave, self )._setup_build_user( )
+        sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
+        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/dpkg' >> /etc/sudoers" )
+        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/apt-get' >> /etc/sudoers" )
+
+class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLucidBox ):
+    """
+    A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
+    """
+
+    def _setup_package_repos( self ):
+        super( UbuntuLucidGenericJenkinsSlave, self )._setup_package_repos( )
+        self.__add_git_ppa( )
+        self.__add_python_ppa( )
+
+    @fabric_task
+    def __add_git_ppa( self ):
+        sudo( 'sudo add-apt-repository ppa:git-core/ppa' )
+
+    @fabric_task
+    def __add_python_ppa( self ):
+        sudo( 'sudo apt-add-repository ppa:fkrull/deadsnakes/ubuntu' )
+
+    def _list_packages_to_install( self ):
+        return super( UbuntuLucidGenericJenkinsSlave, self )._list_packages_to_install( ) + [
+            'python2.7',
+            'python2.7-dev'
+        ]
+
+    def _get_package_substitutions( self ):
+        return super( UbuntuLucidGenericJenkinsSlave, self )._get_package_substitutions( ) + [
+            ('openjdk-7-jre-headless', 'openjdk-6-jre') ]
+
+    def _pre_install_packages( self ):
+        super( UbuntuLucidGenericJenkinsSlave, self )._pre_install_packages( )
+        # On Lucid, somehow postfix gets pulled in as a dependency kicking the frontend into
+        # interactive mode.
+        self._debconf_set_selection(
+            "postfix postfix/main_mailer_type string 'No configuration'",
+            "postfix postfix/mailname string %s" % self.host_name
+        )
+
+
+class UbuntuPreciseGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuPreciseBox ):
+    """
+    A Jenkins slave for building GeneTorrent on Ubuntu 12.04 LTS (EOL April 2017)
+    """
+    pass
+
+class UbuntuSaucyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuSaucyBox ):
+    """
+    A Jenkins slave for building GeneTorrent on Ubuntu 13.10 (EOL July 2014)
+    """
+    pass
+
+class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora
+    """
+
+    def _list_packages_to_install( self ):
+        return super( FedoraGenericJenkinsSlave, self )._list_packages_to_install( ) + [
+            'java-1.7.0-openjdk' ]
+
+    @fabric_task
+    def _get_rc_local_path( self ):
+        rc_local_path = '/etc/rc.d/rc.local'
+        sudo( 'test -f {f} || echo "#!/bin/sh" > {f} && chmod +x {f}'.format( f=rc_local_path ) )
+        return rc_local_path
+
+    @fabric_task
+    def _setup_build_user(self):
+        super( FedoraGenericJenkinsSlave, self )._setup_build_user( )
+        sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
+        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /bin/rpm' >> /etc/sudoers" )
+        sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/yum' >> /etc/sudoers" )
+
+class Fedora19GenericJenkinsSlave( FedoraGenericJenkinsSlave, GenericFedora19Box ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora 19
+    """
+    pass
+
+
+class Fedora20GenericJenkinsSlave( FedoraGenericJenkinsSlave, GenericFedora20Box ):
+    """
+    A Jenkins slave for building GeneTorrent on Fedora 20
+    """
+    pass
