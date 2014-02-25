@@ -18,15 +18,23 @@ class AgentBox( SourceControlClient ):
 
     def __init__( self, ctx ):
         super( AgentBox, self ).__init__( ctx )
-        self.enable_agent = None
+        self._enable_agent = None
+
+    @property
+    def enable_agent( self ):
+        if self._enable_agent is None:
+            raise RuntimeError(
+                "Enable_agent property hasn't been set. Must call _set_instance_options() before "
+                "using this instance." )
+        return self._enable_agent
 
     def _set_instance_options( self, options ):
         super( AgentBox, self )._set_instance_options( options )
-        self.enable_agent = strict_bool( options.get( 'enable_agent', 'True' ) )
+        self._enable_agent = strict_bool( options.get( 'enable_agent', 'True' ) )
 
     def _get_instance_options( self ):
-        options = super( AgentBox, self )._get_instance_options(  )
-        options['enable_agent' ] = str( self.enable_agent )
+        options = super( AgentBox, self )._get_instance_options( )
+        options[ 'enable_agent' ] = str( self.enable_agent )
         return options
 
     def _manages_keys_internally( self ):

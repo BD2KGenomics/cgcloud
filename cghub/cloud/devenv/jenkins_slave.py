@@ -108,6 +108,7 @@ class JenkinsSlave( SourceControlClient ):
         """
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
+        self._set_instance_options( image.tags )
         creation_kwargs = dict( instance_type=instance_type )
         self._populate_instance_creation_args( image, creation_kwargs )
         return E( 'hudson.plugins.ec2.SlaveTemplate',
