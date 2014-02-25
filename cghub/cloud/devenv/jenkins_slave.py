@@ -70,25 +70,22 @@ class JenkinsSlave( SourceControlClient ):
         # the ephemeral volume if available. Remember, the ephemeral volume comes back empty every
         # time the box starts.
         #
-        if sudo( 'test -d {ephemeral} && mountpoint -q {ephemeral}'.format( **kwargs ),
-                 quiet=True ).succeeded:
-            chown_cmd = "chown -R {user}:{user} {ephemeral}".format( **kwargs )
-            # chown ephemeral storage now ...
-            sudo( chown_cmd )
-            # ... and every time instance boots
-            rc_local_path = self._get_rc_local_path( )
-            self._prepend_remote_shell_script( script=chown_cmd,
-                                               remote_path=rc_local_path,
-                                               use_sudo=True,
-                                               mirror_local_mode=True )
-            sudo( 'chmod +x %s' % rc_local_path )
-            # link build directory as symlink to ephemeral volume
-            sudo( 'ln -snf {ephemeral} {dir}'.format( **kwargs ),
-                  user=BUILD_USER,
-                  sudo_args='-i' )
-        else:
-            # No ephemeral storage, just create the build directory
-            sudo( 'mkdir {dir}'.format( **kwargs ), user=BUILD_USER, sudo_args='-i' )
+        if sudo( 'test -d {ephemeral}'.format( **kwargs ), quiet=True ).failed:
+            sudo( 'mkdir {ephemeral}'.format( **kwargs ) )
+        chown_cmd = "chown -R {user}:{user} {ephemeral}".format( **kwargs )
+        # chown ephemeral storage now ...
+        sudo( chown_cmd )
+        # ... and every time instance boots
+        rc_local_path = self._get_rc_local_path( )
+        self._prepend_remote_shell_script( script=chown_cmd,
+                                           remote_path=rc_local_path,
+                                           use_sudo=True,
+                                           mirror_local_mode=True )
+        sudo( 'chmod +x %s' % rc_local_path )
+        # link build directory as symlink to ephemeral volume
+        sudo( 'ln -snf {ephemeral} {dir}'.format( **kwargs ),
+              user=BUILD_USER,
+              sudo_args='-i' )
 
     def __jenkins_labels( self ):
         labels = self.role( ).split( '-' )
