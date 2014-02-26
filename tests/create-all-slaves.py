@@ -34,8 +34,10 @@ else:
     namespace = '/hannes/'
     include_master = True
 
-#slave_suffix = '-genetorrent-jenkins-slave'
-slave_suffix = '-generic-jenkins-slave'
+# slave_suffix = '-genetorrent-jenkins-slave'
+# slave_suffix = '-generic-jenkins-slave'
+slave_suffix = '-rpmbuild-jenkins-slave'
+
 
 
 class Pane( object ):
