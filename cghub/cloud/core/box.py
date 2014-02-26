@@ -693,7 +693,6 @@ class Box( object ):
             self._log( 'Exception while downloading SSH public key from S3: {}', e )
             return None
 
-
     @fabric_task
     def _propagate_authorized_keys( self, user, group=None ):
         """
@@ -756,26 +755,32 @@ class Box( object ):
         instance_profile_name = self.ctx.to_aws_name( self.role( ) )
         try:
             profile = self.ctx.iam.get_instance_profile( instance_profile_name )
-            profile = profile[
-                'get_instance_profile_response' ][
-                'get_instance_profile_result' ]
+            profile = profile.get_instance_profile_response.get_instance_profile_result
         except BotoServerError as e:
             if e.status == 404:
                 profile = self.ctx.iam.create_instance_profile( instance_profile_name )
-                profile = profile[
-                    'create_instance_profile_response' ][
-                    'create_instance_profile_result' ]
+                profile = profile.create_instance_profile_response.create_instance_profile_result
             else:
                 raise
-        profile = profile[ 'instance_profile' ]
-        # Boto 2.13.3.returns some unparsed 'garbage' in the roles entry but IAM only allows one
-        # role per profile so we're just gonna brute force it.
-        try:
-            self.ctx.iam.add_role_to_instance_profile( instance_profile_name, role_name=role_name )
-        except BotoServerError as e:
-            if e.status != 409:
-                raise
-        return profile[ 'arn' ]
+        profile = profile.instance_profile
+        result = profile.arn
+        # Note that Boto does not correctly parse the result from get/create_instance_profile.
+        # The 'roles' field should be an instance of ListElement, whereas it currently is a
+        # simple, dict-like Element. We can check a dict-like element for size but since all
+        # children have the same name -- 'member' in this case -- the dictionary will always have
+        # just one entry. Luckily, IAM currently only supports one role per profile so this Boto
+        # bug does not affect us much.
+        if len( profile.roles ) > 1:
+            raise RuntimeError( 'Did not expect profile to contain more than one role' )
+        elif len( profile.roles ) == 1:
+            # this should be profile.roles[0].role_name
+            if profile.roles.member.role_name == role_name:
+                return result
+            else:
+                self.ctx.iam.remove_role_from_instance_profile( instance_profile_name,
+                                                                profile.roles.member.role_name )
+        self.ctx.iam.add_role_to_instance_profile( instance_profile_name, role_name )
+        return result
 
     role_prefix = 'cghub-cloud'
 
