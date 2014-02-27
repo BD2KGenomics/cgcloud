@@ -10,6 +10,7 @@ from boto.ec2.group import Group
 from cghub.cloud.lib.context import Context
 from cghub.cloud.lib.util import UserError, Command
 from fabric.operations import prompt
+from cghub.cloud.core.box import Box
 
 
 class ContextCommand( Command ):
@@ -32,7 +33,7 @@ class ContextCommand( Command ):
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                      default=os.environ.get( 'CGCLOUD_ZONE', 'us-west-1b' ),
                      dest='availability_zone',
-                     help='The name of the EC2 availability zone to operate in, e.g. us-east-1a, '
+                     help='The name of the EC2 availability zone to operate in, e.g. us-east-1b, '
                           'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
                           'run in. The value of the environment variable CGCLOUD_ZONE, '
                           'if that variable is present, overrides the default.' )
@@ -272,6 +273,12 @@ class CreationCommand( RoleCommand ):
                           'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
                           'default, an instance type appropriate for the role.' )
 
+        self.option( '--security-groups', '-g', metavar='GROUP',
+                     default=Box.default_security_groups,
+                     nargs='+',
+                     help='The names of the security groups to apply to the instance. Make sure '
+                          'that one of them enables access to port 22.' )
+
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -301,7 +308,9 @@ class CreationCommand( RoleCommand ):
     def run_on_box( self, options, box ):
         try:
             box.create( ec2_keypair_globs=map( box.ctx.resolve_me, options.ec2_keypair_names ),
+                        security_groups=options.security_groups,
                         instance_type=options.instance_type,
+
                         **self.instance_options( options ) )
             self.run_on_creation( box, options )
         except:

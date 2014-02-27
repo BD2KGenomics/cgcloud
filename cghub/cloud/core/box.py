@@ -153,7 +153,10 @@ class Box( object ):
                 return
         raise RuntimeError( "Can't determine root volume from image" )
 
-    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, **options ):
+    default_security_groups = [ 'default' ]
+
+    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, security_groups=None,
+                **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -191,6 +194,16 @@ class Box( object ):
             image = self._base_image( )
             self._log( "found %s." % image.id )
 
+        if security_groups is None:
+            security_groups = self.default_security_groups
+        security_groups = self.ctx.ec2.get_all_security_groups(
+            groupnames=security_groups,
+            filters={ 'ip-permission.to-port': 22 } )
+        if len( security_groups ) == 0:
+            self._log( "Warning: There is no security group that explicitly mentions port 22. "
+                       "You might have trouble actually connecting with the box via SSH. "
+                       "However, this is a heuristic and may be wrong." )
+
         str_options = dict( image.tags )
         for k, v in options.iteritems( ):
             str_options[ k ] = str( v )
@@ -206,6 +219,7 @@ class Box( object ):
         options = dict( instance_type=instance_type,
                         key_name=ec2_keypairs[ 0 ].name,
                         placement=self.ctx.availability_zone,
+                        security_groups=security_groups,
                         instance_profile_arn=self._get_instance_profile_arn( ) )
         self._populate_instance_creation_args( image, options )
 
