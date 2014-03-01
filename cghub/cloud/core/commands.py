@@ -126,6 +126,16 @@ class SshCommand( BoxCommand ):
         super( SshCommand, self ).__init__( application )
         self.option( '--user', '--login', '-u', '-l', default=None,
                      help="Name of user to login as." )
+        # FIXME: Create bug report about the following:
+        # cgcloud ssh generic-ubuntu-saucy-box --zone us-east-1b
+        # doesn't work since argparse puts '--zone us-east-1b' into the 'command' positional. This
+        # is bad because ignoring the --zone option will cause cgcloud to use the default zone and
+        # either use the wrong instance or complain about a missing instance. In either case it is
+        # not apparent that --zone needs to precede the ROLE argument.
+        # Changing nargs=argparse.REMAINDER to nargs='*' and invoking with
+        # cgcloud ssh generic-ubuntu-saucy-box --zone us-east-1b -- ls -l
+        # doesn't work for some other reason (probably a bug in argparse). It will complain about
+        # cgcloud: error: unrecognized arguments: -- ls -l
         self.option( 'command', metavar='...', nargs=argparse.REMAINDER, default=[ ],
                      help="Additional arguments to pass to ssh. This can be anything that one "
                           "would normally pass to the ssh program excluding user name and host "
