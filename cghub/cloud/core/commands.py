@@ -1,3 +1,4 @@
+from __future__ import print_function
 import argparse
 from operator import itemgetter
 import os
@@ -41,21 +42,27 @@ class ContextCommand( Command ):
                      default=os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' ),
                      help='Optional prefix for naming EC2 resource like instances, images, '
                           'volumes, etc. Use this option to create a separate namespace in order '
-                          'to avoid collisions, e.g. when running tests. The default represents '
-                          'the root namespace. The value of the environment variable '
-                          'CGCLOUD_NAMESPACE, if that variable is present, overrides the default. '
-                          'The string __me__ anywhere in the namespace will be replaced by the '
-                          'name of the IAM user whose credentials are used to issue requests to '
-                          'AWS.' )
+                          'to avoid collisions, e.g. when running tests. The value of the '
+                          'environment variable CGCLOUD_NAMESPACE, if that variable is present, '
+                          'overrides the default. The string __me__ anywhere in the namespace '
+                          'will be replaced by the name of the IAM user whose credentials are '
+                          'used to issue requests to AWS.' )
 
     def run( self, options ):
+        zone = options.availability_zone
+        namespace = options.namespace
         ctx = None
         try:
-            ctx = Context( availability_zone=options.availability_zone,
-                           namespace=options.namespace )
+            ctx = Context( availability_zone=zone, namespace=namespace )
         except ValueError as e:
             raise UserError( cause=e )
+        except:
+            # print the namespace without __me__ substituted
+            print( "Using zone '%s' and namespace '%s'" % (zone, namespace ), file=sys.stderr )
+            raise
         else:
+            # print the namespace with __me__ substituted
+            print( "Using zone '%s' and namespace '%s'" % (ctx.availability_zone, ctx.namespace ) )
             return self.run_in_ctx( options, ctx )
         finally:
             if ctx is not None: ctx.close( )
@@ -371,7 +378,7 @@ class ListRolesCommand( Command ):
     """
 
     def run( self, options ):
-        print '\n'.join( self.application.boxes.iterkeys( ) )
+        print( '\n'.join( self.application.boxes.iterkeys( ) ) )
 
 
 class RecreateCommand( CreationCommand ):
@@ -457,14 +464,14 @@ class CleanupCommand( ContextCommand ):
         s3_fingerprints = set( key.name[ len( prefix ): ] for key in bucket.list( prefix=prefix ) )
         unused_fingerprints = s3_fingerprints - ec2_fingerprints
         if unused_fingerprints:
-            print 'The following public keys in S3 are not referenced by any EC2 keypairs:'
+            print( 'The following public keys in S3 are not referenced by any EC2 keypairs:' )
             for fingerprint in unused_fingerprints:
-                print fingerprint
+                print( fingerprint )
             if 'yes' == prompt( 'Delete these public keys from S3? (yes/no)', default='no' ):
                 bucket.delete_keys( ctx.ssh_pubkey_s3_key_prefix + fingerprint
                     for fingerprint in unused_fingerprints )
         else:
-            print 'No orphaned public keys in S3.'
+            print( 'No orphaned public keys in S3.' )
 
     @staticmethod
     def cleanup_image_snapshots( ctx ):
@@ -476,12 +483,12 @@ class CleanupCommand( ContextCommand ):
             if bdt.snapshot_id is not None )
         unused_snapshots = all_snapshots - used_snapshots
         if unused_snapshots:
-            print 'The following snapshots are not referenced by any images:'
+            print( 'The following snapshots are not referenced by any images:' )
             for snapshot_id in unused_snapshots:
                 print( snapshot_id )
             if 'yes' == prompt( 'Delete these snapshots? (yes/no)', default='no' ):
                 for snapshot_id in unused_snapshots:
-                    print 'Deleting snapshot %s' % snapshot_id
+                    print( 'Deleting snapshot %s' % snapshot_id )
                     ctx.ec2.delete_snapshot( snapshot_id )
         else:
-            print 'No unused EBS volume snapshots in EC2.'
+            print( 'No unused EBS volume snapshots in EC2.' )
