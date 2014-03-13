@@ -10,10 +10,10 @@ class CloudInitBox( Box ):
     A box that uses Canonical's cloud-init to initialize the EC2 instance.
     """
 
-    def _ephemeral_mount_point(self):
+    def _ephemeral_mount_point( self ):
         return '/mnt/ephemeral'
 
-    def _populate_cloud_config(self, instance_type, user_data):
+    def _populate_cloud_config( self, instance_type, user_data ):
         """
         Populate cloud-init's configuration for injection into a newly created instance
 
@@ -30,15 +30,20 @@ class CloudInitBox( Box ):
         # releases and platforms we should be explicit.
         #
         # Also note that Lucid's mountall waits on the disk device. On t1.micro instances this
-        # doesn't show up causing Lucid to hang on boot on this type. Ubuntu does have the
-        # nobootwait mount option that we could use but it seems simpler to remove the ephemeral
-        # fstab entry altogether.
+        # doesn't show up causing Lucid to hang on boot on this type. The cleanest way to handle
+        # this is to remove the ephemeral entry on t1.micro instances. Unfortunately, there is a
+        # bug [1] in cloud-init that causes the removal of the entry to be skipped. The
+        # nobootwait option should be a viable workaround. It's supported on recent Ubuntu and
+        # Fedora releases (I checked Fedora 19 and Ubuntu Lucid). It's only documented on Ubuntu
+        # for some reason.
+        #
+        # [1]: https://bugs.launchpad.net/cloud-init/+bug/1291820
         #
         user_data.setdefault( 'mounts', [ ] ).append(
             [ 'ephemeral0', None ] if instance_type == 't1.micro' else
-            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,nofail' ]  )
+            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,nobootwait' ] )
 
-    def _populate_instance_creation_args(self, image, kwargs):
+    def _populate_instance_creation_args( self, image, kwargs ):
         super( CloudInitBox, self )._populate_instance_creation_args( image, kwargs )
         #
         # Setup instance storage. Since some AMI', e.g. Fedora, omit the block device mapping for
@@ -52,7 +57,7 @@ class CloudInitBox( Box ):
             user_data = '#cloud-config\n' + yaml.dump( cloud_config )
             kwargs[ 'user_data' ] = user_data
 
-    def _on_instance_ready(self, first_boot):
+    def _on_instance_ready( self, first_boot ):
         super( CloudInitBox, self )._on_instance_ready( first_boot )
         if first_boot:
             # cloud-init is run on every boot, but only on the first boot will it invoke the user
@@ -60,7 +65,7 @@ class CloudInitBox( Box ):
             self.__wait_for_cloud_init_completion( )
 
     @fabric_task
-    def __wait_for_cloud_init_completion(self):
+    def __wait_for_cloud_init_completion( self ):
         """
         Wait for cloud-init to finish its job such as to avoid getting in its way. Without this,
         I've seen weird errors with 'apt-get install' not being able to find any packages.
