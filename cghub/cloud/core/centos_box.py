@@ -4,7 +4,6 @@ from distutils.version import LooseVersion
 from fabric.operations import run
 
 from box import fabric_task
-from cghub.cloud.core import __init__
 from cghub.cloud.core.agent_box import AgentBox
 from cghub.cloud.core.yum_box import YumBox
 

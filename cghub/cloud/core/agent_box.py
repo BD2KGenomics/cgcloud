@@ -1,11 +1,13 @@
 from StringIO import StringIO
 import base64
 from distutils.version import LooseVersion
-from cghub.util import shell, strict_bool
-from fabric.context_managers import settings
-from fabric.operations import sudo, run, get, put
 import re
 import zlib
+
+from cghub.util import shell, strict_bool
+from fabric.context_managers import settings
+from fabric.operations import sudo, run, put
+
 from cghub.cloud.core.box import fabric_task
 from cghub.cloud.core.source_control_client import SourceControlClient
 
@@ -161,29 +163,30 @@ class AgentBox( SourceControlClient ):
 
         A single active statement:
 
+        >>> patch_sshd_config = AgentBox._AgentBox__patch_sshd_config
         >>> f = StringIO('bla\\n AuthorizedKeysFile bar\\nbla' )
-        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
+        >>> patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile foo bar\\nbla'
 
         A single commented statement:
 
         >>> f = StringIO('bla\\n # AuthorizedKeysFile bar\\nbla' )
-        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
+        >>> patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile foo bar\\nbla'
 
         A single active statement and two commented statements:
 
         >>> f = StringIO('AuthorizedKeysFile bar1\\n#AuthorizedKeysFile bar2\\n#AuthorizedKeysFile bar3' )
-        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
+        >>> patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'AuthorizedKeysFile foo bar1\\n#AuthorizedKeysFile bar2\\n#AuthorizedKeysFile bar3'
 
         Two commented statements:
 
         >>> f = StringIO('#AuthorizedKeysFile bar1\\n#AuthorizedKeysFile bar2' )
-        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
+        >>> patch_sshd_config(f, 'foo')
         Traceback (most recent call last):
         ....
         RuntimeError: Ambiguous AuthorizedKeysFile statements
@@ -191,7 +194,7 @@ class AgentBox( SourceControlClient ):
         Two active statements:
 
         >>> f = StringIO('AuthorizedKeysFile bar1\\nAuthorizedKeysFile bar2' )
-        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
+        >>> patch_sshd_config(f, 'foo')
         Traceback (most recent call last):
         ....
         RuntimeError: Ambiguous AuthorizedKeysFile statements
@@ -199,7 +202,7 @@ class AgentBox( SourceControlClient ):
         No statements, add one:
 
         >>> f = StringIO('bla\\n' )
-        >>> AgentBox._AgentBox__patch_sshd_config(f, 'foo')
+        >>> patch_sshd_config(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile foo\\n'
         """
@@ -240,8 +243,9 @@ class AgentBox( SourceControlClient ):
 
         A single statement, don't override it
 
+        >>> patch_sshd_config2 = AgentBox._AgentBox__patch_sshd_config2
         >>> f = StringIO('bla\\n AuthorizedKeysFile2 bar\\nbla' )
-        >>> AgentBox._AgentBox__patch_sshd_config2(f, 'foo')
+        >>> patch_sshd_config2(f, 'foo')
         Traceback (most recent call last):
         ....
         RuntimeError: AuthorizedKeysFile2 statement already present
@@ -249,14 +253,14 @@ class AgentBox( SourceControlClient ):
         A single commented statement, modify it:
 
         >>> f = StringIO('bla\\n # AuthorizedKeysFile2 bar\\nbla' )
-        >>> AgentBox._AgentBox__patch_sshd_config2(f, 'foo')
+        >>> patch_sshd_config2(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile2 foo\\nbla'
 
         No statements, add one:
 
         >>> f = StringIO('bla\\n' )
-        >>> AgentBox._AgentBox__patch_sshd_config2(f, 'foo')
+        >>> patch_sshd_config2(f, 'foo')
         >>> f.getvalue()
         'bla\\nAuthorizedKeysFile2 foo\\n'
         """
