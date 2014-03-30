@@ -133,6 +133,7 @@ class Box( object ):
         instance is booted from the resulting AMI, generations will be one.
         """
         self.ip_address = None
+        self.host_name = None
 
     def _populate_instance_creation_args( self, image, kwargs ):
         """
@@ -704,7 +705,7 @@ class Box( object ):
         try:
             return self.ctx.download_ssh_pubkey( keypair ).strip( )
         except UserError as e:
-            self._log( 'Exception while downloading SSH public key from S3: {}', e )
+            self._log( 'Exception while downloading SSH public key from S3: %s' % e )
             return None
 
     @fabric_task
