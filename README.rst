@@ -1,4 +1,4 @@
-CGHub Cloud Utils (officially, cghub-cloud-utils) manages virtual machines in Amazon's Elastic
+CGHub Cloud Utils (officially, cghub-cloud-core) manages virtual machines in Amazon's Elastic
 Compute Cloud. Each virtual machine (*box*) is automatically provisioned with operating system and
 application software such that it can function in one of several predefined *roles*, e.g. as a
 continuous integration server, for running tests or as a build server for creating platform-specific
@@ -9,12 +9,12 @@ be isolated from each other by using separate namespaces.
 Quickstart
 ==========
 
-To install and use cghub-cloud-utils, you need
+To install and use cghub-cloud-core, you need
 
 * Python ≧ 2.7.x
 * pip_
 * Mercurial_ (``hg``)
-* Mac OS X: Xcode_ and the `Xcode Command Line Tools`_ (needed during the installation of cghub-cloud-utils for compiling the PyCrypto dependency)
+* Mac OS X: Xcode_ and the `Xcode Command Line Tools`_ (needed during the installation of cghub-cloud-core for compiling the PyCrypto dependency)
 * A Bitbucket account and membership in the ``cghub`` (see steps 1 and 2 of our `Bitbucket Guide`_) * Your public SSH key registered in Bitbucket (see steps 3 and 4 of our `Bitbucket Guide`_)
 
 .. _pip: https://pip.readthedocs.org/en/latest/installing.html
@@ -23,9 +23,9 @@ To install and use cghub-cloud-utils, you need
 .. _Xcode Command Line Tools: http://stackoverflow.com/questions/9329243/xcode-4-4-command-line-tools
 .. _Bitbucket Guide: http://cgwiki.soe.ucsc.edu/index.php/Bitbucket_Repositories
 
-Once those are installed, use ``pip`` to install cghub-cloud-utils::
+Once those are installed, use ``pip`` to install cghub-cloud-core::
 
-   sudo pip install hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-utils
+   sudo pip install hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-core
 
 If you get
 
@@ -99,7 +99,7 @@ Uninstallation
 
 ::
 
-    sudo pip uninstall cghub-cloud-utils
+    sudo pip uninstall cghub-cloud-core
 
 Motivation
 ==========
