@@ -59,7 +59,7 @@ class AgentBox( SourceControlClient ):
 
     @fabric_task
     def __has_multi_file_authorized_keys( self ):
-        self.__ssh_version_has_multi_file_authorized_keys( run( 'ssh -V' ) )
+        return self.__ssh_version_has_multi_file_authorized_keys( run( 'ssh -V' ) )
 
     @staticmethod
     def __ssh_version_has_multi_file_authorized_keys( version ):
@@ -77,6 +77,8 @@ class AgentBox( SourceControlClient ):
         Traceback (most recent call last):
         ....
         RuntimeError: Can't determine OpenSSH version from 'Bla'
+        >>> m( 'OpenSSH_6.2p2 Ubuntu-6ubuntu0.1, OpenSSL 1.0.1e 11 Feb 2013' )
+        True
         """
         version = version.split( ',' )[ 0 ]
         prefix = 'OpenSSH_'
