@@ -53,15 +53,19 @@ class GenericCentos5Box( CentosBox ):
             # The pip from the python-pip package is hard-wired to the python 2.4 from the python
             #  package. Also it's ancient, fossilized crap. To get an up-to-date pip that is
             # wired to python 2.6 from the python26 package we have to jump though some hoops.
+
             # First, we need to ignore certs since the CA package on CentOS 5 is, you guessed it,
-            #  out of date.
+            # out of date. We do this globally because the downloaded .py scripts execute wget
+            # internally. Nevertheless, we got cert errors with github.com and so we are using
+            # curl instead to download the scripts from there.
             sudo( 'echo "check_certificate=off" > /root/.wgetrc' )
             # Then install setuptools ...
-            run( 'wget https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py' )
+            run( 'curl -O https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py' )
             sudo( 'python26 ez_setup.py' )
             # .. and pip.
-            run( 'wget https://raw.github.com/pypa/pip/master/contrib/get-pip.py' )
+            run( 'curl -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py' )
             sudo( 'python26 get-pip.py' )
+            sudo( 'rm /root/.wgetrc' )
             super( GenericCentos5Box, self )._post_install_packages( )
 
 
