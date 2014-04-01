@@ -1,6 +1,7 @@
 from itertools import chain
+from fabric.operations import sudo
 
-from cghub.cloud.core.box import Box
+from cghub.cloud.core.box import Box, fabric_task
 
 
 class PackageManagerBox( Box ):
@@ -91,8 +92,12 @@ class PackageManagerBox( Box ):
     def _register_init_script( self, script, name ):
         raise NotImplementedError( )
 
+    @fabric_task
     def _run_init_script( self, name, command='start' ):
-        raise NotImplementedError( )
+        sudo( "service %s %s" % ( name, command ) )
+
+    def _ssh_service_name( self ):
+        raise NotImplementedError()
 
     @classmethod
     def __substitute_package( cls, substitutions, package, history=None ):

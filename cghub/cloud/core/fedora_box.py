@@ -50,4 +50,3 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox ):
             # with link time reference. This packet substitution ensures that if Python is to be installed, openssl-devel is too.
             ( 'python', ( 'python', 'openssl-devel' ) )
         ]
-

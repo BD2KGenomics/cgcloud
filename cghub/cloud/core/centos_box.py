@@ -1,7 +1,7 @@
 import re
 from distutils.version import LooseVersion
 
-from fabric.operations import run
+from fabric.operations import run, sudo
 
 from box import fabric_task
 from cghub.cloud.core.agent_box import AgentBox
@@ -113,4 +113,7 @@ class CentosBox( YumBox, AgentBox ):
                 base_url + 'openssh-server-6.3p1-1.x86_64.rpm' ] )
             self._run_init_script( 'sshd', 'restart' )
 
-
+    @fabric_task
+    def _run_init_script( self, name, command='start' ):
+        script_path = self._init_script_path( name )
+        sudo( '%s %s' % ( script_path, command ) )

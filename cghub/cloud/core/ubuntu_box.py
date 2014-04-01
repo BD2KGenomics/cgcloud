@@ -92,6 +92,6 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
             remote_path='/etc/init/%s.conf' % name,
             use_sudo=True )
 
-    @fabric_task
-    def _run_init_script( self, name, command='start' ):
-        sudo( "service %s %s" % ( name, command ) )
+    def _ssh_service_name( self ):
+        return 'ssh'
+

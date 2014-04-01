@@ -130,6 +130,7 @@ class AgentBox( SourceControlClient ):
                 patch_method = self.__patch_sshd_config2
             patch_method( sshd_config, authorized_keys )
             put( remote_path=sshd_config_path, local_path=sshd_config, use_sudo=True )
+            self._run_init_script( self._ssh_service_name( ), command='reload' )
 
     @staticmethod
     def __gunzip_base64_decode( s ):
