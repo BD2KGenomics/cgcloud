@@ -7,6 +7,7 @@ from box import fabric_task
 from cghub.cloud.core.agent_box import AgentBox
 from cghub.cloud.core.cloud_init_box import CloudInitBox
 from cghub.cloud.core.package_manager_box import PackageManagerBox
+from cghub.cloud.core.rc_local_box import RcLocalBox
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 
@@ -16,7 +17,7 @@ class TemplateDict( dict ):
         return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
 
-class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox ):
+class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     """
     A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """

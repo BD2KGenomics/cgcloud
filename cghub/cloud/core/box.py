@@ -18,7 +18,7 @@ from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
 from cghub.cloud.lib.context import Context
-from cghub.cloud.lib.util import UserError, unpack_singleton, prepend_shell_script, camel_to_snake
+from cghub.cloud.lib.util import UserError, unpack_singleton, camel_to_snake
 
 EC2_POLLING_INTERVAL = 5
 
@@ -57,6 +57,7 @@ class fabric_task( object ):
                 try:
                     task = partial( function, box, *args, **kwargs )
                     task.name = function.__name__
+                    # noinspection PyProtectedMember
                     return box._execute_task( task, user )
                 finally:
                     assert self.user_stack.pop( ) == user
@@ -651,7 +652,7 @@ class Box( object ):
         """
         Same as :py:meth:`_wait_transition`, but for volumes which use 'status' instead of 'state'.
         """
-        self.__wait_transition( volume, from_states, to_state, lambda volume: volume.status )
+        self.__wait_transition( volume, from_states, to_state, lambda vol: vol.status )
 
     def __wait_transition( self, resource, from_states, to_state,
                            state_getter=lambda resource: resource.state ):
@@ -745,23 +746,11 @@ class Box( object ):
         images.sort( key=attrgetter( 'name' ) )  # that sorts by date, effectively
         return images
 
-    @fabric_task
-    def _prepend_remote_shell_script( self, script, remote_path, **put_kwargs ):
+    def _register_init_command( self, cmd ):
         """
-        Insert the given script into the remote file at the given path before the first script
-        line. See prepend_shell_script() for a definition of script line.
-
-        :param script: the script to be inserted
-        :param remote_path: the path to the file on the remote host
-        :param put_kwargs: arguments passed to Fabric's put operation
+        Register a shell command to be executed towards the end of system initialization
         """
-        with closing( StringIO( ) ) as out_file:
-            with closing( StringIO( ) ) as in_file:
-                get( remote_path=remote_path, local_path=in_file )
-                in_file.seek( 0 )
-                prepend_shell_script( '\n' + script, in_file, out_file )
-            out_file.seek( 0 )
-            put( remote_path=remote_path, local_path=out_file, **put_kwargs )
+        raise NotImplementedError( )
 
     def _get_instance_profile_arn( self ):
         role_name, policies = self._get_iam_ec2_role( )

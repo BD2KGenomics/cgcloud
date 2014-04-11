@@ -3,14 +3,15 @@ from distutils.version import LooseVersion
 
 from fabric.operations import run, sudo
 
-from box import fabric_task
-from cghub.cloud.core.agent_box import AgentBox
-from cghub.cloud.core.yum_box import YumBox
+from .box import fabric_task
+from .agent_box import AgentBox
+from .yum_box import YumBox
+from .rc_local_box import RcLocalBox
 
 ADMIN_USER = 'admin'
 
 
-class CentosBox( YumBox, AgentBox ):
+class CentosBox( YumBox, AgentBox, RcLocalBox ):
     """
     A box representing EC2 instances that boots of a RightScale CentOS AMI. Most of the
     complexity in this class stems from a workaround for RightScale's handling of the root

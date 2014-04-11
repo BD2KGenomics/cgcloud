@@ -1,12 +1,16 @@
 import re
 from operator import attrgetter
 
+from fabric.operations import sudo
+
+from cghub.cloud.core.box import fabric_task
 from cghub.cloud.core.agent_box import AgentBox
 from cghub.cloud.core.cloud_init_box import CloudInitBox
+from cghub.cloud.core.rc_local_box import RcLocalBox
 from cghub.cloud.core.yum_box import YumBox
 
 
-class FedoraBox( YumBox, AgentBox, CloudInitBox ):
+class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
     """
     A box that boots of an official Fedora cloud AMI
     """
@@ -50,3 +54,9 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox ):
             # with link time reference. This packet substitution ensures that if Python is to be installed, openssl-devel is too.
             ( 'python', ( 'python', 'openssl-devel' ) )
         ]
+
+    @fabric_task
+    def _get_rc_local_path( self ):
+        rc_local_path = '/etc/rc.d/rc.local'
+        sudo( 'test -f {f} || echo "#!/bin/sh" > {f} && chmod +x {f}'.format( f=rc_local_path ) )
+        return rc_local_path

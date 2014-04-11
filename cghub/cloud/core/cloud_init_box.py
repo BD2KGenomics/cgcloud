@@ -31,17 +31,29 @@ class CloudInitBox( Box ):
         #
         # Also note that Lucid's mountall waits on the disk device. On t1.micro instances this
         # doesn't show up causing Lucid to hang on boot on this type. The cleanest way to handle
-        # this is to remove the ephemeral entry on t1.micro instances. Unfortunately, there is a
-        # bug [1] in cloud-init that causes the removal of the entry to be skipped. The
-        # nobootwait option should be a viable workaround. It's supported on recent Ubuntu and
-        # Fedora releases (I checked Fedora 19 and Ubuntu Lucid). It's only documented on Ubuntu
-        # for some reason.
+        # this is to remove the ephemeral entry on t1.micro instances by specififying [
+        # 'ephemeral0', None ]. Unfortunately, there is a bug [1] in cloud-init that causes the
+        # removal of the entry to be ineffective. The "nobootwait" option might be a workaround
+        # but Fedora stopped supporting it such that now only Ubuntu supports it. A better
+        # workaround is to always have the ephemeral entry in fstab, even on micro instances,
+        # but to exclude the 'auto' option such that when cloud-init runs 'mount -a', it will not
+        # get mounted. We can then mount the filesystem explicitly, except on micro instances.
+        #
+        # The important thing to keep in mind is that when booting instance B from an image
+        # created on a instance A, the fstab from A will be used by B before cloud-init can make
+        # its changes to fstab. This behavior is a major cause of problems and the reason why
+        # micro instances tend to freeze when booting from images created on non-micro instances
+        # since their fstab initially refers to an ephemeral volume that doesn't exist. The
+        # nobootwait and nofail flags are really just attempts at working around this issue.
         #
         # [1]: https://bugs.launchpad.net/cloud-init/+bug/1291820
         #
         user_data.setdefault( 'mounts', [ ] ).append(
-            [ 'ephemeral0', None ] if instance_type == 't1.micro' else
-            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,nobootwait' ] )
+            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,noauto' ] )
+        if instance_type != 't1.micro':
+            # prepend mount command as best effort to getting this done ASAP
+            user_data.setdefault( 'runcmd', [ ] ).insert(
+                0, [ 'mount', self._ephemeral_mount_point( ) ] )
 
     def _populate_instance_creation_args( self, image, kwargs ):
         super( CloudInitBox, self )._populate_instance_creation_args( image, kwargs )
