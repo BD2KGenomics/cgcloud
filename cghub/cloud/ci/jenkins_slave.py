@@ -20,16 +20,6 @@ class JenkinsSlave( SourceControlClient ):
         super( JenkinsSlave, self )._post_install_packages( )
         self._setup_build_user( )
 
-    @fabric_task
-    def _get_rc_local_path( self ):
-        """
-        Return the canonical path to /etc/rc.local or an equivalent shell script that gets
-        executed during boot up. The last component in the path must not be be a symlink,
-        other components may be.
-        """
-        # might be a symlink but prepend_remote_shell_script doesn't work with symlinks
-        return sudo( 'readlink -f /etc/rc.local' )
-
     # TODO: We should probably remove this and let the agent take care of it
 
     def __get_master_pubkey( self ):
@@ -39,6 +29,8 @@ class JenkinsSlave( SourceControlClient ):
             raise UserError( "Missing EC2 keypair named '%s'. You must create the master before "
                              "creating slaves." % ec2_keypair_name )
         return self.ctx.download_ssh_pubkey( ec2_keypair )
+
+
 
     @fabric_task
     def _setup_build_user( self ):
@@ -71,16 +63,11 @@ class JenkinsSlave( SourceControlClient ):
         #
         if sudo( 'test -d {ephemeral}'.format( **kwargs ), quiet=True ).failed:
             sudo( 'mkdir {ephemeral}'.format( **kwargs ) )
-        chown_cmd = "chown -R {user}:{user} {ephemeral}".format( **kwargs )
+        chown_cmd = "mount {ephemeral} ; chown -R {user}:{user} {ephemeral}".format( **kwargs )
         # chown ephemeral storage now ...
         sudo( chown_cmd )
         # ... and every time instance boots
-        rc_local_path = self._get_rc_local_path( )
-        self._prepend_remote_shell_script( script=chown_cmd,
-                                           remote_path=rc_local_path,
-                                           use_sudo=True,
-                                           mirror_local_mode=True )
-        sudo( 'chmod +x %s' % rc_local_path )
+        self._register_init_command( chown_cmd )
         # link build directory as symlink to ephemeral volume
         sudo( 'ln -snf {ephemeral} {dir}'.format( **kwargs ),
               user=BUILD_USER,

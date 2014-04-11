@@ -21,7 +21,7 @@ class CentosGenericJenkinsSlave( CentosBox, GenericJenkinsSlave ):
         return super( CentosGenericJenkinsSlave, self )._list_packages_to_install( ) + [ ]
 
     @fabric_task
-    def _setup_build_user(self):
+    def _setup_build_user( self ):
         super( CentosGenericJenkinsSlave, self )._setup_build_user( )
         sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
         sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /bin/rpm' >> /etc/sudoers" )
@@ -44,6 +44,7 @@ class Centos5GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos5Box )
 
     pass
 
+
 class Centos6GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos6Box ):
     """
     A Jenkins slave for building GeneTorrent on CentOS 6
@@ -59,14 +60,15 @@ class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
     def _list_packages_to_install( self ):
         return super( UbuntuGenericJenkinsSlave, self )._list_packages_to_install( ) + [
             'openjdk-7-jre-headless',
-            'gdebi-core' ] # comes in handy when installing .deb's with dependencies
+            'gdebi-core' ]  # comes in handy when installing .deb's with dependencies
 
     @fabric_task
-    def _setup_build_user(self):
+    def _setup_build_user( self ):
         super( UbuntuGenericJenkinsSlave, self )._setup_build_user( )
         sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
         for prog in ( 'apt-get', 'dpkg', 'gdebi' ):
             sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/%s' >> /etc/sudoers" % prog )
+
 
 class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLucidBox ):
     """
@@ -112,11 +114,13 @@ class UbuntuPreciseGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntu
     """
     pass
 
+
 class UbuntuSaucyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuSaucyBox ):
     """
     A Jenkins slave for building GeneTorrent on Ubuntu 13.10 (EOL July 2014)
     """
     pass
+
 
 class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
     """
@@ -128,17 +132,12 @@ class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
             'java-1.7.0-openjdk' ]
 
     @fabric_task
-    def _get_rc_local_path( self ):
-        rc_local_path = '/etc/rc.d/rc.local'
-        sudo( 'test -f {f} || echo "#!/bin/sh" > {f} && chmod +x {f}'.format( f=rc_local_path ) )
-        return rc_local_path
-
-    @fabric_task
-    def _setup_build_user(self):
+    def _setup_build_user( self ):
         super( FedoraGenericJenkinsSlave, self )._setup_build_user( )
         sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
         sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /bin/rpm' >> /etc/sudoers" )
         sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/yum' >> /etc/sudoers" )
+
 
 class Fedora19GenericJenkinsSlave( FedoraGenericJenkinsSlave, GenericFedora19Box ):
     """

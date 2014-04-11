@@ -224,12 +224,6 @@ class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
             'redhat-rpm-config',
             'java-1.7.0-openjdk' ]
 
-    @fabric_task
-    def _get_rc_local_path( self ):
-        rc_local_path = '/etc/rc.d/rc.local'
-        sudo( 'test -f {f} || echo "#!/bin/sh" > {f} && chmod +x {f}'.format( f=rc_local_path ) )
-        return rc_local_path
-
 
 class Fedora19GenetorrentJenkinsSlave( FedoraGenetorrentJenkinsSlave, GenericFedora19Box ):
     """
