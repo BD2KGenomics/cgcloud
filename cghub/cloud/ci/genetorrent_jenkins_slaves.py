@@ -12,7 +12,7 @@ class GenetorrentJenkinsSlave( JenkinsSlave ):
         """
         A micro instance does not have enough RAM to build Boost, so we need to go one up.
         """
-        return "m3.medium"
+        return "m3.large"
 
 
 class CentosGenetorrentJenkinsSlave( CentosBox, GenetorrentJenkinsSlave ):
