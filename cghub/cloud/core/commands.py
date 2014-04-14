@@ -153,6 +153,26 @@ class SshCommand( BoxCommand ):
         box.ssh( user=options.user, command=options.command )
 
 
+class RsyncCommand( BoxCommand ):
+    """
+    Rsync to or from the box
+    """
+
+    def __init__( self, application ):
+        super( RsyncCommand, self ).__init__( application )
+        self.option( '--user', '--login', '-u', '-l', default=None,
+                     help="Name of user to login as." )
+        self.option( 'args', metavar='...', nargs=argparse.REMAINDER, default=[ ],
+                     help="Command line options for rsync(1). The remote path argument must be "
+                          "prefixed with a colon. For example, 'cgcloud rsync foo -av "
+                          ":bar .' would copy the file 'bar' from the home directory of the admin "
+                          "user on the box 'foo' to the current directory on the local machine." )
+
+    def run_on_box( self, options, box ):
+        box.adopt( ordinal=options.ordinal )
+        box.rsync( options.args, user=options.user )
+
+
 class ImageCommand( BoxCommand ):
     """
     Create an AMI image of a box performing a given role. The box must be stopped.

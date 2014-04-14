@@ -678,12 +678,15 @@ class Box( object ):
     @needs_instance
     def ssh( self, user=None, command=None ):
         if command is None: command = [ ]
-        subprocess.call( self._ssh_args( user, command ) )
+        subprocess.check_call( self._ssh_args( user, command ) )
+
+    @needs_instance
+    def rsync( self, args, user=None ):
+        subprocess.check_call( [ 'rsync', '-e', ' '.join( self._ssh_args( user, [ ] ) ) ] + args )
 
     def _ssh_args( self, user, command ):
-        if user is None:
-            user = self.username( )
-            # Using host name instead of IP allows for more descriptive known_hosts entries and
+        if user is None: user = self.username( )
+        # Using host name instead of IP allows for more descriptive known_hosts entries and
         # enables using wildcards like *.compute.amazonaws.com Host entries in ~/.ssh/config.
         return [ 'ssh', '%s@%s' % ( user, self.host_name ), '-A' ] + command
 
