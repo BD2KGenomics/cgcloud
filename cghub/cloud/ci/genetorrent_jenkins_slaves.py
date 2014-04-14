@@ -12,7 +12,7 @@ class GenetorrentJenkinsSlave( JenkinsSlave ):
         """
         A micro instance does not have enough RAM to build Boost, so we need to go one up.
         """
-        return "m1.small"
+        return "m3.medium"
 
 
 class CentosGenetorrentJenkinsSlave( CentosBox, GenetorrentJenkinsSlave ):
@@ -43,9 +43,6 @@ class Centos5GenetorrentJenkinsSlave( CentosGenetorrentJenkinsSlave, GenericCent
     """
     A Jenkins slave for building GeneTorrent on CentOS 5
     """
-
-    def recommended_instance_type( self ):
-        return 'm1.medium'
 
     def _get_package_substitutions( self ):
         return super( Centos5GenetorrentJenkinsSlave, self )._get_package_substitutions( ) + [
