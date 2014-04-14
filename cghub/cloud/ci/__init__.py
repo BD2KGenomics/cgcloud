@@ -2,6 +2,7 @@ from cghub.cloud.ci.commands import *
 from cghub.cloud.ci.generic_jenkins_slaves import *
 from cghub.cloud.ci.genetorrent_jenkins_slaves import *
 from cghub.cloud.ci.jenkins_master import *
+from cghub.cloud.ci.load_text_box import LoadTestBox
 from cghub.cloud.ci.rpmbuild_jenkins_slaves import *
 
 BOXES = [
@@ -24,7 +25,9 @@ BOXES = [
     Fedora20GenericJenkinsSlave,
 
     Centos5RpmbuildJenkinsSlave,
-    Centos6RpmbuildJenkinsSlave ]
+    Centos6RpmbuildJenkinsSlave,
+
+    LoadTestBox]
 
 COMMANDS = [
     RegisterSlaves ]
