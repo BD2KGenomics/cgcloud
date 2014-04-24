@@ -6,6 +6,7 @@ import unittest
 import os
 import uuid
 import sys
+from cghub.util.fnmatch import fnmatch
 
 from subprocess32 import check_call, check_output
 
@@ -26,7 +27,7 @@ from subprocess32 import check_call, check_output
 # keeps dead-locking on me.
 
 project_root = os.path.dirname( os.path.dirname( __file__ ) )
-cgcloud = os.path.join( project_root, '../cghub-cloud-core/cgcloud' )
+cgcloud = 'cgcloud'
 
 production = True
 
@@ -41,7 +42,7 @@ else:
 class Pane( object ):
     """
     An abstraction of a tmux pane. A pane represents a terminal that you can run commands in.
-    Commands run asynchronously but you can synchronized on them using the join() method. You
+    Commands run asynchronously but you can synchronized on them using the result() method. You
     should pre-allocate all panes you need before running commands in any of them. Commands are
     run using the run() method. The join() method blocks until the command finishes. The tmux
     pane remains open after the command finishes so you can do post-portem analysis on it,
@@ -162,7 +163,7 @@ def stop( options="" ):
     return Command( "stop", "-o {ordinal} {options} {role}", reverse=True, options=options )
 
 
-def ssh( ssh_command, options="" ):
+def ssh( ssh_command="", options="" ):
     return Command( "ssh", "-o {ordinal} {options} {role} {ssh_command}",
                     ssh_command=ssh_command,
                     options=options )
@@ -192,10 +193,10 @@ class BaseTest( unittest.TestCase ):
     def _execute_command( self, command ):
         pass
 
-    def _list_roles( self, slave_suffix ):
+    def _list_roles( self, slave_glob ):
         slaves = [ slave
             for slave in check_output( [ cgcloud, 'list-roles' ] ).split( '\n' )
-            if slave.endswith( slave_suffix ) ]
+            if fnmatch( slave, slave_glob ) ]
         return slaves
 
     def _test( self, *commands ):
@@ -207,18 +208,27 @@ class DevEnvTest( BaseTest ):
     """
     Tests the creation of the Jenkins master and its slaves for continuous integration.
     """
-    # slave_suffix = '-genetorrent-jenkins-slave'
-    # slave_suffix = '-generic-jenkins-slave'
-    slave_suffix = '-rpmbuild-jenkins-slave'
+    # slave_glob = '*-genetorrent-jenkins-slave'
+    # slave_glob = '*-generic-jenkins-slave'
+    # slave_glob = '*-rpmbuild-jenkins-slave'
+    slave_glob = 'centos5-*-jenkins-slave'
 
     def _init_panes( self ):
-        slave_roles = self._list_roles( self.slave_suffix )
+        slave_roles = self._list_roles( self.slave_glob )
         self.master_pane = Pane( ) if include_master else None
         self.slave_panes = dict( (slave_role, Pane( ) ) for slave_role in slave_roles )
 
     def test_everything( self ):
         self._init_panes( )
-        self._test( create( ), stop( ), image( ), start( ), terminate( ), recreate( ) )
+        self._test(
+            create( ),
+            stop( ),
+            image( ),
+            start( ),
+            terminate( ),
+            recreate( ),
+            ssh( ),
+            terminate( ) )
 
     def _execute_command( self, command ):
         def test_master( ):
@@ -238,33 +248,48 @@ class DevEnvTest( BaseTest ):
 
 
 class LoadTest( BaseTest ):
-    key_file = '~/MORDOR1.pem'
-    role = 'load-test-box'
+    key_file = '~/MORDOR1.pem' # local path, this will copied to each box
+    role = 'load-test-box' # name of the cgcloud role
     base_url = 'https://stage.cghub.ucsc.edu/cghub/data/analysis/download/'
-    uuids = [
-        "b08210ce-b0c1-4d6a-8762-0f981c27d692",
-        "ffb4cff4-06ea-4332-8002-9aff51d5d388",
-        "5c07378f-cafe-42db-a66e-d608f2f0e982",
-        "7fffef66-627f-43f7-96b3-6672e1cb6b59",
-        "7ec3fa29-bbec-4d08-839b-c1cd60909ed0",
-        "4714ee84-26cd-48e7-860d-a115af0fca48",
-        "9266e7ca-c6f9-4187-ab8b-f11f6c65bc71",
-        "9cd637b0-9b68-4fd7-bd9e-fa41e5329242",
-        "71ec0937-7812-4b35-87de-77174fdb28bc",
-        "d49add54-27d2-4d77-b719-19f4d77c10c3" ]
+    instance_type = "m3.2xlarge"
+    if False:
+        uuids = [
+            "b08210ce-b0c1-4d6a-8762-0f981c27d692",
+            "ffb4cff4-06ea-4332-8002-9aff51d5d388",
+            "5c07378f-cafe-42db-a66e-d608f2f0e982",
+            "7fffef66-627f-43f7-96b3-6672e1cb6b59",
+            "7ec3fa29-bbec-4d08-839b-c1cd60909ed0",
+            "4714ee84-26cd-48e7-860d-a115af0fca48",
+            "9266e7ca-c6f9-4187-ab8b-f11f6c65bc71",
+            "9cd637b0-9b68-4fd7-bd9e-fa41e5329242",
+            "71ec0937-7812-4b35-87de-77174fdb28bc",
+            "d49add54-27d2-4d77-b719-19f4d77c10c3" ]
+    else:
+        uuids = [
+            "7c619bf2-6470-4e01-9391-1c5db775537e", # 166GBs
+            "27a1b0dc-3f1a-4606-9bd7-8b7a0a89e066", # 166GBs
+            "027d9b42-cf22-429a-9741-da6049a5f192", # 166GBs
+            "0600bae1-2d63-41fd-9dee-b5d3cd21b3ee", # 166GBs
+            "c3cf7d48-e0c1-4605-a951-34ad83916361", # 166GBs
+            # "4c87ef17-3d1b-478f-842f-4bb855abdda1", # 166GBs, unauthorized for MORDOR1.pem
+            "44806b1a-2d77-4b67-9774-67e8a5555f88", # 166GBs
+            "727e2955-67a3-431c-9c7c-547e6b8b7c95", # 166GBs
+            "99728596-1409-4d5e-b2dc-744b5ba2aeab", # 166GBs
+            # "c727c612-1be1-8c27-e040-ad451e414a7f" # >500GBs, causes 409 during download, maybe fixed now
+        ]
     num_instances = len( uuids )
-    num_children = 2
+    num_children = 16
 
     def test_load( self ):
         self._init_panes( )
         self._test(
-            # recreate( "-t t1.micro" ),
-            # rsync( '-v %s :' % self.key_file ),
-            # ssh( self._gtdownload ),
-            terminate( '-q' )
+            recreate( "-t %s" % self.instance_type ),
+            rsync( '-v %s :' % self.key_file ),
+            ssh( self._gtdownload ),
+            terminate( '-q' ),
         )
 
-    def _gtdownload( self, _, ordinal ):
+    def _gtdownload( self, role, ordinal ):
         return "gtdownload -d {base_url}{uuid} -c {key_file} -vv --null-storage --max-children {num_children}".format(
             base_url=self.base_url,
             uuid=self.uuids[ ordinal ],
@@ -280,5 +305,5 @@ class LoadTest( BaseTest ):
         for pane in self.panes:
             self.assertTrue( pane.result( ) )
 
-        if __name__ == '__main__':
-            unittest.main( )
+if __name__ == '__main__':
+    unittest.main( )
