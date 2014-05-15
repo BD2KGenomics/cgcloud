@@ -248,8 +248,8 @@ class DevEnvTest( BaseTest ):
 
 
 class LoadTest( BaseTest ):
-    key_file = '~/MORDOR1.pem' # local path, this will copied to each box
-    role = 'load-test-box' # name of the cgcloud role
+    key_file = '~/MORDOR1.pem'  # local path, this will copied to each box
+    role = 'load-test-box'  # name of the cgcloud role
     base_url = 'https://stage.cghub.ucsc.edu/cghub/data/analysis/download/'
     instance_type = "m3.2xlarge"
     if False:
@@ -266,26 +266,26 @@ class LoadTest( BaseTest ):
             "d49add54-27d2-4d77-b719-19f4d77c10c3" ]
     else:
         uuids = [
-            "7c619bf2-6470-4e01-9391-1c5db775537e", # 166GBs
-            "27a1b0dc-3f1a-4606-9bd7-8b7a0a89e066", # 166GBs
-            "027d9b42-cf22-429a-9741-da6049a5f192", # 166GBs
-            "0600bae1-2d63-41fd-9dee-b5d3cd21b3ee", # 166GBs
-            "c3cf7d48-e0c1-4605-a951-34ad83916361", # 166GBs
+            "7c619bf2-6470-4e01-9391-1c5db775537e",  # 166GBs
+            "27a1b0dc-3f1a-4606-9bd7-8b7a0a89e066",  # 166GBs
+            "027d9b42-cf22-429a-9741-da6049a5f192",  # 166GBs
+            "0600bae1-2d63-41fd-9dee-b5d3cd21b3ee",  # 166GBs
+            "c3cf7d48-e0c1-4605-a951-34ad83916361",  # 166GBs
             # "4c87ef17-3d1b-478f-842f-4bb855abdda1", # 166GBs, unauthorized for MORDOR1.pem
-            "44806b1a-2d77-4b67-9774-67e8a5555f88", # 166GBs
-            "727e2955-67a3-431c-9c7c-547e6b8b7c95", # 166GBs
-            "99728596-1409-4d5e-b2dc-744b5ba2aeab", # 166GBs
+            "44806b1a-2d77-4b67-9774-67e8a5555f88",  # 166GBs
+            "727e2955-67a3-431c-9c7c-547e6b8b7c95",  # 166GBs
+            "99728596-1409-4d5e-b2dc-744b5ba2aeab",  # 166GBs
             # "c727c612-1be1-8c27-e040-ad451e414a7f" # >500GBs, causes 409 during download, maybe fixed now
         ]
     num_instances = len( uuids )
-    num_children = 16
+    num_children = 8
 
     def test_load( self ):
         self._init_panes( )
         self._test(
-            recreate( "-t %s" % self.instance_type ),
-            rsync( '-v %s :' % self.key_file ),
-            ssh( self._gtdownload ),
+            # recreate( "-t %s" % self.instance_type ),
+            # rsync( '-v %s :' % self.key_file ),
+            # ssh( self._gtdownload ),
             terminate( '-q' ),
         )
 
@@ -304,6 +304,32 @@ class LoadTest( BaseTest ):
             command.run( pane, self.role, ordinal=(i - self.num_instances ) )
         for pane in self.panes:
             self.assertTrue( pane.result( ) )
+
+
+class TrackerStressTest( BaseTest ):
+    role = 'load-test-box'  # name of the cgcloud role
+    stress_tracker_script = '/Users/hannes/workspace/cghub/tests/stress_tracker'
+    instance_type = 'm3.2xlarge'
+    num_instances = 8
+
+    def test_tracker_stress( self ):
+        self._init_panes( )
+        self._test(
+            # recreate( '-t %s' % self.instance_type ),
+            # rsync( '-v %s :' % self.stress_tracker_script ),
+            # ssh( 'python %s' % os.path.basename( self.stress_tracker_script ) ),
+            terminate( '-q' ),
+        )
+
+    def _init_panes( self ):
+        self.panes = [ Pane( ) for _ in range( 0, self.num_instances ) ]
+
+    def _execute_command( self, command ):
+        for i, pane in enumerate( self.panes ):
+            command.run( pane, self.role, ordinal=(i - self.num_instances ) )
+        for pane in self.panes:
+            self.assertTrue( pane.result( ) )
+
 
 if __name__ == '__main__':
     unittest.main( )

@@ -122,6 +122,12 @@ class UbuntuSaucyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuSa
     pass
 
 
+class UbuntuTrustyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuTrustyBox ):
+    """
+    A Jenkins slave for building GeneTorrent on Ubuntu 14.04 LTS (EOL April 2019)
+    """
+    pass
+
 class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
     """
     A Jenkins slave for building GeneTorrent on Fedora

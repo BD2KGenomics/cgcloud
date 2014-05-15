@@ -198,6 +198,21 @@ class UbuntuSaucyGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
         ]
 
 
+class UbuntuTrustyGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, GenericUbuntuTrustyBox ):
+    """
+    A Jenkins slave for building GeneTorrent on Ubuntu 14.04 LTS (EOL April 2019)
+    """
+
+    def _list_packages_to_install( self ):
+        return super( UbuntuTrustyGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
+            'libboost1.54-dev',
+            'libboost-filesystem1.54-dev',
+            'libboost-system1.54-dev',
+            'libboost-program-options1.54-dev',
+            'libboost-regex1.54-dev',
+        ]
+
+
 class FedoraGenetorrentJenkinsSlave( FedoraBox, GenetorrentJenkinsSlave ):
     """
     A Jenkins slave for building GeneTorrent on Fedora
