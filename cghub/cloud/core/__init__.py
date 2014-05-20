@@ -12,6 +12,7 @@ BOXES = [
     GenericUbuntuQuantalBox,
     GenericUbuntuRaringBox,
     GenericUbuntuSaucyBox,
+    GenericUbuntuTrustyBox,
     GenericFedora17Box,
     GenericFedora18Box,
     GenericFedora19Box ]
