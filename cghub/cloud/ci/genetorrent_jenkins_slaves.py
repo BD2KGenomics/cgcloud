@@ -190,11 +190,11 @@ class UbuntuSaucyGenetorrentJenkinsSlave( UbuntuGenetorrentJenkinsSlave, Generic
 
     def _list_packages_to_install( self ):
         return super( UbuntuSaucyGenetorrentJenkinsSlave, self )._list_packages_to_install( ) + [
-            'libboost1.49-dev',
-            'libboost-filesystem1.49-dev',
-            'libboost-system1.49-dev',
-            'libboost-program-options1.49-dev',
-            'libboost-regex1.49-dev',
+            'libboost1.53-dev',
+            'libboost-filesystem1.53-dev',
+            'libboost-system1.53-dev',
+            'libboost-program-options1.53-dev',
+            'libboost-regex1.53-dev',
         ]
 
 
