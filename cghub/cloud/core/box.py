@@ -136,6 +136,32 @@ class Box( object ):
         self.ip_address = None
         self.host_name = None
 
+    num_ephemeral_drives_by_instance_type = {
+        't2.micro': 0,
+        't2.small': 0,
+        't2.medium': 0,
+        'm3.medium': 1,
+        'm3.large': 1,
+        'm3.xlarge': 2,
+        'm3.2xlarge': 2,
+        'c3.large': 2,
+        'c3.xlarge': 2,
+        'c3.2xlarge': 2,
+        'c3.4xlarge': 2,
+        'c3.8xlarge': 2,
+        'g2.2xlarge': 1,
+        'r3.large': 1,
+        'r3.xlarge': 1,
+        'r3.2xlarge': 1,
+        'r3.4xlarge': 1,
+        'r3.8xlarge': 2,
+        'i2.xlarge': 1,
+        'i2.2xlarge': 2,
+        'i2.4xlarge': 4,
+        'i2.8xlarge': 8,
+        'hs1.8xlarge': 24
+    }
+
     def _populate_instance_creation_args( self, image, kwargs ):
         """
         Add, remove or modify the keyword arguments that will be passed to the EC2 run_instances
@@ -151,14 +177,17 @@ class Box( object ):
                 root_bdt.snapshot_id = None
                 bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
                 bdm[ '/dev/sda1' ] = root_bdt
-                bdm[ '/dev/sdb' ] = BlockDeviceType( ephemeral_name='ephemeral0' )
+                instance_type_ = kwargs[ 'instance_type' ]
+                num_ephemeral_drives = self.num_ephemeral_drives_by_instance_type.get( instance_type_, 1 )
+                for i in range( num_ephemeral_drives ):
+                    device = '/dev/sd' + chr( ord( 'b' ) + i )
+                    bdm[ device ] = BlockDeviceType( ephemeral_name='ephemeral%i' % i )
                 return
         raise RuntimeError( "Can't determine root volume from image" )
 
     default_security_groups = [ 'default' ]
 
-    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, security_groups=None,
-                **options ):
+    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, security_groups=None, **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -218,16 +247,16 @@ class Box( object ):
             raise UserError( "The first key pair name can't be a glob." )
 
         self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
-        options = dict( instance_type=instance_type,
+        kwargs = dict( instance_type=instance_type,
                         key_name=ec2_keypairs[ 0 ].name,
                         placement=self.ctx.availability_zone,
                         security_groups=security_groups,
                         instance_profile_arn=self._get_instance_profile_arn( ) )
-        self._populate_instance_creation_args( image, options )
+        self._populate_instance_creation_args( image, kwargs )
 
         while True:
             try:
-                reservation = self.ctx.ec2.run_instances( image.id, **options )
+                reservation = self.ctx.ec2.run_instances( image.id, **kwargs )
                 break
             except EC2ResponseError as e:
                 if 'Invalid IAM Instance Profile' in e.error_message:
