@@ -1,3 +1,4 @@
+from cghub.cloud.ci.data_browser_jenkins_slave import *
 from cghub.cloud.ci.commands import *
 from cghub.cloud.ci.generic_jenkins_slaves import *
 from cghub.cloud.ci.genetorrent_jenkins_slaves import *
@@ -29,7 +30,9 @@ BOXES = [
     Centos5RpmbuildJenkinsSlave,
     Centos6RpmbuildJenkinsSlave,
 
-    LoadTestBox]
+    LoadTestBox,
+
+    DataBrowserJenkinsSlave]
 
 COMMANDS = [
     RegisterSlaves ]
