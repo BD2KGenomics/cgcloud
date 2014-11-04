@@ -6,14 +6,14 @@ from cghub.cloud.ci.jenkins_slave import JenkinsSlave
 
 class GenericJenkinsSlave( JenkinsSlave ):
     """
-    A Jenkins slave for building GeneTorrent
+    A generic Jenkins slave
     """
     pass
 
 
 class CentosGenericJenkinsSlave( CentosBox, GenericJenkinsSlave ):
     """
-    A Jenkins slave for building GeneTorrent on CentOS
+    A generic Jenkins slave for CentOS
     """
 
     def _list_packages_to_install( self ):
@@ -39,7 +39,7 @@ class CentosGenericJenkinsSlave( CentosBox, GenericJenkinsSlave ):
 
 class Centos5GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos5Box ):
     """
-    A Jenkins slave for building GeneTorrent on CentOS 5
+    A generic Jenkins slave for CentOS 5
     """
 
     pass
@@ -47,14 +47,14 @@ class Centos5GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos5Box )
 
 class Centos6GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos6Box ):
     """
-    A Jenkins slave for building GeneTorrent on CentOS 6
+    A generic Jenkins slave for CentOS 6
     """
     pass
 
 
 class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu
+    A generic Jenkins slave for Ubuntu
     """
 
     def _list_packages_to_install( self ):
@@ -72,7 +72,7 @@ class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
 
 class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLucidBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 10.04 LTS (EOL April 2015)
+    A generic Jenkins slave for Ubuntu 10.04 LTS (EOL April 2015)
     """
 
     def _setup_package_repos( self ):
@@ -110,27 +110,27 @@ class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLu
 
 class UbuntuPreciseGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuPreciseBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 12.04 LTS (EOL April 2017)
+    A generic Jenkins slave for Ubuntu 12.04 LTS (EOL April 2017)
     """
     pass
 
 
 class UbuntuSaucyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuSaucyBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 13.10 (EOL July 2014)
+    A generic Jenkins slave for Ubuntu 13.10 (EOL July 2014)
     """
     pass
 
 
 class UbuntuTrustyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuTrustyBox ):
     """
-    A Jenkins slave for building GeneTorrent on Ubuntu 14.04 LTS (EOL April 2019)
+    A generic Jenkins slave for Ubuntu 14.04 LTS (EOL April 2019)
     """
     pass
 
 class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
     """
-    A Jenkins slave for building GeneTorrent on Fedora
+    A generic Jenkins slave for Fedora
     """
 
     def _list_packages_to_install( self ):
@@ -147,13 +147,13 @@ class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
 
 class Fedora19GenericJenkinsSlave( FedoraGenericJenkinsSlave, GenericFedora19Box ):
     """
-    A Jenkins slave for building GeneTorrent on Fedora 19
+    A generic Jenkins slave for Fedora 19
     """
     pass
 
 
 class Fedora20GenericJenkinsSlave( FedoraGenericJenkinsSlave, GenericFedora20Box ):
     """
-    A Jenkins slave for building GeneTorrent on Fedora 20
+    A generic Jenkins slave for Fedora 20
     """
     pass
