@@ -299,7 +299,18 @@ class Box( object ):
         :type instance: boto.ec2.instance.Instance
         """
         self._log( 'tagging instance ... ', newline=False )
-        instance.add_tag( 'Name', self.ctx.to_aws_name( self.role( ) ) )
+        retries = 4
+        while True:
+            try:
+                instance.add_tag( 'Name', self.ctx.to_aws_name( self.role( ) ) )
+                break
+            except EC2ResponseError as e:
+                if e.error_code == 'InvalidInstanceID.NotFound':
+                    if retries < 1:
+                        raise
+                    self._log( 'trying again in 1s ...', newline=False )
+                    retries -= 1
+                    time.sleep(1)
         self.__write_options( instance )
 
     def _on_instance_running( self, first_boot ):
