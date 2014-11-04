@@ -80,11 +80,11 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
         sudo( '%s install %s' % (self.apt_get, packages ) )
 
     @fabric_task
-    def _debconf_set_selection( self, *debconf_selections ):
+    def _debconf_set_selection( self, *debconf_selections, **sudo_kwargs ):
         for debconf_selection in debconf_selections:
             if '"' in debconf_selection:
                 raise RuntimeError( 'Double quotes in debconf selections are not supported yet' )
-        sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ) )
+        sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ), **sudo_kwargs )
 
     @fabric_task
     def _register_init_script( self, script, name ):
