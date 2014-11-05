@@ -17,7 +17,7 @@ class DataBrowserJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         self.mysql_user_password = self.generate_password( 8 )
 
     def recommended_instance_type( self ):
-        return 't2.medium'
+        return 'c3.large'
 
     def generate_password( self, length ):
         charset = string.ascii_uppercase + string.digits + string.ascii_lowercase
@@ -75,7 +75,7 @@ class DataBrowserJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
             GRANT ALL PRIVILEGES ON {database} . * TO '{user}'@'localhost';
             FLUSH PRIVILEGES;" | mysql'''.format( user=BUILD_USER,
                                                   password=self.mysql_user_password,
-                                                  database='test_cghub_data_browser' ) )
+                                                  database='cghub_data_browser' ) )
 
     @fabric_task( user=BUILD_USER )
     def __create_mysql_user_mycnf( self ):
