@@ -70,12 +70,20 @@ class DataBrowserJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
 
     @fabric_task( )
     def __create_mysql_user( self ):
-        run( '''echo "
-            CREATE USER '{user}'@'localhost' IDENTIFIED BY '{password}';
-            GRANT ALL PRIVILEGES ON {database} . * TO '{user}'@'localhost';
-            FLUSH PRIVILEGES;" | mysql'''.format( user=BUILD_USER,
-                                                  password=self.mysql_user_password,
-                                                  database='cghub_data_browser' ) )
+        user = BUILD_USER
+        password = self.mysql_user_password
+        self.__run_mysql_command(
+            "CREATE USER '{user}'@'localhost' IDENTIFIED BY '{password}';".format( **locals( ) ) )
+        for prefix in ( 'test_', '' ):
+            database = prefix + 'cghub_data_browser'
+            self.__run_mysql_command(
+                "GRANT ALL PRIVILEGES ON {database} . * TO '{user}'@'localhost';".format(
+                    **locals( ) ) )
+        self.__run_mysql_command( 'FLUSH PRIVILEGES;' )
+
+    def __run_mysql_command( self, sql ):
+        # FIXME: escape quotes in command
+        run( 'echo "%s" | mysql' % sql )
 
     @fabric_task( user=BUILD_USER )
     def __create_mysql_user_mycnf( self ):
