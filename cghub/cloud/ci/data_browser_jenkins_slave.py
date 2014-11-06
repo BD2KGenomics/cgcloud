@@ -54,7 +54,9 @@ class DataBrowserJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
             'xvfb',  # to run Firefox in headless mode
             'libmysqlclient-dev',  # for mysql-python, one of the browser's dependencies
             'libxml2-dev',  # for lxml, one of the browser's dependencies
-            'libxslt-dev' ]  # ditto
+            'libxslt-dev', # ditto
+            'x11-apps', 'netpbm' # for taking screenshots with xwd during Selenium tests
+        ]
 
     def _post_install_packages( self ):
         super( DataBrowserJenkinsSlave, self )._post_install_packages( )
