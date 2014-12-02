@@ -62,13 +62,6 @@ class DataBrowserJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         super( DataBrowserJenkinsSlave, self )._post_install_packages( )
         self.__create_mysql_user( )
         self.__create_mysql_user_mycnf( )
-        self.__setup_browser_prereqs( )
-
-    @fabric_task
-    def __setup_browser_prereqs( self ):
-        # FIXME: somehow remove hardcoded path (use url to file in BB, command line option, git submodule)?
-        put( local_path='/Users/hannes/workspace/cghub/cghub-data-browser/requirements.txt' )
-        sudo( "pip install -r requirements.txt" )
 
     @fabric_task( )
     def __create_mysql_user( self ):
