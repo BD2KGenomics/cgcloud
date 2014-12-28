@@ -8,7 +8,7 @@ from cghub.util import fnmatch
 from boto import ec2, s3, iam, sns, sqs
 from boto.s3.key import Key as S3Key
 from boto.exception import S3ResponseError, BotoServerError
-from boto.s3.connection import S3Connection
+from boto.s3.connection import S3Connection, OrdinaryCallingFormat
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
@@ -167,7 +167,12 @@ class Context( object ):
         :rtype: S3Connection
         """
         if self.__s3 is None:
-            self.__s3 = self.__aws_connect( s3 )
+            # The default calling format which prepends the bucket name to the S3 domain name
+            # causes problems with SSL server name verification if the bucket name contains
+            # periods. This happens under Python versions 2.7.9 and later. Versions 2.7.8 and
+            # earlier are not affected because their SSL implementation doesn't perform
+            # certificate or hostname verification by default.
+            self.__s3 = self.__aws_connect( s3, calling_format=OrdinaryCallingFormat() )
         return self.__s3
 
     @property
@@ -188,8 +193,8 @@ class Context( object ):
             self.__sqs = self.__aws_connect( sqs )
         return self.__sqs
 
-    def __aws_connect( self, aws_module, region=None ):
-        conn = aws_module.connect_to_region( self.region if region is None else region )
+    def __aws_connect( self, aws_module, region=None, **kwargs ):
+        conn = aws_module.connect_to_region( self.region if region is None else region, **kwargs )
         if conn is None:
             raise RuntimeError( "%s couldn't connect to region %s" % (
                 aws_module.__name__, self.region ) )
