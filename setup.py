@@ -22,8 +22,8 @@ setup(
         'argparse>=1.2.1' if sys.version_info < (2,7) else None
     ],
     dependency_links=[
-        'hg+ssh://hg@bitbucket.org/cghub/cghub-python-lib@default#egg=cghub-python-lib-1.5.dev1',
-        'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-lib@default#egg=cghub-cloud-lib-1.0.dev1'
+        'git+ssh://git@bitbucket.org/cghub/cghub-python-lib@master#egg=cghub-python-lib-1.5.dev1',
+        'git+ssh://git@bitbucket.org/cghub/cghub-cloud-lib@master#egg=cghub-cloud-lib-1.0.dev1'
     ],
     namespace_packages=[
         'cghub', 'cghub.cloud'
