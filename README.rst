@@ -21,7 +21,7 @@ To install and use cghub-cloud-core, you need
 
 Once those are installed, use ``pip`` to install cghub-cloud-core::
 
-   sudo pip install hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-core
+   sudo pip install git+ssh://git@bitbucket.org/cghub/cghub-cloud-core
 
 If you get
 
