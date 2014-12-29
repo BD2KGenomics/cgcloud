@@ -94,7 +94,11 @@ class AgentBox( SourceControlClient ):
             sudo( 'pip install --upgrade pip==1.5.2' )  # lucid & centos5 have an ancient pip
             sudo( 'pip install --upgrade virtualenv' )
             self.setup_repo_host_keys( )
-            run( 'virtualenv ~/agent' )
+            # By default, virtualenv installs the latest version of pip. We want a specific
+            # version, so we tell virtualenv not to install pip and then install that version of
+            # pip using easy_install.
+            run( 'virtualenv --no-pip ~/agent' )
+            run( '~/agent/bin/easy_install pip==1.5.2')
             with settings( forward_agent=True ):
                 run( '~/agent/bin/pip install '
                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
