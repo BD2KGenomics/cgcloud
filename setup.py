@@ -17,7 +17,7 @@ setup(
         'cghub', 'cghub.cloud'
     ],
     dependency_links=[
-        'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-core@default#egg=cghub-cloud-core-1.0.dev1'
-        'hg+ssh://hg@bitbucket.org/cghub/cghub-cloud-lib@default#egg=cghub-cloud-lib-1.0.dev1'
+        'git+ssh://git@bitbucket.org/cghub/cghub-cloud-core@master#egg=cghub-cloud-core-1.0.dev1'
+        'git+ssh://git@bitbucket.org/cghub/cghub-cloud-lib@master#egg=cghub-cloud-lib-1.0.dev1'
     ],
 )
