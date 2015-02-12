@@ -7,16 +7,15 @@ import platform
 import itertools
 import logging
 from logging.handlers import SysLogHandler, SYSLOG_UDP_PORT
-from cghub.util.logging import Utf8SyslogFormatter
 
 import daemon
 
-from cghub.util import uid_to_name, gid_to_name, name_to_uid, name_to_gid, shell
-from cghub.util.lockfile import SmartPIDLockFile
-from cghub.util.throttle import LocalThrottle
-
-from cghub.cloud.lib.context import Context
-from cghub.cloud.agent import Agent
+from bd2k.util.logging import Utf8SyslogFormatter
+from bd2k.util import uid_to_name, gid_to_name, name_to_uid, name_to_gid, shell
+from bd2k.util.lockfile import SmartPIDLockFile
+from bd2k.util.throttle import LocalThrottle
+from cgcloud.lib.context import Context
+from cgcloud.agent import Agent
 
 log = logging.getLogger( )
 
@@ -168,7 +167,7 @@ def main( ):
 
 def generate_init_script( options ):
     from pkg_resources import resource_string
-    import cghub.cloud.agent
+    import cgcloud.agent
     import platform
 
     distro = platform.dist( )[ 0 ].lower( )
@@ -179,7 +178,7 @@ def generate_init_script( options ):
         script = 'init-script.lsb'
         quote_level = 2
 
-    init_script = resource_string( cghub.cloud.agent.__name__, script )
+    init_script = resource_string( cgcloud.agent.__name__, script )
 
     args = [ '--namespace', options.namespace,
                '--zone', options.availability_zone,

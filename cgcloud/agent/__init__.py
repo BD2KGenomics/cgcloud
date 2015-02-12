@@ -4,10 +4,10 @@ import os
 import tempfile
 from boto.sqs.message import RawMessage
 
-from cghub.cloud.lib.context import Context
-from cghub.cloud.lib.message import Message, UnknownVersion
-from cghub.cloud.lib.util import UserError
-from cghub.util.throttle import LocalThrottle
+from cgcloud.lib.context import Context
+from cgcloud.lib.message import Message, UnknownVersion
+from cgcloud.lib.util import UserError
+from bd2k.util.throttle import LocalThrottle
 
 log = logging.getLogger( __name__ )
 
