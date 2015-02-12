@@ -165,12 +165,10 @@ class Context( object ):
         :rtype: S3Connection
         """
         if self.__s3 is None:
-            # The default calling format which prepends the bucket name to the S3 domain name
-            # causes problems with SSL server name verification if the bucket name contains
-            # periods. This happens under Python versions 2.7.9 and later. Versions 2.7.8 and
-            # earlier are not affected because their SSL implementation doesn't perform
-            # certificate or hostname verification by default.
-            self.__s3 = self.__aws_connect( s3, calling_format=OrdinaryCallingFormat() )
+            # We let S3 route buckets to regions for us. If we connected to a specific region,
+            # bucket lookups (HEAD request against bucket URL) would fail with 301 status but
+            # without a Location header.
+            self.__s3 = S3Connection()
         return self.__s3
 
     @property
@@ -192,10 +190,12 @@ class Context( object ):
         return self.__sqs
 
     def __aws_connect( self, aws_module, region=None, **kwargs ):
-        conn = aws_module.connect_to_region( self.region if region is None else region, **kwargs )
+        if region is None:
+            region = self.region
+        conn = aws_module.connect_to_region( region, **kwargs )
         if conn is None:
             raise RuntimeError( "%s couldn't connect to region %s" % (
-                aws_module.__name__, self.region ) )
+                aws_module.__name__, region ) )
         return conn
 
     def __enter__( self ):
