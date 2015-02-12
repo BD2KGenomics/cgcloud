@@ -6,7 +6,7 @@ from fabric.operations import run, sudo
 from .box import fabric_task
 from .agent_box import AgentBox
 from .yum_box import YumBox
-from .rc_local_box import RcLocalBox
+from cgcloud.core.rc_local_box import RcLocalBox
 
 ADMIN_USER = 'admin'
 

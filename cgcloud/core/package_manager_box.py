@@ -1,7 +1,8 @@
 from itertools import chain
+
 from fabric.operations import sudo
 
-from cghub.cloud.core.box import Box, fabric_task
+from cgcloud.core.box import Box, fabric_task
 
 
 class PackageManagerBox( Box ):

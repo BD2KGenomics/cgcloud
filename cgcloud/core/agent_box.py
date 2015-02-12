@@ -4,12 +4,12 @@ from distutils.version import LooseVersion
 import re
 import zlib
 
-from cghub.util import shell, strict_bool
 from fabric.context_managers import settings
 from fabric.operations import sudo, run, put
 
-from cghub.cloud.core.box import fabric_task
-from cghub.cloud.core.source_control_client import SourceControlClient
+from bd2k.util import shell, strict_bool
+from cgcloud.core.box import fabric_task
+from cgcloud.core.source_control_client import SourceControlClient
 
 
 class AgentBox( SourceControlClient ):

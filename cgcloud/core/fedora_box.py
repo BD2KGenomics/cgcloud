@@ -3,11 +3,11 @@ from operator import attrgetter
 
 from fabric.operations import sudo
 
-from cghub.cloud.core.box import fabric_task
-from cghub.cloud.core.agent_box import AgentBox
-from cghub.cloud.core.cloud_init_box import CloudInitBox
-from cghub.cloud.core.rc_local_box import RcLocalBox
-from cghub.cloud.core.yum_box import YumBox
+from cgcloud.core.box import fabric_task
+from cgcloud.core.agent_box import AgentBox
+from cgcloud.core.cloud_init_box import CloudInitBox
+from cgcloud.core.rc_local_box import RcLocalBox
+from cgcloud.core.yum_box import YumBox
 
 
 class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):

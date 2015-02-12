@@ -5,10 +5,10 @@ from importlib import import_module
 import logging
 import os
 
-import cghub.cloud.core
-from cghub.cloud.lib.util import Application, app_name
+import cgcloud.core
+from cgcloud.lib.util import Application, app_name
 
-PACKAGES = [ cghub.cloud.core ] + [ import_module( package_name )
+PACKAGES = [ cgcloud.core ] + [ import_module( package_name )
     for package_name in os.environ.get( 'CGCLOUD_PLUGINS', "" ).split( ":" )
     if package_name ]
 

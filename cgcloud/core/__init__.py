@@ -1,5 +1,5 @@
-from cghub.cloud.core.commands import *
-from cghub.cloud.core.generic_boxes import *
+from cgcloud.core.commands import *
+from cgcloud.core.generic_boxes import *
 
 BOXES = [
     GenericCentos6Box,

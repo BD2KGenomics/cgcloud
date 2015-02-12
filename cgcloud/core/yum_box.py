@@ -1,9 +1,11 @@
 from cStringIO import StringIO
 import os.path
 from urlparse import urlparse
+
 from fabric.operations import sudo, run, put
-from cghub.cloud.core.box import fabric_task
-from cghub.cloud.core.package_manager_box import PackageManagerBox
+
+from cgcloud.core.box import fabric_task
+from cgcloud.core.package_manager_box import PackageManagerBox
 
 __author__ = 'hannes'
 

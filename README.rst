@@ -1,15 +1,15 @@
-The CGhub Cloud Core project is aimed at automating the creation and management
-of VMs and VM images in Amazon EC2. It belongs in the same family of tools such
-as Puppet, Chef and Vagrant but it's closest of kin is probably Ansible because
+The CGCloud project is aimed at automating the creation and management of VMs
+and VM images in Amazon EC2. It belongs in the same family of tools such as
+Puppet, Chef and Vagrant but it's closest of kin is probably Ansible because
 the VM setup is done via SSH, keeping the VM on a short leash until it is fully
 set up. It shines when it comes to managing a wide variety of guest
-distributions. To customize a VM image managed by cghub-cloud-core you
+distributions. To customize a VM image managed by cgcloud-core you
 object-oriented Python code that utilizes inheritance to organize VM
-definitions. 
+definitions.
 
-CGhub Cloud Core maintains SSH keys on running instances. Where EC2 only
-supports specifying a single key when an instance is launched, CGhub Cloud Core
-allows you to manage multiple keys over the entire lifecycle of the VM.
+CGCloud maintains SSH keys on running instances. Where EC2 only supports
+specifying a single key when an instance is launched, CGCloud Core allows you
+to manage multiple keys over the entire lifecycle of the VM.
 
 Multiple VMs performing a variety of roles collaborate with each other inside a
 *namespace*. Cloud resources such as EC2 instances, volumes and images
@@ -18,15 +18,15 @@ Namespaces are typically used to demarcate deployment environments (e.g.
 development, test, staging, production) or to isolate experiments performed by
 different users.
 
-The CGHub Cloud Core installs an agent in each VM. The agent is a daemon that
-performs maintenance tasks such as keeping the list of authorized SSH keys
-up-to-date. All agents listen on an SNS/SQS queue for management commands and
-execute them close to real time.
+CGCloud installs an agent in each VM. The agent is a daemon that performs
+maintenance tasks such as keeping the list of authorized SSH keys up-to-date.
+All agents listen on an SNS/SQS queue for management commands and execute them
+close to real time.
 
 Prerequisites
 =============
 
-To install and use cghub-cloud-core, you need
+To install and use cgcloud-core, you need
 
 * Python ≧ 2.7.x
 
@@ -35,7 +35,7 @@ To install and use cghub-cloud-core, you need
 * Git_
 
 * Mac OS X: Xcode_ and the `Xcode Command Line Tools`_ (needed during the
-  installation of cghub-cloud-core for compiling the PyCrypto dependency)
+  installation of cgcloud-core for compiling the PyCrypto dependency)
 
 .. _pip: https://pip.readthedocs.org/en/latest/installing.html
 .. _Git: http://git-scm.com/
@@ -45,15 +45,15 @@ To install and use cghub-cloud-core, you need
 Quick Start
 ===========
 
-Once the prerequisites are installed, use ``pip`` to install cghub-cloud-core::
+Once the prerequisites are installed, use ``pip`` to install cgcloud-core::
 
-   sudo pip install git+ssh://git@bitbucket.org/cghub/cghub-cloud-core
+   sudo pip install git@github.com:BD2KGenomics/cgcloud-core.git
 
 If you get
 
    ::
 
-      Could not find any downloads that satisfy the requirement cghub-cloud-...
+      Could not find any downloads that satisfy the requirement cgcloud-...
 
 try adding ``--process-dependency-links`` after ``install``. This is a known
 `issue`_ with pip 1.5.x.
@@ -72,8 +72,7 @@ able to invoke it now::
    cgcloud --help
 
 Ask your AWS admin to setup an IAM account in AWS for you and log into
-`Amazon's EC2 console <https://console.aws.amazon.com/ec2/>`_. CGHubbies should
-use `this link <https://cghub.signin.aws.amazon.com/console/>`_ instead.
+`Amazon's EC2 console <https://console.aws.amazon.com/ec2/>`_.
 
 Next, go to the IAM console (see main menu, under Services) and create an
 access key:
@@ -169,5 +168,5 @@ Uninstallation
 
 ::
 
-    sudo pip uninstall cghub-cloud-core
+    sudo pip uninstall cgcloud-core
 

@@ -7,11 +7,11 @@ import sys
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
-
-from cghub.cloud.lib.context import Context
-from cghub.cloud.lib.util import UserError, Command
 from fabric.operations import prompt
-from cghub.cloud.core.box import Box
+from cgcloud.lib.context import Context
+from cgcloud.lib.util import UserError, Command
+
+from cgcloud.core.box import Box
 
 
 class ContextCommand( Command ):
@@ -46,7 +46,9 @@ class ContextCommand( Command ):
                           'environment variable CGCLOUD_NAMESPACE, if that variable is present, '
                           'overrides the default. The string __me__ anywhere in the namespace '
                           'will be replaced by the name of the IAM user whose credentials are '
-                          'used to issue requests to AWS.' )
+                          'used to issue requests to AWS. If the name of that IAM user contains '
+                          'the @ character, anything after the first occurrance of that character '
+                          'will be discarded before the substitution is done.' )
 
     def run( self, options ):
         zone = options.availability_zone
@@ -134,15 +136,15 @@ class SshCommand( BoxCommand ):
         self.option( '--user', '--login', '-u', '-l', default=None,
                      help="Name of user to login as." )
         # FIXME: Create bug report about the following:
-        # cgcloud ssh generic-ubuntu-saucy-box --zone us-east-1b
+        # cgcloud.py ssh generic-ubuntu-saucy-box --zone us-east-1b
         # doesn't work since argparse puts '--zone us-east-1b' into the 'command' positional. This
-        # is bad because ignoring the --zone option will cause cgcloud to use the default zone and
+        # is bad because ignoring the --zone option will cause cgcloud.py to use the default zone and
         # either use the wrong instance or complain about a missing instance. In either case it is
         # not apparent that --zone needs to precede the ROLE argument.
         # Changing nargs=argparse.REMAINDER to nargs='*' and invoking with
-        # cgcloud ssh generic-ubuntu-saucy-box --zone us-east-1b -- ls -l
+        # cgcloud.py ssh generic-ubuntu-saucy-box --zone us-east-1b -- ls -l
         # doesn't work for some other reason (probably a bug in argparse). It will complain about
-        # cgcloud: error: unrecognized arguments: -- ls -l
+        # cgcloud.py: error: unrecognized arguments: -- ls -l
         self.option( 'command', metavar='...', nargs=argparse.REMAINDER, default=[ ],
                      help="Additional arguments to pass to ssh. This can be anything that one "
                           "would normally pass to the ssh program excluding user name and host "
@@ -164,7 +166,7 @@ class RsyncCommand( BoxCommand ):
                      help="Name of user to login as." )
         self.option( 'args', metavar='...', nargs=argparse.REMAINDER, default=[ ],
                      help="Command line options for rsync(1). The remote path argument must be "
-                          "prefixed with a colon. For example, 'cgcloud rsync foo -av "
+                          "prefixed with a colon. For example, 'cgcloud.py rsync foo -av "
                           ":bar .' would copy the file 'bar' from the home directory of the admin "
                           "user on the box 'foo' to the current directory on the local machine." )
 
@@ -295,13 +297,15 @@ class CreationCommand( RoleCommand ):
                           'the so called primary key pair, a matching private key needs to be '
                           'present locally. All other arguments may use shell-style globs in '
                           'which case every key pair whose name matches one of the globs will be '
-                          'deployed to the box. The cgcloud agent that will typically be '
+                          'deployed to the box. The cgcloud.py agent that will typically be '
                           'installed on a box, will keep the deployed list of authorized keys up '
                           'to date in case matching keys are added or removed from EC2. The value '
                           'of the environment variable CGCLOUD_KEYPAIRS, if that variable is '
                           'present, overrides the default. The string __me__ anywhere in a key '
-                          'pair name will be replaced with the name of the IAM user whose '
-                          'credentials are used to issue requests to AWS.' )
+                          'pair name will be substituted with the name of the IAM user whose '
+                          'credentials are used to issue requests to AWS. If the name of that IAM '
+                          'user contains the @ character, anything after the first occurrance of '
+                          'that character will be discarded before the substitution is done.' )
 
         self.option( '--instance-type', '-t', metavar='TYPE',
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
@@ -378,7 +382,9 @@ class RegisterKeyCommand( ContextCommand ):
                           'the key with you in a way that it is obvious to other users in '
                           'your organization.  The string __me__ anywhere in the key pair name '
                           'will be replaced with the name of the IAM user whose credentials are '
-                          'used to issue requests to AWS.' )
+                          'used to issue requests to AWS. If the name of that IAM user contains '
+                          'the @ character, anything after the first occurrance of that character '
+                          'will be discarded before the substitution is done.' )
 
     def run_in_ctx( self, options, ctx ):
         with open( options.ssh_public_key ) as f:

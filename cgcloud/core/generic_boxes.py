@@ -1,9 +1,11 @@
 from urlparse import urlparse
+
 from fabric.operations import run, sudo, os
-from cghub.cloud.core.box import fabric_task
-from cghub.cloud.core.centos_box import CentosBox
-from cghub.cloud.core.fedora_box import FedoraBox
-from cghub.cloud.core.ubuntu_box import UbuntuBox
+
+from cgcloud.core.box import fabric_task
+from cgcloud.core.centos_box import CentosBox
+from cgcloud.core.fedora_box import FedoraBox
+from cgcloud.core.ubuntu_box import UbuntuBox
 
 
 class GenericCentos5Box( CentosBox ):

@@ -2,12 +2,14 @@ from StringIO import StringIO
 import contextlib
 import csv
 import urllib2
+
 from fabric.operations import sudo, put
+
 from box import fabric_task
-from cghub.cloud.core.agent_box import AgentBox
-from cghub.cloud.core.cloud_init_box import CloudInitBox
-from cghub.cloud.core.package_manager_box import PackageManagerBox
-from cghub.cloud.core.rc_local_box import RcLocalBox
+from cgcloud.core.agent_box import AgentBox
+from cgcloud.core.cloud_init_box import CloudInitBox
+from cgcloud.core.package_manager_box import PackageManagerBox
+from cgcloud.core.rc_local_box import RcLocalBox
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 

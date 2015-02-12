@@ -2,10 +2,10 @@ from collections import namedtuple
 from contextlib import closing
 from StringIO import StringIO
 
-from cghub.cloud.lib.util import prepend_shell_script
 from fabric.operations import get, put, sudo
 
-from cghub.cloud.core.box import fabric_task, Box
+from cgcloud.lib.util import prepend_shell_script
+from cgcloud.core.box import fabric_task, Box
 
 InitCommand = namedtuple( "InitCommand", [ "command", "provides", "depends" ] )
 

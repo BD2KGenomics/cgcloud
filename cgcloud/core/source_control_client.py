@@ -1,7 +1,8 @@
 from fabric.operations import run
-from cghub.fabric.operations import sudo
-from cghub.cloud.core.box import fabric_task
-from cghub.cloud.core.package_manager_box import PackageManagerBox
+
+from cgcloud.fabric.operations import sudo
+from cgcloud.core.box import fabric_task
+from cgcloud.core.package_manager_box import PackageManagerBox
 
 
 class SourceControlClient( PackageManagerBox ):
