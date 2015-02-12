@@ -291,7 +291,27 @@ class Box( object ):
         :type tagged_ec2_object: boto.ec2.TaggedEC2Object
         """
         for k, v in self._get_instance_options( ).iteritems( ):
-            tagged_ec2_object.add_tag( k, v )
+            self._tag_object_persistently( tagged_ec2_object, k, v )
+
+    def _tag_object_persistently( self, tagged_ec2_object, tag_name, tag_value ):
+        """
+        Object tagging occasionally fails with "does not exist" types of errors so we need to
+        retry a few times. Sigh ...
+
+        :type tagged_ec2_object: boto.ec2.TaggedEC2Object
+        """
+        retries = 4
+        while True:
+            try:
+                tagged_ec2_object.add_tag( tag_name, tag_value )
+                break
+            except EC2ResponseError as e:
+                if e.error_code == 'InvalidInstanceID.NotFound':
+                    if retries < 1:
+                        raise
+                    self._log( 'trying again in 1s ...', newline=False )
+                    retries -= 1
+                    time.sleep( 1 )
 
     def _on_instance_created( self, instance ):
         """
@@ -300,18 +320,7 @@ class Box( object ):
         :type instance: boto.ec2.instance.Instance
         """
         self._log( 'tagging instance ... ', newline=False )
-        retries = 4
-        while True:
-            try:
-                instance.add_tag( 'Name', self.ctx.to_aws_name( self.role( ) ) )
-                break
-            except EC2ResponseError as e:
-                if e.error_code == 'InvalidInstanceID.NotFound':
-                    if retries < 1:
-                        raise
-                    self._log( 'trying again in 1s ...', newline=False )
-                    retries -= 1
-                    time.sleep(1)
+        self._tag_object_persistently( instance, 'Name', self.ctx.to_aws_name( self.role( ) ) )
         self.__write_options( instance )
 
     def _on_instance_running( self, first_boot ):
