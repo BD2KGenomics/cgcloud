@@ -4,7 +4,6 @@ import urllib
 import re
 import socket
 
-from cghub.util import fnmatch
 from boto import ec2, s3, iam, sns, sqs
 from boto.s3.key import Key as S3Key
 from boto.exception import S3ResponseError, BotoServerError
@@ -14,18 +13,17 @@ from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
 from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
-from cghub.util import memoize
 
-from cghub.cloud.lib.message import Message
-from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError
+from bd2k.util import fnmatch
+from bd2k.util import memoize
+from cgcloud.lib.message import Message
+from cgcloud.lib.util import ec2_keypair_fingerprint, UserError
 
 
 class Context( object ):
     """
     Encapsulates all EC2-specific settings used by components in this project
     """
-    s3_bucket_name = 'cghub-cloud-utils.cghub.ucsc.edu'
-
     availability_zone_re = re.compile( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$' )
 
     name_prefix_re = re.compile( r'^(/([0-9a-zA-Z.-][_0-9a-zA-Z.-]*))*' )
@@ -365,6 +363,12 @@ class Context( object ):
             name = name[ len( self.namespace ): ]
         return name
 
+    @property
+    @memoize
+    def s3_bucket_name(self):
+        _, partition, service, region, account, resource = self.iam.get_user( ).arn.split( ':', 6 )
+        return account + '-cgcloud'
+
     ssh_pubkey_s3_key_prefix = 'ssh_pubkey:'
 
     def upload_ssh_pubkey( self, ssh_pubkey, fingerprint ):
@@ -484,10 +488,31 @@ class Context( object ):
 
     current_user_placeholder = '__me__'
 
+    @staticmethod
+    def drop_hostname( email ):
+        """
+        >>> Context.drop_hostname("foo")
+        'foo'
+        >>> Context.drop_hostname("foo@bar.com")
+        'foo'
+        >>> Context.drop_hostname("")
+        ''
+        >>> Context.drop_hostname("@")
+        ''
+        """
+        try:
+            n = email.index( "@" )
+        except ValueError:
+            return email
+        else:
+            return email[ 0:n ]
+
     def resolve_me( self, s ):
         placeholder = self.current_user_placeholder
-        # avoid invoking self.iam_user_name unnecessarily
-        return s.replace( placeholder, self.iam_user_name ) if placeholder in s  else s
+        if placeholder in s:
+            return s.replace( placeholder, self.drop_hostname( self.iam_user_name ) )
+        else:
+            return s
 
     def setup_iam_ec2_role( self, role_name, policies ):
         role_name = self.to_aws_name( role_name )
@@ -547,7 +572,7 @@ class Context( object ):
             if current_policy != policy:
                 put_policy( entity_name, policy_name, json.dumps( policy ) )
 
-    _agent_topic_name = "cghub-cloud-agent-notifications"
+    _agent_topic_name = "cgcloud-agent-notifications"
 
     @property
     def agent_queue_name( self ):
