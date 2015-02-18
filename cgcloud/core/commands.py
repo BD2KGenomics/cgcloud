@@ -1,5 +1,6 @@
 from __future__ import print_function
 import argparse
+import functools
 from operator import itemgetter
 import os
 import sys
@@ -348,7 +349,8 @@ class CreationCommand( RoleCommand ):
 
     def run_on_box( self, options, box ):
         try:
-            box.create( ec2_keypair_globs=map( box.ctx.resolve_me, options.ec2_keypair_names ),
+            resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
+            box.create( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
                         security_groups=options.security_groups,
                         instance_type=options.instance_type,
 
@@ -390,7 +392,8 @@ class RegisterKeyCommand( ContextCommand ):
         with open( options.ssh_public_key ) as f:
             ssh_public_key = f.read( )
         try:
-            ctx.register_ssh_pubkey( ec2_keypair_name=ctx.resolve_me( options.ec2_keypair_name ),
+            ctx.register_ssh_pubkey( ec2_keypair_name=ctx.resolve_me( options.ec2_keypair_name,
+                                                                      drop_hostname=False ),
                                      ssh_pubkey=ssh_public_key,
                                      force=options.force )
         except ValueError as e:
