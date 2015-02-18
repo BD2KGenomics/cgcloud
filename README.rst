@@ -1,19 +1,19 @@
-The CGCloud project is aimed at automating the creation and management of VMs
-(*instances*) and VM images (*AMIs*) in Amazon EC2. It belongs in the same
-family of tools such as Puppet, Chef and Vagrant but it's closest of kin is
-probably Ansible because the VM setup is done via SSH, keeping the VM on a
-short leash until it is fully set up. It shines when it comes to managing a
-wide variety of guest distributions. To customize an AMI managed by CGCloud you
-write object-oriented Python code that utilizes inheritance to organize VM
-definitions.
+The CGCloud project is aimed at automating the creation and management of
+virtual machines (*instances*) and virtual machine images (*AMIs*) in Amazon
+EC2. It belongs in the same family of tools as Puppet, Chef and Vagrant but its
+closest of kin is probably Ansible because the VM setup is done via SSH,
+keeping the VM on a short leash until it is fully set up. It shines when it
+comes to managing a wide variety of guest Linux distributions. To customize an
+AMI managed by CGCloud you write object-oriented Python code that utilizes
+inheritance to organize VM definitions, also known as ``roles``.
 
 Additionally, CGCloud maintains SSH keys on running instances. While EC2 only
 supports specifying a single key when an instance is launched, CGCloud Core
 allows you to manage multiple keys over the entire lifecycle of the VM. This
 makes it easy to collaborate on EC2 instances within a team.
 
-With CGCloud, VMs and other associated cloud resources such as EBS volumes
-exist inside a *namespace* that. Cloud resources belonging to different
+With CGCloud, virtual machine and other associated cloud resources such as EBS
+volumes exist inside a *namespace* that. Cloud resources belonging to different
 namespaces are logically separated from each other. Namespaces are typically
 used to demarcate deployment environments (e.g. development, test, staging,
 production) or to isolate experiments performed by different users.
@@ -54,9 +54,9 @@ Once the prerequisites are installed, use ``pip`` to install cgcloud-core::
 
 If you get
 
-   ::
+::
 
-      Could not find any downloads that satisfy the requirement cgcloud-...
+   Could not find any downloads that satisfy the requirement cgcloud-...
 
 try adding ``--process-dependency-links`` after ``install``. This is a known
 `issue`_ with pip 1.5.x.
@@ -119,8 +119,8 @@ of the key pair in EC2 to your IAM user account name. In S3 your public key
 will be stored under its fingerprint. If you don't have an SSH key, you can
 create one using the ``ssh-keygen`` command.
 
-Start your box
---------------
+Start your first box
+--------------------
 
 That's it, you're ready to create your first *box*, i.e. EC2 instance or VM:
 
@@ -167,19 +167,20 @@ spawn another box in the future just like it, stop the box and then create an
 image of it using the ``cgcloud image`` command. You may then use the ``cgcloud
 recreate`` command to bring up a box.
 
-.. note::
+Philosophical remarks
+---------------------
 
-   While creating an image is a viable mechanism to preserve manual
-   modifications to a box, it is not the best possible way. The problem with it
-   is that you will be stuck with the base image release the box was created
-   from. You will also be stuck at whatever customizations specified by the
-   role in the version of ``cgcloud create`` you were using. If either the base
-   image or the role definition in CGCloud is updated, you will not benefit
-   from those updates. Therefore, the preferred way of customizing an instance
-   is by *scripting* them. This is typically done by creating a CGCloud plugin,
-   i.e. a Python package with VM definitions aka ``roles``. A role is a
-   subclass of the Box class--an EC2 instance is an instance of that class. The
-   workhorse design pattern formed by the Box class is *Template Method*.
+While creating an image is a viable mechanism to preserve manual modifications
+to a box, it is not the best possible way. The problem with it is that you will
+be stuck with the base image release the box was created from. You will also be
+stuck at whatever customizations specified by the role in the version of
+``cgcloud create`` you were using. If either the base image or the role
+definition in CGCloud is updated, you will not benefit from those updates.
+Therefore, the preferred way of customizing a box is by *scripting* the
+customizations. This is typically done by creating a CGCloud plugin, i.e. a
+Python package with VM definitions aka ``roles``. A role is a subclass of the
+Box class while a box (aka VM aka EC2 instance) is an instance of that class.
+The workhorse design pattern formed by the Box class is *Template Method*.
 
 Creating an image makes sense even if you didn't make any modifications after
 ``cgcloud create``. It captures all role-specific customizations made by
@@ -188,4 +189,5 @@ definition, the underlying base image and package updates in the Linux
 distribution used by the box. This is key to CGCloud's philosophy: It gives you
 a way to *create* an up-to-date image with all the latest software according to
 your requirements **and** it allows you reliably reproduce the exact result of
-that step.
+that step. The fact that ``recreate`` is much faster than ``create`` is icing
+on the cake.
