@@ -20,7 +20,7 @@ setup(
         'cgcloud'
     ],
     dependency_links=[
-        'git+ssh://git@github.com:BD2KGenomics/bd2k-python-lib.git@master#egg=bd2k-python-lib-1.5.dev1',
-        'git+ssh://git@github.com:BD2KGenomics/cgcloud-lib.git@master#egg=cgcloud-lib-1.0.dev1'
+        'git+ssh://git@github.com/BD2KGenomics/bd2k-python-lib.git@master#egg=bd2k-python-lib-1.5.dev1',
+        'git+ssh://git@github.com/BD2KGenomics/cgcloud-lib.git@master#egg=cgcloud-lib-1.0.dev1'
     ],
 )

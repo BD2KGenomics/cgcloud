@@ -47,7 +47,7 @@ Quick Start
 
 Once the prerequisites are installed, use ``pip`` to install cgcloud-core::
 
-   sudo pip install git@github.com:BD2KGenomics/cgcloud-core.git
+   sudo pip install git+ssh://git@github.com/BD2KGenomics/cgcloud-core.git
 
 If you get
 
