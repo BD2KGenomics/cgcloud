@@ -16,7 +16,7 @@ class SourceControlClient( PackageManagerBox ):
         # Pre-seed the host keys from bitbucket and github, such that ssh doesn't prompt during
         # the initial checkouts.
         #
-        for host in [ 'bitbucket.org', 'github.org' ]:
+        for host in [ 'bitbucket.org', 'github.com' ]:
             command = 'ssh-keyscan -t rsa %s >> ~/.ssh/known_hosts' % host
             if user is None:
                 run( command )
