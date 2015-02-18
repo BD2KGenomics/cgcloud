@@ -16,6 +16,7 @@ from boto.ec2.keypair import KeyPair
 
 from bd2k.util import fnmatch
 from bd2k.util import memoize
+from boto.utils import get_instance_metadata
 from cgcloud.lib.message import Message
 from cgcloud.lib.util import ec2_keypair_fingerprint, UserError
 
@@ -365,9 +366,19 @@ class Context( object ):
 
     @property
     @memoize
+    def get_account( self ):
+        try:
+            arn = self.iam.get_user( ).arn
+        except:
+            # Agent boxes run with IAM role credentials instead of user credentials.
+            arn = get_instance_metadata( )[ 'iam' ][ 'info' ][ 'InstanceProfileArn' ]
+        _, partition, service, region, account, resource = arn.split(':',6)
+        return account
+
+    @property
+    @memoize
     def s3_bucket_name(self):
-        _, partition, service, region, account, resource = self.iam.get_user( ).arn.split( ':', 6 )
-        return account + '-cgcloud'
+        return self.get_account( ) + '-cgcloud'
 
     ssh_pubkey_s3_key_prefix = 'ssh_pubkey:'
 
