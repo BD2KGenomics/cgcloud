@@ -1,32 +1,32 @@
 The CGCloud project is aimed at automating the creation and management of VMs
-and VM images in Amazon EC2. It belongs in the same family of tools such as
-Puppet, Chef and Vagrant but it's closest of kin is probably Ansible because
-the VM setup is done via SSH, keeping the VM on a short leash until it is fully
-set up. It shines when it comes to managing a wide variety of guest
-distributions. To customize a VM image managed by cgcloud-core you
-object-oriented Python code that utilizes inheritance to organize VM
+(*instances*) and VM images (*AMIs*) in Amazon EC2. It belongs in the same
+family of tools such as Puppet, Chef and Vagrant but it's closest of kin is
+probably Ansible because the VM setup is done via SSH, keeping the VM on a
+short leash until it is fully set up. It shines when it comes to managing a
+wide variety of guest distributions. To customize an AMI managed by CGCLoud you
+write object-oriented Python code that utilizes inheritance to organize VM
 definitions.
 
-CGCloud maintains SSH keys on running instances. Where EC2 only supports
-specifying a single key when an instance is launched, CGCloud Core allows you
-to manage multiple keys over the entire lifecycle of the VM.
+Additionally, CGCloud maintains SSH keys on running instances. While EC2 only
+supports specifying a single key when an instance is launched, CGCloud Core
+allows you to manage multiple keys over the entire lifecycle of the VM. This
+makes it easy to collaborate on EC2 instances within a team.
 
-Multiple VMs performing a variety of roles collaborate with each other inside a
-*namespace*. Cloud resources such as EC2 instances, volumes and images
-belonging to different namespaces are logically separated from each other.
-Namespaces are typically used to demarcate deployment environments (e.g.
-development, test, staging, production) or to isolate experiments performed by
-different users.
+With CGCloud, VMs and other associated cloud resources such as EBS volumes
+exist inside a *namespace* that. Cloud resources belonging to different
+namespaces are logically separated from each other. Namespaces are typically
+used to demarcate deployment environments (e.g. development, test, staging,
+production) or to isolate experiments performed by different users.
 
 CGCloud installs an agent in each VM. The agent is a daemon that performs
 maintenance tasks such as keeping the list of authorized SSH keys up-to-date.
 All agents listen on an SNS/SQS queue for management commands and execute them
-close to real time.
+close to real-time.
 
 Prerequisites
 =============
 
-To install and use cgcloud-core, you need
+To install and use CGCloud, you need
 
 * Python ≧ 2.7.x
 
@@ -45,9 +45,12 @@ To install and use cgcloud-core, you need
 Quick Start
 ===========
 
+Installation
+------------
+
 Once the prerequisites are installed, use ``pip`` to install cgcloud-core::
 
-   sudo pip install git+ssh://git@github.com/BD2KGenomics/cgcloud-core.git
+   sudo pip install git+https://github.com/BD2KGenomics/cgcloud-core.git
 
 If you get
 
@@ -66,15 +69,22 @@ for example, run::
 
    apt-get install libxml2-dev libxslt-dev
 
-The installer places the ``cgcloud`` executable on your PATH. You should be
+The installer places the ``cgcloud`` executable on your ``PATH``. You should be
 able to invoke it now::
 
    cgcloud --help
+   
+Configure Boto
+--------------
+
+Boto is the AWS client library for Python that CGCLoud uses. If you've already
+installed, correctly configured and successfully used Boto, you can probably
+skip this step.
 
 Ask your AWS admin to setup an IAM account in AWS for you and log into
 `Amazon's EC2 console <https://console.aws.amazon.com/ec2/>`_.
 
-Next, go to the IAM console (see main menu, under Services) and create an
+Go to the IAM console (see main menu, under Services) and create an
 access key:
 
 1. Select the row representing your IAM account
@@ -90,54 +100,61 @@ access key:
 
 7. Click *Close Window*
 
-Register your SSH key in EC2 by running::
+Register your public SSH key
+----------------------------
 
-    cgcloud register-key -k $(whoami) ~/.ssh/id_rsa.pub
+Note: This step is not the same as registering your key pair with EC2. In order
+to be able to manage the team members' public SSH keys, CGCloud needs to know
+the contents of the public key pair. EC2 only exposes the fingerprint via its
+REST API, not the actual key. For this purpose, CGCloud maintains public keys
+in a special S3 bucket. The following procedure registers your public key with
+S3 *and* uploads it to that S3 bucket.
 
-If you don't have an SSH key, you can create one using the ``ssh-keygen``
-command.
+Register your SSH key in EC2 and S3 by running::
 
-.. important:: Many people who don't understand how SSH is supposed to be used,
-   create a key on every system they log into. This is extremely unsafe. There
-   should only be a single key identifying you. I sometimes use one key per
-   persona, e.g. a key for my personal activities and additionally, one key per
-   employer. Furthermore, that private key should only reside on a machine that
-   you control physical access too. And the private key must be protected by a
-   passphrase that is either memorized or stored in a password vault.
+    cgcloud register-key ~/.ssh/id_rsa.pub
 
-Note that the above command uses your current login to name the key pair. You
-might want to substitute ``$(whoami)``with a different name. Consider using the
-local part of your email address, i.e. the part before the ``@``.
+The above command uploads the given public key to EC2 and S3 and sets the name
+of the key pair in EC2 to your IAM user account name. In S3 your public key
+will be stored under its fingerprint. If you don't have an SSH key, you can
+create one using the ``ssh-keygen`` command.
 
-That's it, you're ready to create your first VM, aka *box*:
+Configure CGCloud
+-----------------
 
-   export CGCLOUD_NAMESPACE=/$(whoami)/
-   export CGCLOUD_KEYPAIRS=$(whoami)
+That's it, you're ready to create your first *box*, i.e. EC2 instance or VM:
+
    cgcloud create generic-ubuntu-trusty-box
 
-This will create a Ubuntu Trusty VM from scratch by starting a stock Ubuntu VM
-and then further customizing the VM by running additional commands via SSH. 
+This creates a Ubuntu Trusty instance from a stock Ubuntu AMI and then further
+customizes it by running additional commands via SSH. It'll take a few minutes.
+The ``generic-ubuntu-trusty-box`` argument denotes a *role*, i.e. a blueprint
+for an instance. You can use ``cgcloud list-roles`` to see the available roles.
 
-Login to the newly created VM::
+Now login to the newly created box::
 
    cgcloud ssh generic-ubuntu-trusty-box
 
 The astute reader will notice that it is not necessary to remember the public
 hostname assigned to the box. As long as there is only one box per role, you
-can refer to the box by using the role's name. Also note it isn't necessary to
-specify the account name of the administrative user to log in as. The stock
-images for the various Linux distributions use different account names but
-cgcloud conveniently hides these differences.
+can refer to the box by using the role's name. Otherwise you will need to
+disambiguate by specifying an ordinal. Use ``cgcloud list`` to view all running
+instances and their ordinals.
 
-Use ``cgcloud rsync`` to copy files to the
-box::
+Also note that it isn't necessary to specify the account name of the
+administrative user to log in as, e.g. ``ec2-user``, ``root`` or ``ubuntu`` .
+The stock images for the various Linux distributions use different account
+names but CGCloud conveniently hides these differences.
+
+In order to copy files to and from the box you can use ``cgcloud rsync``::
 
    cgcloud rsync generic-ubuntu-trusty-box -av ~/mystuff :
    
 The ``cgcloud rsync`` command behaves like a prefix to the ``rsync`` command
-with one important difference: While with rsync you would specify the remote
-hostname followed by a colon, with ``cgcloud rsync`` simply leave the hostname
-blank and just type a colon.
+with one important difference: With rsync you would specify the remote hostname
+followed by a colon, with ``cgcloud rsync`` you simply leave the hostname blank
+and only specify a colon followed by the remote path. If you omit the remote
+path, the home directory of the administrative user will be used.
 
 You can now stop the box with ``cgcloud stop``, start it again using ``cgcloud
 start`` or terminate it using ``cgcloud terminate``. Note while a stopped
@@ -147,26 +164,28 @@ to zero.
 
 If you want to preserve the modifications you made to the box such that you can
 spawn another box in the future just like it, stop the box and then create an
-image of it using the ``cgcloud image`` command. You may then use the ``cgcloud recreate`` command to bring up a box.
+image of it using the ``cgcloud image`` command. You may then use the ``cgcloud
+recreate`` command to bring up a box.
 
 .. note::
 
    While creating an image is a viable mechanism to preserve manual
    modifications to a box, it is not the best possible way. The problem with it
-   is that you will be stuck with the version of the base image the box was
-   created from. You will also be stuck at whatever customizations were
-   performed by the version of ``cgcloud create`` you were using. If either the
-   base image or cgcloud is updated, you will not benefit from those updates.
-   Therefore, the preferred way of customizing an instance is by *scripting*
-   them. This is typically done by creating a plugin to cgcloud. A plugin is a
-   Python package with VM definitions. A VM definition is a subclass of the Box
-   class. The workhorse design pattern formed by the Box class is *Template
-   Method*.
+   is that you will be stuck with the base image release the box was created
+   from. You will also be stuck at whatever customizations specified by the
+   role in the version of ``cgcloud create`` you were using. If either the base
+   image or the role definition in CGCloud is updated, you will not benefit
+   from those updates. Therefore, the preferred way of customizing an instance
+   is by *scripting* them. This is typically done by creating a CGCloud plugin,
+   i.e. a Python package with VM definitions aka ``roles``. A role is a
+   subclass of the Box class--an EC2 instance is an instance of that class. The
+   workhorse design pattern formed by the Box class is *Template Method*.
 
-Uninstallation
-==============
-
-::
-
-    sudo pip uninstall cgcloud-core
-
+Creating an image makes sense even if you didn't make any modifications after
+``cgcloud create``. It captures all role-specific customizations made by
+``cgcloud create``, thereby protecting them from changes in the role
+definition, the underlying base image and package updates in the Linux
+distribution used by the box. This is key to CGCloud's philosophy: It gives you
+a way to *create* an up-to-date image with all the latest software according to
+your requirements **and** it allows you reliably reproduce the exact result of
+that step.
