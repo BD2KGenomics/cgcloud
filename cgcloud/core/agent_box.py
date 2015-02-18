@@ -103,7 +103,7 @@ class AgentBox( SourceControlClient ):
                 run( '~/agent/bin/pip install '
                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
                      '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
-                     'git+ssh://git@github.com/BD2KGenomics/cghub-cloud-agent@master' )
+                     'git+ssh://git@github.com/BD2KGenomics/cgcloud-agent@master' )
             authorized_keys = run( 'echo ~/authorized_keys' )
             kwargs = dict(
                 availability_zone=self.ctx.availability_zone,
