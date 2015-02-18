@@ -507,10 +507,13 @@ class Context( object ):
         else:
             return email[ 0:n ]
 
-    def resolve_me( self, s ):
+    def resolve_me( self, s, drop_hostname=True ):
         placeholder = self.current_user_placeholder
         if placeholder in s:
-            return s.replace( placeholder, self.drop_hostname( self.iam_user_name ) )
+            me = self.iam_user_name
+            if drop_hostname:
+                me = self.drop_hostname( me )
+            return s.replace( placeholder, me )
         else:
             return s
 
