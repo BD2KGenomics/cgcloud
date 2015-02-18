@@ -366,7 +366,7 @@ class Context( object ):
 
     @property
     @memoize
-    def get_account( self ):
+    def account( self ):
         try:
             arn = self.iam.get_user( ).arn
         except:
@@ -378,7 +378,7 @@ class Context( object ):
     @property
     @memoize
     def s3_bucket_name(self):
-        return self.get_account( ) + '-cgcloud'
+        return self.account + '-cgcloud'
 
     ssh_pubkey_s3_key_prefix = 'ssh_pubkey:'
 
