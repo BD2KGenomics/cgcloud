@@ -217,7 +217,8 @@ class Box( object ):
                 try:
                     image = images[ boot_image ]
                 except IndexError:
-                    raise UserError( "No image with ordinal %i" % boot_image )
+                    raise UserError( "No image with ordinal %i for role %s"
+                                     % ( boot_image, self.role() ) )
             else:
                 image = self.ctx.ec2.get_image( boot_image )
         else:
