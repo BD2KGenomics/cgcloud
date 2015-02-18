@@ -315,6 +315,13 @@ class CreationCommand( RoleCommand ):
                           'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
                           'default, an instance type appropriate for the role.' )
 
+        self.option('--virtualization-type', metavar='TYPE',
+                    default=None, choices=Box.virtualization_types,
+                    help="The virtualization type to be used for the instance. This affects the "
+                         "choice of image (AMI) the instance is created from. The default depends "
+                         "on the instance type, but generally speaking, 'hvm' will be used for "
+                         "newer instance types." )
+
         self.option( '--security-groups', '-g', metavar='GROUP',
                      default=Box.default_security_groups,
                      nargs='+',
@@ -353,7 +360,7 @@ class CreationCommand( RoleCommand ):
             box.create( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
                         security_groups=options.security_groups,
                         instance_type=options.instance_type,
-
+                        virtualization_type=options.virtualization_type,
                         **self.instance_options( options ) )
             self.run_on_creation( box, options )
         except:

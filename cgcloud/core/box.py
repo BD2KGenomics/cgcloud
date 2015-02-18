@@ -16,7 +16,6 @@ from boto import logging
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
-
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake
 
@@ -85,7 +84,7 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    def _base_image( self ):
+    def _base_image( self, virtualization_type ):
         """
         Returns the default base image that boxes performing this role should be booted from
         before they are being setup
@@ -188,7 +187,8 @@ class Box( object ):
 
     default_security_groups = [ 'default' ]
 
-    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, security_groups=None, **options ):
+    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, security_groups=None,
+                virtualization_type=None, **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -224,7 +224,9 @@ class Box( object ):
         else:
             self._log( "Looking up default image for role %s, ... " % self.role( ),
                        newline=False )
-            image = self._base_image( )
+            if virtualization_type is None:
+                virtualization_type = self.__default_virtualization_type( instance_type )
+            image = self._base_image( virtualization_type )
             self._log( "found %s." % image.id )
 
         if security_groups is None:
@@ -844,3 +846,12 @@ class Box( object ):
 
     def _get_iam_ec2_role( self ):
         return self.role_prefix, { }
+
+    # http://aws.amazon.com/amazon-linux-ami/instance-type-matrix/
+    #
+    virtualization_types = [ 'paravirtual', 'hvm' ]
+    paravirtual_families = [ 'm1', 'c1', 'm2', 't1' ]
+
+    def __default_virtualization_type( self, instance_type ):
+        family = instance_type.split( '.', 2 )[ 0 ].lower()
+        return 'paravirtual' if family in self.paravirtual_families else 'hvm'

@@ -41,12 +41,14 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
         self._username = admin_user
         self.get_instance( ).add_tag( 'admin_user', admin_user )
 
-    def _base_image( self ):
+    def _base_image( self, virtualization_type ):
         release = self.release( )
-        images = self.ctx.ec2.get_all_images( owners=[ '411009282317' ],
-                                              filters={
-                                                  'name': 'RightImage_CentOS_%s_x64*' % release,
-                                                  'root-device-type': 'ebs' } )
+        images = self.ctx.ec2.get_all_images(
+            owners=[ '411009282317' ],
+            filters={
+                'name': 'RightImage_CentOS_%s_x64*' % release,
+                'root-device-type': 'ebs',
+                'virtualization-type': virtualization_type } )
         if not images:
             raise RuntimeError( "Can't find any suitable AMIs for CentOS release %s" % release )
         max_version = None

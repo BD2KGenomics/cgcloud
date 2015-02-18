@@ -25,12 +25,14 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
     def username( self ):
         return "fedora" if self.release( ) >= 19 else "ec2-user"
 
-    def _base_image( self ):
+    def _base_image( self, virtualization_type ):
         release = self.release( )
-        images = self.ctx.ec2.get_all_images( owners=[ '125523088429' ],
-                                              filters={
-                                                  'name': 'Fedora-x86_64-%i-*' % release,
-                                                  'root-device-type': 'ebs' } )
+        images = self.ctx.ec2.get_all_images(
+            owners=[ '125523088429' ],
+            filters={
+                'name': 'Fedora-x86_64-%i-*' % release,
+                'root-device-type': 'ebs',
+                'virtualization-type': virtualization_type } )
         images = [ i for i in images if not re.search( 'Alpha|Beta', i.name ) ]
         if not images:
             raise RuntimeError( "Can't find any suitable AMIs for Fedora %i" % release )

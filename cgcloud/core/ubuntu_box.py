@@ -48,7 +48,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     def username( self ):
         return 'ubuntu'
 
-    def _base_image( self ):
+    def _base_image( self, virtualization_type ):
         release = self.release( )
         image_info = self.__find_image(
             template=TemplateDict( release=release,
@@ -57,7 +57,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
                                    storage_type='ebs',
                                    arch='amd64',
                                    region=self.ctx.region,
-                                   hypervisor='paravirtual' ),
+                                   hypervisor=virtualization_type ),
             url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
             fields=[
                 'release', 'purpose', 'release_type', 'release_date',
