@@ -3,7 +3,7 @@ The CGCloud project is aimed at automating the creation and management of VMs
 family of tools such as Puppet, Chef and Vagrant but it's closest of kin is
 probably Ansible because the VM setup is done via SSH, keeping the VM on a
 short leash until it is fully set up. It shines when it comes to managing a
-wide variety of guest distributions. To customize an AMI managed by CGCLoud you
+wide variety of guest distributions. To customize an AMI managed by CGCloud you
 write object-oriented Python code that utilizes inheritance to organize VM
 definitions.
 
@@ -77,7 +77,7 @@ able to invoke it now::
 Configure Boto
 --------------
 
-Boto is the AWS client library for Python that CGCLoud uses. If you've already
+Boto is the AWS client library for Python that CGCloud uses. If you've already
 installed, correctly configured and successfully used Boto, you can probably
 skip this step.
 
@@ -119,8 +119,8 @@ of the key pair in EC2 to your IAM user account name. In S3 your public key
 will be stored under its fingerprint. If you don't have an SSH key, you can
 create one using the ``ssh-keygen`` command.
 
-Configure CGCloud
------------------
+Start your box
+--------------
 
 That's it, you're ready to create your first *box*, i.e. EC2 instance or VM:
 
