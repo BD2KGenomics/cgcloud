@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="cgcloud.py-core",
+    name="cgcloud-core",
     version="1.0.dev1",
     packages=find_packages( ),
     entry_points={
