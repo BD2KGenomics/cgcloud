@@ -4,6 +4,7 @@ setup(
     name="cgcloud-core",
     version="1.0.dev1",
     packages=find_packages( ),
+    py_modules=[ 'main' ],
     entry_points={
         'console_scripts': [
             'cgcloud = main:main'
