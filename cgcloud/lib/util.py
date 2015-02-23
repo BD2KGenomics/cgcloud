@@ -1,4 +1,5 @@
 from StringIO import StringIO
+from abc import ABCMeta, abstractmethod
 import argparse
 import os
 import re
@@ -217,6 +218,9 @@ class Command( object ):
     An abstract base class for an applications commands.
     """
 
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
     def run( self, options ):
         """
         Execute this command.
@@ -254,7 +258,9 @@ class Command( object ):
         command line. The command name is the snake-case version (with dashes instead of
         underscores) of this command's class name, minus its 'Command' suffix.
 
-        >>> class FooBarCommand(Command): pass
+        >>> class FooBarCommand(Command):
+        ...    def run( self, options  ):
+        ...        pass
         >>> app=Application()
         >>> FooBarCommand(app).name()
         'foo-bar'
