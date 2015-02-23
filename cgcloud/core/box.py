@@ -169,7 +169,7 @@ class Box( object ):
         :type image: boto.ec2.image.Image
         :type kwargs: dict
         """
-        for root_device in ( '/dev/sda1', '/dev/sda' ):
+        for root_device in ( '/dev/sda1', '/dev/sda', '/dev/xvda' ):
             root_bdt = image.block_device_mapping.get( root_device )
             if root_bdt:
                 root_bdt.size = 10
@@ -791,7 +791,7 @@ class Box( object ):
               '-m 644 -o {dst_user} -g {dst_group}'.format( **args ) )
 
     def recommended_instance_type( self ):
-        return 't1.micro'
+        return 't2.micro'
 
     def list_images( self ):
         """
