@@ -52,6 +52,12 @@ Once the prerequisites are installed, use ``pip`` to install cgcloud-core::
 
    sudo pip install git+https://github.com/BD2KGenomics/cgcloud-core.git
 
+On OS X systems with a HomeBrewed Python, you should omit the sudo. You can
+find out if that applies to your system by running ``which python``. If it
+prints ``/usr/local/bin/python`` you are most likely using a HomeBrewed Python
+and you should omit ``sudo``. If it prints ``/usr/bin/python`` you need to run
+``pip`` with ``sudo``.
+
 If you get
 
 ::
