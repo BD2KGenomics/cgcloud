@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import re
 from distutils.version import LooseVersion
 
@@ -21,6 +22,7 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
     admin account such that we can look it up later.
     """
 
+    @abstractmethod
     def release( self ):
         """
         :return: the version number of the CentOS release, e.g. "6.4"

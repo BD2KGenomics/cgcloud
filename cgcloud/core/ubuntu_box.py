@@ -1,4 +1,5 @@
 from StringIO import StringIO
+from abc import abstractmethod
 import contextlib
 import csv
 import urllib2
@@ -24,6 +25,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """
 
+    @abstractmethod
     def release( self ):
         """
         :return: the code name of the Ubuntu release, e.g. "precise"

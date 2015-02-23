@@ -1,5 +1,6 @@
 from __future__ import print_function
 from StringIO import StringIO
+from abc import ABCMeta, abstractmethod
 from contextlib import closing
 from functools import partial, wraps
 from operator import attrgetter
@@ -70,6 +71,8 @@ class Box( object ):
     instance) in EC2.
     """
 
+    __metaclass__ = ABCMeta
+
     @classmethod
     def role( cls ):
         """
@@ -78,12 +81,14 @@ class Box( object ):
         """
         return camel_to_snake( cls.__name__, '-' )
 
+    @abstractmethod
     def username( self ):
         """
         Returns the username for making SSH connections to the instance.
         """
         raise NotImplementedError( )
 
+    @abstractmethod
     def _base_image( self, virtualization_type ):
         """
         Returns the default base image that boxes performing this role should be booted from
@@ -93,6 +98,7 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
+    @abstractmethod
     def setup( self, **kwargs ):
         """
         Create the EC2 instance represented by this box, install OS and additional packages on,
@@ -100,6 +106,7 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
+    @abstractmethod
     def _ephemeral_mount_point( self ):
         """
         Returns the absolute path to the directory at which the ephemeral volume is mounted. This
@@ -802,6 +809,7 @@ class Box( object ):
         images.sort( key=attrgetter( 'name' ) )  # that sorts by date, effectively
         return images
 
+    @abstractmethod
     def _register_init_command( self, cmd ):
         """
         Register a shell command to be executed towards the end of system initialization

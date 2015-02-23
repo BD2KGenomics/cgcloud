@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import re
 from operator import attrgetter
 
@@ -15,6 +16,7 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
     A box that boots of an official Fedora cloud AMI
     """
 
+    @abstractmethod
     def release( self ):
         """
         :return: the version number of the Fedora release, e.g. 17
@@ -40,7 +42,6 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
         if False:
             if len( images ) > 1:
                 raise RuntimeError( "Found more than one AMI for Fedora %i" % release )
-
         return images[ 0 ]
 
     def _list_packages_to_install( self ):

@@ -1,3 +1,4 @@
+from abc import abstractmethod
 from itertools import chain
 
 from fabric.operations import sudo
@@ -10,6 +11,7 @@ class PackageManagerBox( Box ):
     A box that uses a package manager like apt-get or yum.
     """
 
+    @abstractmethod
     def _sync_package_repos( self ):
         """
         Update the cached package descriptions from remote package repositories,
@@ -17,12 +19,14 @@ class PackageManagerBox( Box ):
         """
         raise NotImplementedError( )
 
+    @abstractmethod
     def _upgrade_installed_packages( self ):
         """
         Update all installed package to their lates version, e.g. apt-get update on Ubuntu.
         """
         raise NotImplementedError( )
 
+    @abstractmethod
     def _install_packages( self, packages ):
         """
         Install the given packages
@@ -90,6 +94,7 @@ class PackageManagerBox( Box ):
             # The upgrade might involve a kernel update, so we'll reboot to be safe
             self.reboot( )
 
+    @abstractmethod
     def _register_init_script( self, script, name ):
         raise NotImplementedError( )
 
@@ -97,6 +102,7 @@ class PackageManagerBox( Box ):
     def _run_init_script( self, name, command='start' ):
         sudo( "service %s %s" % ( name, command ) )
 
+    @abstractmethod
     def _ssh_service_name( self ):
         raise NotImplementedError()
 

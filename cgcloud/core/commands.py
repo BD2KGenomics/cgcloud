@@ -1,4 +1,5 @@
 from __future__ import print_function
+from abc import abstractmethod
 import argparse
 import functools
 from operator import itemgetter
@@ -22,6 +23,7 @@ class ContextCommand( Command ):
     boxes and other resources into isolated groups.
     """
 
+    @abstractmethod
     def run_in_ctx( self, options, ctx ):
         """
         Run this command in the given context.
@@ -77,6 +79,7 @@ class RoleCommand( ContextCommand ):
     than one box per role. To target a specific box, BoxCommand might be a better choice.
     """
 
+    @abstractmethod
     def run_on_box( self, options, box ):
         """
         Execute this command using the specified parsed command line options on the specified box.
@@ -342,12 +345,14 @@ class CreationCommand( RoleCommand ):
 
         self.end_mutex( )
 
+    @abstractmethod
     def run_on_creation( self, box, options ):
         """
         Run on the given box after it was created.
         """
         raise NotImplementedError( )
 
+    @abstractmethod
     def instance_options( self, options ):
         """
         Return instance options to be passed box.create()
