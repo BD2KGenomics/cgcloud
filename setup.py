@@ -15,8 +15,7 @@ setup(
         'cgcloud-lib>=1.0.dev1',
         'boto>=2.16.0',
         'Fabric>=1.7.0',
-        'PyYAML>=3.10',
-        'PyCrypto>=2.6' ],
+        'PyYAML>=3.10' ],
     namespace_packages=[
         'cgcloud'
     ],
