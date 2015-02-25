@@ -1,13 +1,16 @@
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
 import argparse
+import hashlib
 import os
 import re
 import errno
 import sys
 
-from Crypto.Hash import MD5, SHA
-from Crypto.PublicKey import RSA
+try:
+    from cgcloud.crypto.PublicKey import RSA
+except ImportError:
+    from cgcloud_Crypto.PublicKey import RSA
 
 
 def unpack_singleton( singleton ):
@@ -434,8 +437,7 @@ def ec2_keypair_fingerprint( ssh_key, reject_private_keys=False ):
     if is_private_key and reject_private_keys:
         raise ValueError( 'Private keys are disallowed' )
     der_rsa_key = rsa_key.exportKey( format='DER', pkcs=(8 if is_private_key else 1) )
-    key_hash = (SHA if is_private_key else MD5).new( )
-    key_hash.update( der_rsa_key )
+    key_hash = (hashlib.sha1 if is_private_key else hashlib.md5)( der_rsa_key )
     return ':'.join( partition_seq( key_hash.hexdigest( ), 2 ) )
 
 
