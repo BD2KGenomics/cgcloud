@@ -14,12 +14,12 @@ PACKAGES = [ cgcloud.core ] + [ import_module( package_name )
 DEBUG_LOG_FILE_NAME = '%s.{pid}.log' % app_name( )
 
 
-def main( ):
+def main( args=None ):
     app = Cgcloud( )
     for package in PACKAGES:
         for command in package.COMMANDS:
             app.add( command )
-    app.run( )
+    app.run( args )
 
 
 class Cgcloud( Application ):
