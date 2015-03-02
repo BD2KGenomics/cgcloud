@@ -6,8 +6,8 @@ import zlib
 
 from fabric.context_managers import settings
 from fabric.operations import sudo, run, put
-
 from bd2k.util import shell, strict_bool
+
 from cgcloud.core.box import fabric_task
 from cgcloud.core.source_control_client import SourceControlClient
 
@@ -17,6 +17,8 @@ class AgentBox( SourceControlClient ):
     A box on which to install the agent. It inherits SourceControlClient because we would like to
     install the agent directly from its source repository.
     """
+
+    agent_depends_on_pycrypto = False
 
     def __init__( self, ctx ):
         super( AgentBox, self ).__init__( ctx )
@@ -47,14 +49,15 @@ class AgentBox( SourceControlClient ):
         if self.enable_agent:
             packages += [
                 'python',
-                'python-pip',
-                # for PyCrypto:
-                'python-dev',
-                'autoconf',
-                'automake',
-                'binutils',
-                'gcc',
-                'make' ]
+                'python-pip' ]
+            if self.agent_depends_on_pycrypto:
+                packages += [
+                    'python-dev',
+                    'autoconf',
+                    'automake',
+                    'binutils',
+                    'gcc',
+                    'make' ]
         return packages
 
     @fabric_task
@@ -98,7 +101,7 @@ class AgentBox( SourceControlClient ):
             # version, so we tell virtualenv not to install pip and then install that version of
             # pip using easy_install.
             run( 'virtualenv --no-pip ~/agent' )
-            run( '~/agent/bin/easy_install pip==1.5.2')
+            run( '~/agent/bin/easy_install pip==1.5.2' )
             with settings( forward_agent=True ):
                 run( '~/agent/bin/pip install '
                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
