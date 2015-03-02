@@ -218,6 +218,14 @@ class Box( object ):
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
 
+        if virtualization_type is None:
+            virtualization_type = self.__default_virtualization_type( instance_type )
+
+        if virtualization_type not in self.supported_virtualization_types( ):
+            raise RuntimeError( 'Virtualization type %s not supported by role %s' % (
+                virtualization_type,
+                self.role( ) ) )
+
         if boot_image is not None:
             if isinstance( boot_image, int ):
                 images = self.list_images( )
@@ -231,10 +239,13 @@ class Box( object ):
         else:
             self._log( "Looking up default image for role %s, ... " % self.role( ),
                        newline=False )
-            if virtualization_type is None:
-                virtualization_type = self.__default_virtualization_type( instance_type )
             image = self._base_image( virtualization_type )
             self._log( "found %s." % image.id )
+
+        if image.virtualization_type != virtualization_type:
+            raise RuntimeError( "Expected virtualization type %s but image only supports %s" % (
+                virtualization_type,
+                image.virtualization_type ) )
 
         if security_groups is None:
             security_groups = self.default_security_groups
@@ -259,10 +270,10 @@ class Box( object ):
 
         self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
         kwargs = dict( instance_type=instance_type,
-                        key_name=ec2_keypairs[ 0 ].name,
-                        placement=self.ctx.availability_zone,
-                        security_groups=security_groups,
-                        instance_profile_arn=self._get_instance_profile_arn( ) )
+                       key_name=ec2_keypairs[ 0 ].name,
+                       placement=self.ctx.availability_zone,
+                       security_groups=security_groups,
+                       instance_profile_arn=self._get_instance_profile_arn( ) )
         self._populate_instance_creation_args( image, kwargs )
 
         while True:
@@ -798,7 +809,14 @@ class Box( object ):
               '-m 644 -o {dst_user} -g {dst_group}'.format( **args ) )
 
     def recommended_instance_type( self ):
-        return 't2.micro'
+        return 't2.micro' if 'hvm' in self.supported_virtualization_types( ) else 't1.micro'
+
+    def supported_virtualization_types( self ):
+        """
+        Returns the virtualization types supported by this box in order of preference, preferred
+        types first.
+        """
+        return [ 'hvm', 'paravirtual' ]
 
     def list_images( self ):
         """

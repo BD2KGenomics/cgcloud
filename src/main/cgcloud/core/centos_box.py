@@ -56,7 +56,7 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
         max_version = None
         base_image = None
         for image in images:
-            match = re.match( 'RightImage_CentOS_(\d+(?:\.\d+)*)_x64_v(\d+(?:\.\d+)*)_EBS',
+            match = re.match( 'RightImage_CentOS_(\d+(?:\.\d+)*)_x64_v(\d+(?:\.\d+)*)(_HVM)?_EBS',
                               image.name )
             if match:
                 assert match.group( 1 ) == release

@@ -16,6 +16,9 @@ class GenericCentos5Box( CentosBox ):
     def release( self ):
         return '5.8'
 
+    def supported_virtualization_types( self ):
+        return [ 'paravirtual' ]
+
     def __update_sudo( self ):
         """
         5.8 has sudo 1.7.2p1 whose -i switch is horribly broken. For example,
@@ -65,7 +68,7 @@ class GenericCentos5Box( CentosBox ):
             run( 'curl -O https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py' )
             sudo( 'python2.6 ez_setup.py' )
             # .. and pip.
-            run( 'curl -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py' )
+            run( 'curl -O https://raw.githubusercontent.com/pypa/pip/master/contrib/get-pip.py' )
             sudo( 'python2.6 get-pip.py' )
             sudo( 'rm /root/.wgetrc' )
             super( GenericCentos5Box, self )._post_install_packages( )
