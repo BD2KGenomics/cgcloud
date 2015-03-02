@@ -3,8 +3,9 @@ from importlib import import_module
 import logging
 import os
 
-import cgcloud.core
 from cgcloud.lib.util import Application, app_name
+
+import cgcloud.core
 
 PACKAGES = [ cgcloud.core ] + [ import_module( package_name )
     for package_name in os.environ.get( 'CGCLOUD_PLUGINS', "" ).split( ":" )
