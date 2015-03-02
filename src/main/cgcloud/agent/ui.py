@@ -1,5 +1,3 @@
-#! /usr/bin/env python
-
 import os
 import sys
 import argparse
@@ -196,7 +194,3 @@ def generate_init_script( options ):
                             exec_name=exec_name,
                             description=description ) )
     print init_script % variables
-
-
-if __name__ == '__main__':
-    main( )
