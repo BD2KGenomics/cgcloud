@@ -850,7 +850,7 @@ class Box( object ):
         self.ctx.iam.add_role_to_instance_profile( instance_profile_name, role_name )
         return result
 
-    role_prefix = 'cghub-cloud'
+    role_prefix = 'cgcloud'
 
     def _get_iam_ec2_role( self ):
         return self.role_prefix, { }
