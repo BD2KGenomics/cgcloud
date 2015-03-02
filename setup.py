@@ -9,7 +9,7 @@ setup(
     packages=find_packages( 'src/main' ),
     entry_points={
         'console_scripts': [
-            'cgcloud = main:main' ], },
+            'cgcloud = cgcloud.core.ui:main' ], },
     install_requires=[
         'bd2k-python-lib>=1.5.dev1',
         'cgcloud-lib>=1.0.dev1',
