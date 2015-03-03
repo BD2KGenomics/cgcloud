@@ -1,22 +1,23 @@
 # coding=utf-8
 import json
+import os
 import urllib
 import re
 import socket
 
-from boto import ec2, s3, iam, sns, sqs
+from boto import ec2, iam, sns, sqs
 from boto.s3.key import Key as S3Key
 from boto.exception import S3ResponseError, BotoServerError
-from boto.s3.connection import S3Connection, OrdinaryCallingFormat
+from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
 from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
-
 from bd2k.util import fnmatch
 from bd2k.util import memoize
 from boto.utils import get_instance_metadata
+
 from cgcloud.lib.message import Message
 from cgcloud.lib.util import ec2_keypair_fingerprint, UserError
 
@@ -169,7 +170,7 @@ class Context( object ):
             # We let S3 route buckets to regions for us. If we connected to a specific region,
             # bucket lookups (HEAD request against bucket URL) would fail with 301 status but
             # without a Location header.
-            self.__s3 = S3Connection()
+            self.__s3 = S3Connection( )
         return self.__s3
 
     @property
@@ -372,12 +373,12 @@ class Context( object ):
         except:
             # Agent boxes run with IAM role credentials instead of user credentials.
             arn = get_instance_metadata( )[ 'iam' ][ 'info' ][ 'InstanceProfileArn' ]
-        _, partition, service, region, account, resource = arn.split(':',6)
+        _, partition, service, region, account, resource = arn.split( ':', 6 )
         return account
 
     @property
     @memoize
-    def s3_bucket_name(self):
+    def s3_bucket_name( self ):
         return self.account + '-cgcloud'
 
     ssh_pubkey_s3_key_prefix = 'ssh_pubkey:'
@@ -471,7 +472,7 @@ class Context( object ):
             else:
                 raise
         fingerprint_len = len( ec2_keypair.fingerprint.split( ':' ) )
-        if fingerprint_len == 20: # 160 bit SHA-1
+        if fingerprint_len == 20:  # 160 bit SHA-1
             # The fingerprint is that of a private key. We can't get at the private key so we
             # can't verify the public key either. So this is inherently insecure. However,
             # remember that the only reason why we are dealing with n EC2-generated private
@@ -479,7 +480,7 @@ class Context( object ):
             # https://issues.jenkins-ci.org/browse/JENKINS-20142 for details. Once that issue
             # is fixed, we can switch back to just using imported keys and 16-byte fingerprints.
             pass
-        elif fingerprint_len == 16: # 128 bit MD5
+        elif fingerprint_len == 16:  # 128 bit MD5
             fingerprint = ec2_keypair_fingerprint( ssh_pubkey )
             if ec2_keypair.fingerprint != fingerprint:
                 raise UserError(
@@ -521,7 +522,7 @@ class Context( object ):
     def resolve_me( self, s, drop_hostname=True ):
         placeholder = self.current_user_placeholder
         if placeholder in s:
-            me = self.iam_user_name
+            me = os.environ.get( 'CGCLOUD_ME' ) or self.iam_user_name
             if drop_hostname:
                 me = self.drop_hostname( me )
             return s.replace( placeholder, me )
