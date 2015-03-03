@@ -1,3 +1,6 @@
+Note: A lot of this is outdated or applies to CGHub only
+========================================================
+
 The CGHub Cloud CI project contains the VM definitions for running a
 distributed continuous integration environment in EC2 with one Jenkins master
 and multiple slaves. CGHub currently uses CGHub Cloud CI for continuously
@@ -15,7 +18,7 @@ First, install the code, either in the system python (requiring sudo) or in a lo
 CGHub Cloud CI is a plugin to `CGhub Cloud Core <https://bitbucket.org/cghub/custom-centos-packages>`_. 
 The following environment variable tells the core to load the plugin::
 
-   export CGCLOUD_PLUGINS=cghub.cloud.ci
+   export CGCLOUD_PLUGINS=cgcloud.bd2k.ci
 
 Running ``cgcloud list-roles`` should now list the additional roles defined in the
 plugin::

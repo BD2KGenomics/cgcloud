@@ -4,10 +4,10 @@ from textwrap import dedent
 from lxml import etree
 from fabric.context_managers import settings
 from fabric.operations import run, sudo, put, get
-from cghub.cloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key
-from cghub.cloud.core.box import fabric_task, Box
-from cghub.cloud.core.generic_boxes import GenericUbuntuRaringBox
-from cghub.cloud.core.source_control_client import SourceControlClient
+from cgcloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key
+from cgcloud.core.box import fabric_task, Box
+from cgcloud.core.generic_boxes import GenericUbuntuRaringBox, GenericUbuntuTrustyBox
+from cgcloud.core.source_control_client import SourceControlClient
 
 
 class Jenkins:
@@ -68,7 +68,7 @@ class Jenkins:
 jenkins = vars( Jenkins )
 
 
-class JenkinsMaster( GenericUbuntuRaringBox, SourceControlClient ):
+class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
     """
     An instance of this class represents the build master in EC2
     """

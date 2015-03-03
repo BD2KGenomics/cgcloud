@@ -1,7 +1,7 @@
 from fnmatch import fnmatch
 import os
 
-from cghub.cloud.core import BoxCommand
+from cgcloud.core import BoxCommand
 
 
 class RegisterSlaves( BoxCommand ):

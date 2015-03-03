@@ -1,10 +1,10 @@
 from lxml.builder import E
-from cghub.cloud.lib.util import snake_to_camel, UserError
-from cghub.fabric.operations import sudo
-from cghub.cloud.core.box import fabric_task
-from cghub.cloud.core.source_control_client import SourceControlClient
+from cgcloud.lib.util import snake_to_camel, UserError
+from cgcloud.fabric.operations import sudo
+from cgcloud.core.box import fabric_task
+from cgcloud.core.source_control_client import SourceControlClient
 
-from cghub.cloud.ci.jenkins_master import Jenkins, JenkinsMaster
+from cgcloud.bd2k.ci.jenkins_master import Jenkins, JenkinsMaster
 
 BUILD_USER = Jenkins.user
 BUILD_DIR = '/home/jenkins/builds'

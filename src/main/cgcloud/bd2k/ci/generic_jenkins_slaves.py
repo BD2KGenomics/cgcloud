@@ -1,8 +1,7 @@
-from cghub.cloud.core.generic_boxes import *
+from cgcloud.core.generic_boxes import *
 
-from cghub.cloud.ci.jenkins_slave import JenkinsSlave
+from cgcloud.bd2k.ci.jenkins_slave import JenkinsSlave
 
-# TODO: These should be refactored into base classes of XyzGenetorrentJenkinsSlaves
 
 class GenericJenkinsSlave( JenkinsSlave ):
     """
@@ -30,6 +29,7 @@ class CentosGenericJenkinsSlave( CentosBox, GenericJenkinsSlave ):
     @fabric_task
     def _post_install_packages( self ):
         super( CentosGenericJenkinsSlave, self )._post_install_packages( )
+        # FIXME: These are public but we should rebuild them and host them within our control
         self._yum_local( is_update=False, rpm_urls=[
             'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-2.7.2-cghub.x86_64.rpm',
             'http://public-artifacts.cghub.ucsc.edu.s3.amazonaws.com/custom-centos-packages/python27-devel-2.7.2-cghub.x86_64.rpm',
@@ -127,6 +127,7 @@ class UbuntuTrustyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuT
     A generic Jenkins slave for Ubuntu 14.04 LTS (EOL April 2019)
     """
     pass
+
 
 class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
     """

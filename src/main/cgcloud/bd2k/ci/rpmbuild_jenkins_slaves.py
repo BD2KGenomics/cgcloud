@@ -1,14 +1,14 @@
-from cghub.cloud.core.box import fabric_task
-from cghub.cloud.core.centos_box import CentosBox
-from cghub.cloud.core.generic_boxes import GenericCentos5Box, GenericCentos6Box
-from cghub.fabric.operations import sudo
+from cgcloud.core.box import fabric_task
+from cgcloud.core.centos_box import CentosBox
+from cgcloud.core.generic_boxes import GenericCentos5Box, GenericCentos6Box
+from cgcloud.fabric.operations import sudo
 
-from cghub.cloud.ci.jenkins_slave import JenkinsSlave
+from cgcloud.bd2k.ci.jenkins_slave import JenkinsSlave
 
 
 class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):
     """
-    A Jenkins slave for building GeneTorrent on CentOS
+    A Jenkins slave for building RPMs on CentOS
     """
 
     def _list_packages_to_install(self):
