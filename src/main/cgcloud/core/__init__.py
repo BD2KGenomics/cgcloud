@@ -13,9 +13,8 @@ BOXES = [
     GenericUbuntuRaringBox,
     GenericUbuntuSaucyBox,
     GenericUbuntuTrustyBox,
-    GenericFedora17Box,
-    GenericFedora18Box,
-    GenericFedora19Box ]
+    GenericFedora19Box,
+    GenericFedora20Box ]
 
 COMMANDS = [
     ListRolesCommand,
