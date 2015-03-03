@@ -200,3 +200,12 @@ a way to *create* an up-to-date image with all the latest software according to
 your requirements **and** it allows you reliably reproduce the exact result of
 that step. The fact that ``recreate`` is much faster than ``create`` is icing
 on the cake.
+
+
+Building
+========
+
+First, clone this repository and ``cd`` into it. To run the tests use ``python
+setup.py test`` or ``python setup.py nosetests`` ``nosetest`` or ``python -m
+unittest discover -s src``. To make an editable install, use ``python setup.py
+develop``, to remove the editable install ``python setup.py develop -u``.
