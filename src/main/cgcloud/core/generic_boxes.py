@@ -100,6 +100,9 @@ class GenericUbuntuLucidBox( UbuntuBox ):
     def release( self ):
         return 'lucid'
 
+    def supported_virtualization_types( self ):
+        return [ 'paravirtual' ]
+
     @fabric_task
     def __update_sudo( self ):
         """
@@ -129,6 +132,9 @@ class GenericUbuntuMaverickBox( UbuntuBox ):
     def release( self ):
         return 'maverick'
 
+    def supported_virtualization_types( self ):
+        return [ 'paravirtual' ]
+
 
 class GenericUbuntuNattyBox( UbuntuBox ):
     """
@@ -138,6 +144,8 @@ class GenericUbuntuNattyBox( UbuntuBox ):
     def release( self ):
         return 'natty'
 
+    def supported_virtualization_types( self ):
+        return [ 'paravirtual' ]
 
 class GenericUbuntuOneiricBox( UbuntuBox ):
     """
@@ -147,6 +155,8 @@ class GenericUbuntuOneiricBox( UbuntuBox ):
     def release( self ):
         return 'oneiric'
 
+    def supported_virtualization_types( self ):
+        return [ 'paravirtual' ]
 
 class GenericUbuntuPreciseBox( UbuntuBox ):
     """
@@ -215,7 +225,14 @@ class GenericFedora19Box( FedoraBox ):
     def release( self ):
         return 19
 
+    def supported_virtualization_types( self ):
+        return [ 'paravirtual' ]
+
 
 class GenericFedora20Box( FedoraBox ):
     def release( self ):
         return 20
+
+    def supported_virtualization_types( self ):
+        return [ 'paravirtual' ]
+
