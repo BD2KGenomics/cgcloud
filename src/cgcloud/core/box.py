@@ -282,7 +282,8 @@ class Box( object ):
                 reservation = self.ctx.ec2.run_instances( image.id, **kwargs )
                 break
             except EC2ResponseError as e:
-                if 'Invalid IAM Instance Profile' in e.error_message:
+                message = e.error_message.lower( )
+                if 'invalid iam instance profile' in message or 'no associated iam roles' in message:
                     time.sleep( EC2_POLLING_INTERVAL )
                     pass
                 else:
@@ -867,23 +868,7 @@ class Box( object ):
                                                                 profile.roles.member.role_name )
         self.ctx.iam.add_role_to_instance_profile( aws_instance_profile_name, aws_role_name )
 
-        self.__wait_for_role_in_instance_profile( aws_instance_profile_name, aws_role_name )
-
         return profile_arn
-
-    def __wait_for_role_in_instance_profile( self, aws_instance_profile_name, aws_role_name ):
-        retries = 4
-        while True:
-            p = self.ctx.iam.get_instance_profile( aws_instance_profile_name )
-            if len( p.roles ) == 1 and p.roles.member.role_name == aws_role_name:
-                break
-            if retries < 1:
-                raise RuntimeError(
-                    "Couldn't verify that role '%s' was added to profile '%s'" % (
-                        aws_instance_profile_name, aws_role_name ) )
-            self._log( 'role not in profile yet, trying again in 1s ...', newline=False )
-            retries -= 1
-            time.sleep( 1 )
 
     role_prefix = 'cgcloud'
 
