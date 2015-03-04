@@ -399,8 +399,4 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                                           text_by_xpath={
                                               './/hudson.plugins.ec2.EC2Cloud/accessId': access_key_id,
                                               './/hudson.plugins.ec2.EC2Cloud/secretKey': secret_key } )
-        dirty = self.__patch_config_file( path='~/hudson.plugins.s3.S3BucketPublisher.xml',
-                                          text_by_xpath={
-                                              './/accessKey': access_key_id,
-                                              './/secretKey': secret_key } ) or dirty
         return dirty
