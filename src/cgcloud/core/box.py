@@ -185,7 +185,8 @@ class Box( object ):
                 bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
                 bdm[ '/dev/sda1' ] = root_bdt
                 instance_type_ = kwargs[ 'instance_type' ]
-                num_ephemeral_drives = self.num_ephemeral_drives_by_instance_type.get( instance_type_, 1 )
+                num_ephemeral_drives = self.num_ephemeral_drives_by_instance_type.get(
+                    instance_type_, 1 )
                 for i in range( num_ephemeral_drives ):
                     device = '/dev/sd' + chr( ord( 'b' ) + i )
                     bdm[ device ] = BlockDeviceType( ephemeral_name='ephemeral%i' % i )
@@ -233,7 +234,7 @@ class Box( object ):
                     image = images[ boot_image ]
                 except IndexError:
                     raise UserError( "No image with ordinal %i for role %s"
-                                     % ( boot_image, self.role() ) )
+                                     % ( boot_image, self.role( ) ) )
             else:
                 image = self.ctx.ec2.get_image( boot_image )
         else:
@@ -836,20 +837,19 @@ class Box( object ):
 
     def _get_instance_profile_arn( self ):
         role_name, policies = self._get_iam_ec2_role( )
-        self.ctx.setup_iam_ec2_role( role_name, policies )
-        role_name = self.ctx.to_aws_name( role_name )
-        instance_profile_name = self.ctx.to_aws_name( self.role( ) )
+        aws_role_name = self.ctx.setup_iam_ec2_role( role_name, policies )
+        aws_instance_profile_name = self.ctx.to_aws_name( self.role( ) )
         try:
-            profile = self.ctx.iam.get_instance_profile( instance_profile_name )
+            profile = self.ctx.iam.get_instance_profile( aws_instance_profile_name )
             profile = profile.get_instance_profile_response.get_instance_profile_result
         except BotoServerError as e:
             if e.status == 404:
-                profile = self.ctx.iam.create_instance_profile( instance_profile_name )
+                profile = self.ctx.iam.create_instance_profile( aws_instance_profile_name )
                 profile = profile.create_instance_profile_response.create_instance_profile_result
             else:
                 raise
         profile = profile.instance_profile
-        result = profile.arn
+        profile_arn = profile.arn
         # Note that Boto does not correctly parse the result from get/create_instance_profile.
         # The 'roles' field should be an instance of ListElement, whereas it currently is a
         # simple, dict-like Element. We can check a dict-like element for size but since all
@@ -860,13 +860,30 @@ class Box( object ):
             raise RuntimeError( 'Did not expect profile to contain more than one role' )
         elif len( profile.roles ) == 1:
             # this should be profile.roles[0].role_name
-            if profile.roles.member.role_name == role_name:
-                return result
+            if profile.roles.member.role_name == aws_role_name:
+                return profile_arn
             else:
-                self.ctx.iam.remove_role_from_instance_profile( instance_profile_name,
+                self.ctx.iam.remove_role_from_instance_profile( aws_instance_profile_name,
                                                                 profile.roles.member.role_name )
-        self.ctx.iam.add_role_to_instance_profile( instance_profile_name, role_name )
-        return result
+        self.ctx.iam.add_role_to_instance_profile( aws_instance_profile_name, aws_role_name )
+
+        self.__wait_for_role_in_instance_profile( aws_instance_profile_name, aws_role_name )
+
+        return profile_arn
+
+    def __wait_for_role_in_instance_profile( self, aws_instance_profile_name, aws_role_name ):
+        retries = 4
+        while True:
+            p = self.ctx.iam.get_instance_profile( aws_instance_profile_name )
+            if len( p.roles ) == 1 and p.roles.member.role_name == aws_role_name:
+                break
+            if retries < 1:
+                raise RuntimeError(
+                    "Couldn't verify that role '%s' was added to profile '%s'" % (
+                        aws_instance_profile_name, aws_role_name ) )
+            self._log( 'role not in profile yet, trying again in 1s ...', newline=False )
+            retries -= 1
+            time.sleep( 1 )
 
     role_prefix = 'cgcloud'
 
@@ -879,5 +896,5 @@ class Box( object ):
     paravirtual_families = [ 'm1', 'c1', 'm2', 't1' ]
 
     def __default_virtualization_type( self, instance_type ):
-        family = instance_type.split( '.', 2 )[ 0 ].lower()
+        family = instance_type.split( '.', 2 )[ 0 ].lower( )
         return 'paravirtual' if family in self.paravirtual_families else 'hvm'
