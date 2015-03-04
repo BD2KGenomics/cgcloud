@@ -8,6 +8,7 @@ BOXES = [
     GenericUbuntuPreciseBox,
     GenericUbuntuSaucyBox,
     GenericUbuntuTrustyBox,
+    GenericUbuntuUtopicBox,
     GenericFedora19Box,
     GenericFedora20Box ]
 

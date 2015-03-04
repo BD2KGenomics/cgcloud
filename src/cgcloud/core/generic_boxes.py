@@ -207,6 +207,15 @@ class GenericUbuntuTrustyBox( UbuntuBox ):
         return 'trusty'
 
 
+class GenericUbuntuUtopicBox( UbuntuBox ):
+    """
+    14.10
+    """
+
+    def release( self ):
+        return 'utopic'
+
+
 class GenericFedora17Box( FedoraBox ):
     """
     This one doesn't work since the AMI was deleted by the Fedora guys
