@@ -124,39 +124,42 @@ class GenericUbuntuLucidBox( UbuntuBox ):
             ('git', 'git-core') ]
 
 
-class GenericUbuntuMaverickBox( UbuntuBox ):
-    """
-    10.10
-    """
+if False:  # out of suppport
+    class GenericUbuntuMaverickBox( UbuntuBox ):
+        """
+        10.10
+        """
 
-    def release( self ):
-        return 'maverick'
+        def release( self ):
+            return 'maverick'
 
-    def supported_virtualization_types( self ):
-        return [ 'paravirtual' ]
+        def supported_virtualization_types( self ):
+            return [ 'paravirtual' ]
 
+if False:  # out of suppport
+    class GenericUbuntuNattyBox( UbuntuBox ):
+        """
+        11.04
+        """
 
-class GenericUbuntuNattyBox( UbuntuBox ):
-    """
-    11.04
-    """
+        def release( self ):
+            return 'natty'
 
-    def release( self ):
-        return 'natty'
+        def supported_virtualization_types( self ):
+            return [ 'paravirtual' ]
 
-    def supported_virtualization_types( self ):
-        return [ 'paravirtual' ]
+if False:  # out of suppport
+    class GenericUbuntuOneiricBox( UbuntuBox ):
+        """
+        11.10
+        """
 
-class GenericUbuntuOneiricBox( UbuntuBox ):
-    """
-    11.10
-    """
+        def release( self ):
+            return 'oneiric'
 
-    def release( self ):
-        return 'oneiric'
+        def supported_virtualization_types( self ):
+            return [ 'paravirtual' ]
 
-    def supported_virtualization_types( self ):
-        return [ 'paravirtual' ]
 
 class GenericUbuntuPreciseBox( UbuntuBox ):
     """
@@ -167,22 +170,23 @@ class GenericUbuntuPreciseBox( UbuntuBox ):
         return 'precise'
 
 
-class GenericUbuntuQuantalBox( UbuntuBox ):
-    """
-    12.10
-    """
+if False:  # out of suppport
+    class GenericUbuntuQuantalBox( UbuntuBox ):
+        """
+        12.10
+        """
 
-    def release( self ):
-        return 'quantal'
+        def release( self ):
+            return 'quantal'
 
+if False:  # out of suppport
+    class GenericUbuntuRaringBox( UbuntuBox ):
+        """
+        13.04
+        """
 
-class GenericUbuntuRaringBox( UbuntuBox ):
-    """
-    13.04
-    """
-
-    def release( self ):
-        return 'raring'
+        def release( self ):
+            return 'raring'
 
 
 class GenericUbuntuSaucyBox( UbuntuBox ):
