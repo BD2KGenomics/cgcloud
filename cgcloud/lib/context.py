@@ -251,6 +251,8 @@ class Context( object ):
         '/foo/bar'
         >>> ctx.absolute_name('bar/')
         '/foo/bar/'
+        >>> ctx.absolute_name('bar1/bar2')
+        '/foo/bar1/bar2'
         >>> ctx.absolute_name('/bar')
         '/bar'
         >>> ctx.absolute_name('')
@@ -342,6 +344,11 @@ class Context( object ):
         'other__ns_foo__bar'
         >>> ctx.from_aws_name( 'other__ns_foo__bar' )
         '/other_ns/foo_bar'
+
+        >>> ctx.to_aws_name( 'other_ns/foo_bar' )
+        'this__ns_other__ns_foo__bar'
+        >>> ctx.from_aws_name( 'this__ns_other__ns_foo__bar' )
+        'other_ns/foo_bar'
 
         >>> ctx.to_aws_name( '/this_ns/foo_bar' )
         'this__ns_foo__bar'
@@ -530,9 +537,9 @@ class Context( object ):
             return s
 
     def setup_iam_ec2_role( self, role_name, policies ):
-        role_name = self.to_aws_name( role_name )
+        aws_role_name = self.to_aws_name( role_name )
         try:
-            self.iam.create_role( role_name, assume_role_policy_document=json.dumps( {
+            self.iam.create_role( aws_role_name, assume_role_policy_document=json.dumps( {
                 "Version": "2012-10-17",
                 "Statement": [ {
                     "Effect": "Allow",
@@ -545,11 +552,13 @@ class Context( object ):
             else:
                 raise
 
-        self.__setup_entity_policies( role_name, policies,
+        self.__setup_entity_policies( aws_role_name, policies,
                                       list_policies=self.iam.list_role_policies,
                                       delete_policy=self.iam.delete_role_policy,
                                       get_policy=self.iam.get_role_policy,
                                       put_policy=self.iam.put_role_policy )
+
+        return aws_role_name
 
     def setup_iam_user_policies( self, user_name, policies ):
         try:
