@@ -25,7 +25,7 @@ class CoreTests( TestCase ):
         os.environ.setdefault( 'CGCLOUD_ZONE', 'us-west-2a' )
 
     def cgcloud( self, *args ):
-        log.info( "Running %r" % args )
+        log.info( "Running %r" % (args,) )
         main( args )
 
     @classmethod
