@@ -131,7 +131,7 @@ create one using the ``ssh-keygen`` command.
 Start your first box
 --------------------
 
-That's it, you're ready to create your first *box*, i.e. EC2 instance or VM:
+That's it, you're ready to create your first *box*, i.e. EC2 instance or VM::
 
    cgcloud create generic-ubuntu-trusty-box
 
@@ -182,14 +182,16 @@ Philosophical remarks
 While creating an image is a viable mechanism to preserve manual modifications
 to a box, it is not the best possible way. The problem with it is that you will
 be stuck with the base image release the box was created from. You will also be
-stuck at whatever customizations specified by the role in the version of
-``cgcloud create`` you were using. If either the base image or the role
-definition in CGCloud is updated, you will not benefit from those updates.
-Therefore, the preferred way of customizing a box is by *scripting* the
-customizations. This is typically done by creating a CGCloud plugin, i.e. a
-Python package with VM definitions aka ``roles``. A role is a subclass of the
-Box class while a box (aka VM aka EC2 instance) is an instance of that class.
-The workhorse design pattern formed by the Box class is *Template Method*.
+stuck with the customizations performed by the particular version of
+``cgcloud`` you were using. If either the base image or the role definition in
+CGCloud is updated, you will not benefit from those updates. Therefore, the
+preferred way of customizing a box is by *scripting* the customizations. This
+is typically done by creating a CGCloud plugin, i.e. a Python package with VM
+definitions aka ``roles``. A role is a subclass of the Box class while a box
+(aka VM aka EC2 instance) is an instance of that class. The prominent design
+patterns formed by Box and its derived classes are *Template Method* and
+*Mixin*. The mixin pattern introduces a sensitivity to Python's method
+resolution order so you need to be aware of that.
 
 Creating an image makes sense even if you didn't make any modifications after
 ``cgcloud create``. It captures all role-specific customizations made by
@@ -212,16 +214,18 @@ First, clone this repository and ``cd`` into it. To run the tests use
 * ``nosetest`` or
 * ``python -m unittest discover -s src``.
 
-The first option is preferred as it installs the requirements and runs the
+We prefer the way listed first as it installs all requirements **and** runs the
 tests under Nose, a test runner superior to ``unittest`` that can run tests in
 parallel and produce Xunit-like test reports. For example, on continuous
-integration we run
+integration we use
 
 ::
-   virtualenv env
-   env/bin/python setup.py nosetests --with-xunit --processes=16
 
-To make an editable_ install, use ``python setup.py develop``, to remove the
-editable install ``python setup.py develop -u``.
+   virtualenv env
+   env/bin/python setup.py nosetests --processes=16 --process-timeout=900
+
+To make an editable_ install, also known as *development mode*, use ``python
+setup.py develop``. To remove the editable install ``python setup.py develop
+-u``.
 
 .. _editable: http://pythonhosted.org//setuptools/setuptools.html#development-mode
