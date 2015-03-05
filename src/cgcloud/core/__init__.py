@@ -25,6 +25,7 @@ COMMANDS = [
     SshCommand,
     RsyncCommand,
     ListCommand,
-    ListImages,
+    ListImagesCommand,
+    DeleteImageCommand,
     RegisterKeyCommand,
     CleanupCommand ]

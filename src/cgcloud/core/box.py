@@ -193,9 +193,20 @@ class Box( object ):
                 return
         raise RuntimeError( "Can't determine root volume from image" )
 
+    def __select_image( self, image_ref ):
+        if isinstance( image_ref, int ):
+            images = self.list_images( )
+            try:
+                return images[ image_ref ]
+            except IndexError:
+                raise UserError( "No image with ordinal %i for role %s"
+                                 % ( image_ref, self.role( ) ) )
+        else:
+            return self.ctx.ec2.get_image( image_ref )
+
     default_security_groups = [ 'default' ]
 
-    def create( self, ec2_keypair_globs, instance_type=None, boot_image=None, security_groups=None,
+    def create( self, ec2_keypair_globs, instance_type=None, image_ref=None, security_groups=None,
                 virtualization_type=None, **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
@@ -211,8 +222,8 @@ class Box( object ):
 
         :type ec2_keypair_globs: list of strings
 
-        :param boot_image: the ordinal or AMI ID of the image to boot from. If None,
-        the return value of self._boot_image_id() will be used.
+        :param image_ref: the ordinal or AMI ID of the image to boot from. If None,
+        the return value of self._base_image() will be used.
         """
         if self.instance_id is not None:
             raise AssertionError( "Instance already adopted or created" )
@@ -227,16 +238,8 @@ class Box( object ):
                 virtualization_type,
                 self.role( ) ) )
 
-        if boot_image is not None:
-            if isinstance( boot_image, int ):
-                images = self.list_images( )
-                try:
-                    image = images[ boot_image ]
-                except IndexError:
-                    raise UserError( "No image with ordinal %i for role %s"
-                                     % ( boot_image, self.role( ) ) )
-            else:
-                image = self.ctx.ec2.get_image( boot_image )
+        if image_ref is not None:
+            image = self.__select_image( image_ref )
         else:
             self._log( "Looking up default image for role %s, ... " % self.role( ),
                        newline=False )
@@ -883,3 +886,8 @@ class Box( object ):
     def __default_virtualization_type( self, instance_type ):
         family = instance_type.split( '.', 2 )[ 0 ].lower( )
         return 'paravirtual' if family in self.paravirtual_families else 'hvm'
+
+    def delete_image( self, image_ref, delete_snapshot=True ):
+        image = self.__select_image( image_ref )
+        image.deregister( delete_snapshot=delete_snapshot )
+

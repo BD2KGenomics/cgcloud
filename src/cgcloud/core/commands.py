@@ -4,11 +4,13 @@ import argparse
 import functools
 from operator import itemgetter
 import os
+import re
 import sys
 
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
+from cgcloud.lib.util import Application
 from fabric.operations import prompt
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, Command
@@ -278,7 +280,7 @@ class StartCommand( LifecycleCommand ):
     pass
 
 
-class ListImages( RoleCommand ):
+class ListImagesCommand( RoleCommand ):
     """
     List the AMI images that were created from boxes performing a particular role.
     """
@@ -318,12 +320,12 @@ class CreationCommand( RoleCommand ):
                           'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
                           'default, an instance type appropriate for the role.' )
 
-        self.option('--virtualization-type', metavar='TYPE',
-                    default=None, choices=Box.virtualization_types,
-                    help="The virtualization type to be used for the instance. This affects the "
-                         "choice of image (AMI) the instance is created from. The default depends "
-                         "on the instance type, but generally speaking, 'hvm' will be used for "
-                         "newer instance types." )
+        self.option( '--virtualization-type', metavar='TYPE',
+                     default=None, choices=Box.virtualization_types,
+                     help="The virtualization type to be used for the instance. This affects the "
+                          "choice of image (AMI) the instance is created from. The default depends "
+                          "on the instance type, but generally speaking, 'hvm' will be used for "
+                          "newer instance types." )
 
         self.option( '--security-groups', '-g', metavar='GROUP',
                      default=Box.default_security_groups,
@@ -422,28 +424,90 @@ class ListRolesCommand( Command ):
         print( '\n'.join( self.application.boxes.iterkeys( ) ) )
 
 
-class RecreateCommand( CreationCommand ):
+# noinspection PyAbstractClass
+class ImageCommandMixin( Command ):
+    """
+    Any command that accepts an image ordinal or AMI ID.
+
+    >>> app = Application()
+    >>> class FooCmd( ImageCommandMixin ):
+    ...     def run(self, options):
+    ...         pass
+    >>> cmd = FooCmd( app, '--foo', '-f' )
+    >>> cmd.ordinal_or_ami_id( "bar" )
+    Traceback (most recent call last):
+    ...
+    ValueError
+    >>> cmd.ordinal_or_ami_id( "" )
+    Traceback (most recent call last):
+    ...
+    ValueError
+    >>> cmd.ordinal_or_ami_id( "-1")
+    -1
+    >>> cmd.ordinal_or_ami_id( "ami-4dcced7d")
+    'ami-4dcced7d'
+    >>> cmd.ordinal_or_ami_id( "ami-4dCCED7D")
+    'ami-4dcced7d'
+    >>> cmd.ordinal_or_ami_id( "amI-4dCCED7D")
+    Traceback (most recent call last):
+    ...
+    ValueError
+    >>> cmd.ordinal_or_ami_id( "ami-4dcced7")
+    Traceback (most recent call last):
+    ...
+    ValueError
+    >>> cmd.ordinal_or_ami_id( "ami-4dCCED7DD")
+    Traceback (most recent call last):
+    ...
+    ValueError
+    """
+    ami_id_re = re.compile( r'^ami-([0-9a-fA-F]{8})$' )
+
+    def ordinal_or_ami_id( self, s ):
+        try:
+            return int( s )
+        except ValueError:
+            if self.ami_id_re.match( s ):
+                return s.lower()
+            else:
+                raise ValueError( )
+
+    def __init__( self, application, long_image_option, short_image_option ):
+        super( ImageCommandMixin, self ).__init__( application )
+        self.option( long_image_option, short_image_option, metavar='ORDINAL_OR_AMI_ID',
+                     type=self.ordinal_or_ami_id, default=-1,  # default to the last one
+                     help="An image ordinal, i.e. the index of an image in the list of images for "
+                          "the given role, sorted by creation time. Use the list-images command "
+                          "to print a list of images for a given role. If the ordinal is "
+                          "negative, it will be converted to a positive ordinal by adding the "
+                          "total number of images for this role. Passing -1, for example, "
+                          "selects the most recently created image. Alternatively, an AMI ID, "
+                          "e.g. 'ami-4dcced7d' can be passed in as well." )
+
+
+class DeleteImageCommand( ImageCommandMixin, RoleCommand ):
+    def __init__( self, application ):
+        super( DeleteImageCommand, self ).__init__( application, '--image', '-i' )
+        self.option( '--delete-snapshot', '-D',
+                     default=False, action='store_true',
+                     help="Delete the EBS volume snapshot associated with the given image. Note "
+                          "that the 'cleanup' command can be used to delete snapshots for which "
+                          "the image has been deleted without passing this option." )
+
+    def run_on_box( self, options, box ):
+        box.delete_image( options.image, delete_snapshot=options.delete_snapshot )
+
+
+class RecreateCommand( ImageCommandMixin, CreationCommand ):
     """
     Recreate a box from an image that was taken from an earlier incarnation of the box
     """
 
     def __init__( self, application ):
-        super( RecreateCommand, self ).__init__( application )
-        self.option( '--boot-image', '-i', metavar='ORDINAL',
-                     type=int, default=-1,  # default to the last one
-                     help='An image ordinal, i.e. the index of an image in the list of images '
-                          'created from previous incarnations performing the given role, '
-                          'sorted by creation time. Use the list-images command to see a list of '
-                          'images. If the ordinal is negative, it will be converted to a positive '
-                          'ordinal by adding number of images created from boxes performing the '
-                          'specified role. Passing -1, for example, selects the most recently '
-                          'created box.If the image ordinal is negative, it will be subtracted '
-                          'from the number of images created from boxes performing the specified '
-                          'role. Passing -1, for example, selects image that was created most '
-                          'recently.' )
+        super( RecreateCommand, self ).__init__( application, '--boot-image', '-i' )
 
     def instance_options( self, options ):
-        return dict( boot_image=options.boot_image )
+        return dict( image_ref=options.boot_image )
 
     def run_on_creation( self, box, options ):
         pass
@@ -457,17 +521,19 @@ class CreateCommand( CreationCommand ):
 
     def __init__( self, application ):
         super( CreateCommand, self ).__init__( application )
-        self.option( '--boot-image', '-i', metavar='IMAGE_ID',
-                     help='An image ID (aka AMI ID) from which to create the box. This is argument '
-                          'optional and the default is determined automatically based on the role.' )
+        self.option( '--boot-image', '-i', metavar='AMI_ID',
+                     help='The AMI ID of the image from which to create the box. This argument is '
+                          'optional and the default is determined automatically based on the '
+                          'role. Typically, this option does not need to be used.' )
         self.option( '--no-agent',
                      default=False, action='store_true',
-                     help="Don't install the cghub-cloud-agent package on the box. A note-worthy "
-                          "effect of this is that SSH keys will be installed once, but the list "
-                          "of keys will not be maintained over time." )
-        self.option( '--image', '-I',
+                     help="Don't install the cghub-cloud-agent package on the box. One "
+                          "note-worthy effect of using this option this is that the SSH keys will "
+                          "be installed initially, but not maintained over time." )
+        self.option( '--create-image', '-I',
                      default=False, action='store_true',
-                     help='Create an image of the box when setup is complete.' )
+                     help='Create an image of the box as soon as setup completes.' )
+        # FIXME: Take a second look at this: Does it work. Is it necessary?
         self.option( '--upgrade', '-U',
                      default=False, action='store_true',
                      help="Bring the package repository as well as any installed packages up to "
@@ -475,12 +541,12 @@ class CreateCommand( CreationCommand ):
                           "'sudo apt-get update ; sudo apt-get upgrade'." )
 
     def instance_options( self, options ):
-        return dict( boot_image=options.boot_image,
+        return dict( image_ref=options.boot_image,
                      enable_agent=not options.no_agent )
 
     def run_on_creation( self, box, options ):
         box.setup( upgrade_installed_packages=options.upgrade )
-        if options.image:
+        if options.create_image:
             box.stop( )
             box.image( )
             if options.terminate is not True:

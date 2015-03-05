@@ -202,10 +202,26 @@ that step. The fact that ``recreate`` is much faster than ``create`` is icing
 on the cake.
 
 
-Building
-========
+Building & Testing
+==================
 
-First, clone this repository and ``cd`` into it. To run the tests use ``python
-setup.py test`` or ``python setup.py nosetests`` ``nosetest`` or ``python -m
-unittest discover -s src``. To make an editable install, use ``python setup.py
-develop``, to remove the editable install ``python setup.py develop -u``.
+First, clone this repository and ``cd`` into it. To run the tests use
+
+* ``python setup.py nosetests``,
+* ``python setup.py test``,
+* ``nosetest`` or
+* ``python -m unittest discover -s src``.
+
+The first option is preferred as it installs the requirements and runs the
+tests under Nose, a test runner superior to ``unittest`` that can run tests in
+parallel and produce Xunit-like test reports. For example, on continuous
+integration we run
+
+::
+   virtualenv env
+   env/bin/python setup.py nosetests --with-xunit --processes=16
+
+To make an editable_ install, use ``python setup.py develop``, to remove the
+editable install ``python setup.py develop -u``.
+
+.. _editable: http://pythonhosted.org//setuptools/setuptools.html#development-mode
