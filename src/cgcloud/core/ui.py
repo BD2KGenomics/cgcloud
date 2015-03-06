@@ -46,9 +46,11 @@ class CGCloud( Application ):
     def prepare( self, options ):
         root_logger = logging.getLogger( )
         if len( root_logger.handlers ) == 0:
+            root_logger.setLevel( logging.INFO )
             stream_handler = logging.StreamHandler( sys.stderr )
             stream_handler.setFormatter( logging.Formatter( "%(levelname)s: %(message)s" ) )
             stream_handler.setLevel( logging.INFO )
+            root_logger.addHandler( stream_handler )
             if options.debug:
                 root_logger.setLevel( logging.DEBUG )
                 file_name = self.debug_log_file_name.format( pid=os.getpid( ) )
