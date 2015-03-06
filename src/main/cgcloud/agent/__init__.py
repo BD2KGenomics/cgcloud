@@ -1,9 +1,11 @@
+from contextlib import contextmanager
 import logging
 import errno
 import os
 import tempfile
-from boto.sqs.message import RawMessage
+import pwd
 
+from boto.sqs.message import RawMessage
 from cgcloud.lib.context import Context
 from cgcloud.lib.message import Message, UnknownVersion
 from cgcloud.lib.util import UserError
@@ -13,6 +15,10 @@ log = logging.getLogger( __name__ )
 
 
 class Agent( object ):
+    """
+    The agent is a daemon process running on every EC2 instance of AgentBox.
+    """
+
     def __init__( self, ctx, options ):
         """
         :type ctx: Context
@@ -39,8 +45,8 @@ class Agent( object ):
         self.update_ssh_keys( )
         while True:
             # Do 'long' (20s) polling for messages
-            messages = self.queue.get_messages( num_messages=10, # the maximum permitted
-                                                wait_time_seconds=20, # ditto
+            messages = self.queue.get_messages( num_messages=10,  # the maximum permitted
+                                                wait_time_seconds=20,  # ditto
                                                 visibility_timeout=10 )
             if messages:
                 # Process messages, combining multiple messages of the same type
@@ -62,29 +68,57 @@ class Agent( object ):
                 if throttle.throttle( wait=False ):
                     self.update_ssh_keys( )
 
+    def make_dir( self, path, mode, uid, gid ):
+        try:
+            os.mkdir( path, mode )
+        except OSError as e:
+            if e.errno == errno.EEXIST:
+                pass
+            else:
+                raise
+        else:
+            os.chown( path, uid, gid )
+
+    @contextmanager
+    def make_file( self, path, mode, uid, gid ):
+        """
+        Atomically create a file at the given path. To be used as a context manager that yields
+        a file handle for writing to.
+        """
+        dir_path, file_name = os.path.split( path )
+        with tempfile.NamedTemporaryFile( prefix=file_name + '.',
+                                          dir=dir_path,
+                                          delete=False ) as temp_file:
+            yield temp_file
+        os.chmod( temp_file.name, mode )
+        os.chown( temp_file.name, uid, gid )
+        os.rename( temp_file.name, path )
+
     def update_ssh_keys( self ):
         keypairs = self.ctx.expand_keypair_globs( self.options.ec2_keypair_names )
         fingerprints = set( keypair.fingerprint for keypair in keypairs )
         if fingerprints != self.fingerprints:
             ssh_keys = set( self.download_ssh_key( keypair ) for keypair in keypairs )
             if None in ssh_keys: ssh_keys.remove( None )
-            path = self.options.authorized_keys_path
-            try:
-                with open( path ) as f:
-                    local_ssh_keys = set( l.strip( ) for l in f.readlines( ) if not l.isspace( ) )
-            except IOError as e:
-                if e.errno == errno.ENOENT:
-                    local_ssh_keys = None
-                else:
-                    raise
-            if local_ssh_keys != ssh_keys:
-                dir_path, file_name = os.path.split( path )
-                with tempfile.NamedTemporaryFile( prefix=file_name + '.',
-                                                  dir=dir_path,
-                                                  delete=False ) as temp_file:
-                    temp_file.writelines( ssh_key + '\n' for ssh_key in ssh_keys )
-                os.rename( temp_file.name, path )
 
+            for account in self.options.accounts:
+                pw = pwd.getpwnam( account )
+                dot_ssh_path = os.path.join( pw.pw_dir, '.ssh' )
+                self.make_dir( dot_ssh_path, 00755, pw.pw_uid, pw.pw_gid )
+                authorized_keys_path = os.path.join( dot_ssh_path, 'authorized_keys' )
+                try:
+                    with open( authorized_keys_path ) as f:
+                        local_ssh_keys = set(
+                            l.strip( ) for l in f.readlines( ) if not l.isspace( ) )
+                except IOError as e:
+                    if e.errno == errno.ENOENT:
+                        local_ssh_keys = None
+                    else:
+                        raise
+                if local_ssh_keys != ssh_keys:
+                    with self.make_file( authorized_keys_path, 00644, pw.pw_uid,
+                                        pw.pw_gid ) as authorized_keys:
+                        authorized_keys.writelines( ssh_key + '\n' for ssh_key in ssh_keys )
             self.fingerprints = fingerprints
 
     def download_ssh_key( self, keypair ):

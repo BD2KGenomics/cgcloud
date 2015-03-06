@@ -7,12 +7,12 @@ import logging
 from logging.handlers import SysLogHandler, SYSLOG_UDP_PORT
 
 import daemon
-
 from bd2k.util.logging import Utf8SyslogFormatter
 from bd2k.util import uid_to_name, gid_to_name, name_to_uid, name_to_gid, shell
 from bd2k.util.lockfile import SmartPIDLockFile
 from bd2k.util.throttle import LocalThrottle
 from cgcloud.lib.context import Context
+
 from cgcloud.agent import Agent
 
 log = logging.getLogger( )
@@ -51,20 +51,22 @@ def main( ):
     group.add_argument( '--interval', '-i', metavar='SECONDS',
                         default=300, type=int,
                         help='' )
-    group.add_argument( '--authorized-keys-file', '-f', metavar='PATH',
-                        required=True, dest='authorized_keys_path',
-                        help='' )
+    group.add_argument( '--accounts', metavar='PATH', nargs='+',
+                        default=[ uid_to_name( os.getuid( ) ) ],
+                        help="The names of user accounts whose .ssh/authorized_keys file should "
+                             "be managed by this agent. Note that managing another user's "
+                             ".ssh/authorized_keys typically requires running the agent as root." )
     default_ec2_keypair_names = os.environ.get( 'CGCLOUD_KEYPAIRS', '' ).split( )
     group.add_argument( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
                         dest='ec2_keypair_names', nargs='+',
                         required=not default_ec2_keypair_names,
                         default=default_ec2_keypair_names,
                         help='The names or name patterns of EC2 key pairs whose public key is to '
-                             'be to maintained in the file specified by the '
-                             '--authorized-keys-file options. The arguments may be a literal '
-                             'names of a keypairs or shell-style globs in which case every key '
-                             'pair whose name matches one of the globs will be deployed to the '
-                             'box. The value of the environment variable CGCLOUD_KEYPAIRS, '
+                             'be to maintained in the ~/.ssh/authorized_keys files of each '
+                             'account listed in the --accounts option. Each argument may be a '
+                             'literal name of a keypairs or a shell-style glob in which case '
+                             'every key pair whose name matches that glob will be deployed '
+                             'to the box. The value of the environment variable CGCLOUD_KEYPAIRS, '
                              'if that variable is present, overrides the default.' )
 
     group = parser.add_argument_group( title='process options' )
@@ -181,7 +183,7 @@ def generate_init_script( options ):
     args = [ '--namespace', options.namespace,
                '--zone', options.availability_zone,
                '--interval', str( options.interval ),
-               '--authorized-keys-file', options.authorized_keys_path,
+               '--accounts' ] + options.accounts + [
                '--keypairs' ] + options.ec2_keypair_names + [
                '--user', options.user,
                '--group', options.group,
