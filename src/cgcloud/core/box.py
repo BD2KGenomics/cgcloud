@@ -1,4 +1,3 @@
-from __future__ import print_function
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
 from contextlib import closing
@@ -7,7 +6,6 @@ from operator import attrgetter
 import socket
 import subprocess
 import time
-import sys
 import itertools
 
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
@@ -22,6 +20,8 @@ from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake
 
 EC2_POLLING_INTERVAL = 5
 
+log = logging.getLogger( __name__ )
+
 
 def needs_instance( method ):
     def wrapped_method( self, *args, **kwargs ):
@@ -32,6 +32,7 @@ def needs_instance( method ):
     return wrapped_method
 
 
+# noinspection PyPep8Naming
 class fabric_task( object ):
     # FIXME: not thread-safe
 
@@ -241,10 +242,9 @@ class Box( object ):
         if image_ref is not None:
             image = self.__select_image( image_ref )
         else:
-            self._log( "Looking up default image for role %s, ... " % self.role( ),
-                       newline=False )
+            log.info( "Looking up default image for role %s, ... ", self.role( ) )
             image = self._base_image( virtualization_type )
-            self._log( "found %s." % image.id )
+            log.info( "... found %s.", image.id )
 
         if image.virtualization_type != virtualization_type:
             raise RuntimeError( "Expected virtualization type %s but image only supports %s" % (
@@ -257,9 +257,9 @@ class Box( object ):
             groupnames=security_groups,
             filters={ 'ip-permission.to-port': 22 } )
         if len( security_groups ) == 0:
-            self._log( "Warning: There is no security group that explicitly mentions port 22. "
-                       "You might have trouble actually connecting with the box via SSH. "
-                       "However, this is a heuristic and may be wrong." )
+            log.warn( "There is no security group that explicitly mentions port 22. "
+                      "You might have trouble actually connecting with the box via SSH. "
+                      "However, this is a heuristic and may be wrong." )
 
         str_options = dict( image.tags )
         for k, v in options.iteritems( ):
@@ -272,7 +272,7 @@ class Box( object ):
         if ec2_keypairs[ 0 ].name != ec2_keypair_globs[ 0 ]:
             raise UserError( "The first key pair name can't be a glob." )
 
-        self._log( 'Creating %s instance, ... ' % instance_type, newline=False )
+        log.info( 'Creating %s instance ... ', instance_type )
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypairs[ 0 ].name,
                        placement=self.ctx.availability_zone,
@@ -293,6 +293,7 @@ class Box( object ):
                     raise
 
         instance = unpack_singleton( reservation.instances )
+        log.info( '... created %i.', instance.id )
         self.instance_id = instance.id
         self.ec2_keypairs = ec2_keypairs
         self.ec2_keypair_globs = ec2_keypair_globs
@@ -335,7 +336,7 @@ class Box( object ):
                 if e.error_code == 'InvalidInstanceID.NotFound':
                     if retries < 1:
                         raise
-                    self._log( 'trying again in 1s ...', newline=False )
+                    log.info( '... trying again in 1s ...' )
                     retries -= 1
                     time.sleep( 1 )
 
@@ -345,9 +346,11 @@ class Box( object ):
 
         :type instance: boto.ec2.instance.Instance
         """
-        self._log( 'tagging instance ... ', newline=False )
-        self._tag_object_persistently( instance, 'Name', self.ctx.to_aws_name( self.role( ) ) )
+        log.info( 'Tagging instance ... ' )
+        name = self.ctx.to_aws_name( self.role( ) )
+        self._tag_object_persistently( instance, 'Name', name )
         self.__write_options( instance )
+        log.info( ' instance tagged %s.', name )
 
     def _on_instance_running( self, first_boot ):
         """
@@ -381,7 +384,7 @@ class Box( object ):
         :param wait_ready: if True, wait for the instance to be ready
         """
         if self.instance_id is None:
-            self._log( 'Adopting instance ... ', newline=False )
+            log.info( 'Adopting instance ... ' )
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
             image = self.ctx.ec2.get_image( instance.image_id )
@@ -391,7 +394,7 @@ class Box( object ):
             if wait_ready:
                 self.__wait_ready( instance, from_states={ 'pending' }, first_boot=None )
             else:
-                self._log( 'done.' )
+                log.info( '... adopted %s.', instance.id )
 
     def list( self ):
         role, instances = self.__list_instances( )
@@ -454,7 +457,7 @@ class Box( object ):
         """
         self.__assert_state( 'stopped' )
 
-        self._log( "Creating image, ... ", newline=False )
+        log.info( "Creating image ..." )
         image_name = self.ctx.to_aws_name(
             "%s_%s" % ( self.role( ), time.strftime( '%Y-%m-%d_%H-%M-%S' ) ) )
         image_id = self.ctx.ec2.create_image(
@@ -470,7 +473,7 @@ class Box( object ):
                 finally:
                     self.generation -= 1
                 self.__wait_transition( image, { 'pending' }, 'available' )
-                self._log( "done. Created image %s (%s)." % ( image.id, image.name ) )
+                log.info( "... created %s (%s).", image.id, image.name )
                 return image_id
             except self.ctx.ec2.ResponseError as e:
                 if e.error_code != 'InvalidAMIID.NotFound':
@@ -483,12 +486,12 @@ class Box( object ):
         :py:func:`Box.start`.
         """
         instance = self.__assert_state( 'running' )
-        self._log( 'Stopping instance, ... ', newline=False )
+        log.info( 'Stopping instance ...' )
         self.ctx.ec2.stop_instances( [ instance.id ] )
         self.__wait_transition( instance,
                                 from_states={ 'running', 'stopping' },
                                 to_state='stopped' )
-        self._log( 'done.' )
+        log.info( '... instance stopped.' )
 
     @needs_instance
     def start( self ):
@@ -496,7 +499,7 @@ class Box( object ):
         Start the EC2 instance represented by this box
         """
         instance = self.__assert_state( 'stopped' )
-        self._log( 'Starting instance, ... ', newline=False )
+        log.info( 'Starting instance, ... ' )
         self.ctx.ec2.start_instances( [ self.instance_id ] )
         # Not 100% sure why from_states includes 'stopped' but I think I noticed that there is a
         # short interval after start_instances returns during which the instance is still in
@@ -522,13 +525,13 @@ class Box( object ):
         if self.instance_id is not None:
             instance = self.get_instance( )
             if instance.state != 'terminated':
-                self._log( 'Terminating instance, ... ', newline=False )
+                log.info( 'Terminating instance ...' )
                 self.ctx.ec2.terminate_instances( [ self.instance_id ] )
                 if wait:
                     self.__wait_transition( instance,
                                             from_states={ 'running', 'shutting-down', 'stopped' },
                                             to_state='terminated' )
-                self._log( 'done.' )
+                log.info( '... instance terminated.' )
 
     def get_attachable_volume( self, name ):
         """
@@ -566,12 +569,12 @@ class Box( object ):
         """
         volume = self.get_attachable_volume( name )
         if volume is None:
-            self._log( "Creating volume %s, ... " % name, newline=False )
+            log.info( "Creating volume %s, ...", name )
             zone = self.ctx.availability_zone
             volume = self.ctx.ec2.create_volume( size, zone, **kwargs )
             self.__wait_volume_transition( volume, { 'creating' }, 'available' )
             volume.add_tag( 'Name', self.ctx.to_aws_name( name ) )
-            self._log( 'done.' )
+            log.info( '... created %s.', volume.id )
             volume = self.get_attachable_volume( name )
         return volume
 
@@ -583,13 +586,6 @@ class Box( object ):
         self.__wait_volume_transition( volume, { 'available' }, 'in-use' )
         if volume.attach_data.instance_id != self.instance_id:
             raise UserError( "Volume %s is not attached to this instance." )
-
-    def _log( self, string, newline=True ):
-        if newline:
-            print( string, file=sys.stderr )
-        else:
-            sys.stderr.write( string )
-            sys.stderr.flush( )
 
     @needs_instance
     def _execute_task( self, task, user ):
@@ -642,19 +638,19 @@ class Box( object ):
          None if the instance isn't booting, False if the instance is booting but not for the
          first time.
         """
-        self._log( "waiting for instance ... ", newline=False )
+        log.info( "... waiting for instance ... " )
         self.__wait_transition( instance, from_states, 'running' )
         self._on_instance_running( first_boot )
-        self._log( "running, waiting for hostname ... ", newline=False )
+        log.info( "... instance running, waiting for hostname ... " )
         self.__wait_public_ip_assigned( instance )
-        self._log( "assigned, waiting for ssh ... ", newline=False )
+        log.info( "... assigned, waiting for ssh ... " )
         self.__wait_ssh_port_open( )
-        self._log( "port open, ", newline=False )
+        log.info( "... port open ... " )
         if first_boot is not None:
-            self._log( "testing ... ", newline=False )
+            log.info( "... testing SSH ... " )
             self.__wait_ssh_working( )
-            self._log( "working, " )
-        self._log( "done." )
+            log.info( "... SSH working ..., " )
+        log.info( "... instance ready." )
         self._on_instance_ready( first_boot )
 
     def __wait_public_ip_assigned( self, instance ):
@@ -785,7 +781,7 @@ class Box( object ):
         try:
             return self.ctx.download_ssh_pubkey( keypair ).strip( )
         except UserError as e:
-            self._log( 'Exception while downloading SSH public key from S3: %s' % e )
+            log.warn( 'Exception while downloading SSH public key from S3', e )
             return None
 
     @fabric_task
