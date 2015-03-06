@@ -1,4 +1,5 @@
 from StringIO import StringIO
+import logging
 from textwrap import dedent
 
 from lxml import etree
@@ -8,6 +9,8 @@ from cgcloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_publ
 from cgcloud.core.box import fabric_task, Box
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.core.source_control_client import SourceControlClient
+
+log = logging.getLogger( __name__ )
 
 # FIXME: __create_jenkins_keypair and __inject_aws_credentials fail when the Jenkins volume is fresh
 # since certain files like config.xml don't exist (because Jenkins hasn't written them out yet or
@@ -219,7 +222,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
             ssh_privkey = ec2_keypair.material
             if key_file_exists:
                 # TODO: make this more prominent, e.g. by displaying all warnings at the end
-                self._log( 'Warning: Overwriting private key with new one from EC2.' )
+                log.warn( 'Warning: Overwriting private key with new one from EC2.' )
             put( local_path=StringIO( ssh_privkey ), remote_path=Jenkins.key_path )
             assert ec2_keypair.fingerprint == ec2_keypair_fingerprint( ssh_privkey )
             run( 'chmod go= {key_path}'.format( **jenkins ) )
@@ -374,7 +377,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         config_file = StringIO( )
         with settings( warn_only=True ):
             if get( remote_path=path, local_path=config_file ).failed:
-                self._log( "Warning: Cannot find config file '%s' to patch" % path )
+                log.warn( "Warning: Cannot find config file '%s' to patch" % path )
                 return
         config_file.seek( 0 )
         parser = etree.XMLParser( remove_blank_text=True )
