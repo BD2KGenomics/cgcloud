@@ -293,7 +293,7 @@ class Box( object ):
                     raise
 
         instance = unpack_singleton( reservation.instances )
-        log.info( '... created %i.', instance.id )
+        log.info( '... created %s.', instance.id )
         self.instance_id = instance.id
         self.ec2_keypairs = ec2_keypairs
         self.ec2_keypair_globs = ec2_keypair_globs
