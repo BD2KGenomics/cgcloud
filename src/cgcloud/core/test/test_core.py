@@ -1,6 +1,9 @@
+from contextlib import contextmanager
 import logging
 import os
 from unittest import TestCase
+import sys
+from bd2k.util.exceptions import panic
 
 import cgcloud
 from cgcloud.core.ui import main
@@ -46,14 +49,10 @@ class CoreTests( TestCase ):
                     os.unlink( file_name )
                     self.cgcloud( 'terminate', role )
                 finally:
-                    self.cgcloud( 'delete-image', role, '-1' )
+                    self.cgcloud( 'delete-image', role )
             except:
-                try:
+                with panic( log ):
                     self.cgcloud( 'terminate', '-q', role )
-                except Exception as e:
-                    log.warn( e )
-                    pass
-
         return box_test
 
     @classmethod
@@ -62,6 +61,14 @@ class CoreTests( TestCase ):
             test_method = cls.__box_test( box )
             test_method.__name__ = 'test_%s' % box.role( ).replace( '-', '_' )
             setattr( cls, test_method.__name__, test_method )
+
+    def test_illegal_argument( self ):
+        try:
+            self.cgcloud( 'delete-image', self.boxes[ 0 ].role( ), '-1' )
+            self.fail( )
+        except SystemExit:
+            pass
+
 
 
 CoreTests.make_tests( )
