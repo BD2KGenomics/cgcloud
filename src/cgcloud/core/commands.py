@@ -372,8 +372,9 @@ class CreationCommand( RoleCommand ):
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
-                box.terminate( wait=False )
-            raise
+                box.panic( )
+            else:
+                raise
         else:
             if options.terminate is True:
                 box.terminate( )
@@ -468,7 +469,7 @@ class ImageCommandMixin( Command ):
             return int( s )
         except ValueError:
             if self.ami_id_re.match( s ):
-                return s.lower()
+                return s.lower( )
             else:
                 raise ValueError( )
 

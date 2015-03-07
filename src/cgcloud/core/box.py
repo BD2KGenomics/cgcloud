@@ -7,6 +7,7 @@ import socket
 import subprocess
 import time
 import itertools
+import sys
 
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from boto.exception import BotoServerError, EC2ResponseError
@@ -327,18 +328,17 @@ class Box( object ):
 
         :type tagged_ec2_object: boto.ec2.TaggedEC2Object
         """
-        retries = 4
         while True:
             try:
                 tagged_ec2_object.add_tag( tag_name, tag_value )
-                break
             except EC2ResponseError as e:
-                if e.error_code == 'InvalidInstanceID.NotFound':
-                    if retries < 1:
-                        raise
-                    log.info( '... trying again in 1s ...' )
-                    retries -= 1
-                    time.sleep( 1 )
+                if e.error_code.endswith( 'NotFound' ):
+                    log.info( '... trying again in %is ...' % EC2_POLLING_INTERVAL )
+                    time.sleep( EC2_POLLING_INTERVAL )
+                else:
+                    raise
+            else:
+                break
 
     def _on_instance_created( self, instance ):
         """
@@ -517,6 +517,19 @@ class Box( object ):
         # state transitions is hard. So we stop and start instead.
         self.stop( )
         self.start( )
+
+    def panic( self ):
+        """
+        Terminate the box without waiting for it to terminate. Ignore all exceptions occurring
+        during the termination. Should only be called from the body of an "except:" statement.
+        Reraises the exception caught in that statement.
+        """
+        exc_type, exc_value, exc_traceback = sys.exc_info( )
+        try:
+            self.terminate( wait=False )
+        except Exception as e:
+            log.warn( 'Exception while terminating box', e )
+        raise exc_type, exc_value, exc_traceback
 
     def terminate( self, wait=True ):
         """
