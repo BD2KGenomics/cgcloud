@@ -50,7 +50,7 @@ class fabric_task( object ):
     def __call__( self, function ):
         @wraps( function )
         def wrapper( box, *args, **kwargs ):
-            user = box.username( ) if self.user is None else self.user
+            user = box.admin_account( ) if self.user is None else self.user
             if self.user_stack and self.user_stack[ -1 ] == user:
                 return function( box, *args, **kwargs )
             else:
@@ -83,7 +83,7 @@ class Box( object ):
         return camel_to_snake( cls.__name__, '-' )
 
     @abstractmethod
-    def username( self ):
+    def admin_account( self ):
         """
         Returns the username for making SSH connections to the instance.
         """
@@ -697,7 +697,7 @@ class Box( object ):
             try:
                 client.set_missing_host_key_policy( self.IgnorePolicy( ) )
                 client.connect( hostname=self.ip_address,
-                                username=self.username( ),
+                                username=self.admin_account( ),
                                 timeout=EC2_POLLING_INTERVAL )
                 stdin, stdout, stderr = client.exec_command( 'echo hi' )
                 try:
@@ -757,7 +757,7 @@ class Box( object ):
         subprocess.check_call( [ 'rsync', '-e', ' '.join( self._ssh_args( user, [ ] ) ) ] + args )
 
     def _ssh_args( self, user, command ):
-        if user is None: user = self.username( )
+        if user is None: user = self.admin_account( )
         # Using host name instead of IP allows for more descriptive known_hosts entries and
         # enables using wildcards like *.compute.amazonaws.com Host entries in ~/.ssh/config.
         return [ 'ssh', '%s@%s' % ( user, self.host_name ), '-A' ] + command
@@ -801,7 +801,7 @@ class Box( object ):
         if group is None:
             group = run( "getent group $(getent passwd %s | cut -d : -f 4) "
                          "| cut -d : -f 1" % user )
-        args = dict( src_user=self.username( ),
+        args = dict( src_user=self.admin_account( ),
                      dst_user=user,
                      dst_group=group )
         sudo( 'install -d ~{dst_user}/.ssh '

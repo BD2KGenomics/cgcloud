@@ -47,7 +47,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
         match = matches[ 0 ]
         return match
 
-    def username( self ):
+    def admin_account( self ):
         return 'ubuntu'
 
     def _base_image( self, virtualization_type ):

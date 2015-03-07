@@ -33,7 +33,7 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
         super( CentosBox, self ).__init__( ctx )
         self._username = None
 
-    def username( self ):
+    def admin_account( self ):
         if self._username is None:
             default_username = 'root' if self.generation == 0 else 'admin'
             self._username = self.get_instance( ).tags.get( 'admin_user', default_username )
@@ -70,7 +70,7 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
 
     def _on_instance_ready( self, first_boot ):
         super( CentosBox, self )._on_instance_ready( first_boot )
-        if first_boot and self.username( ) == 'root':
+        if first_boot and self.admin_account( ) == 'root':
             self.__create_admin( )
             self._set_username( ADMIN_USER )
             self.__setup_admin( )

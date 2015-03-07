@@ -24,7 +24,7 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
         """
         raise NotImplementedError
 
-    def username( self ):
+    def admin_account( self ):
         return "fedora" if self.release( ) >= 19 else "ec2-user"
 
     def _base_image( self, virtualization_type ):
