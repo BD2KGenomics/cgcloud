@@ -6,6 +6,7 @@ from operator import itemgetter
 import os
 import re
 import sys
+from bd2k.util.exceptions import panic
 
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
@@ -372,7 +373,8 @@ class CreationCommand( RoleCommand ):
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
-                box.panic( )
+                with panic():
+                    box.terminate( wait=False )
             else:
                 raise
         else:

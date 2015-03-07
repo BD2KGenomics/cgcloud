@@ -518,19 +518,6 @@ class Box( object ):
         self.stop( )
         self.start( )
 
-    def panic( self ):
-        """
-        Terminate the box without waiting for it to terminate. Ignore all exceptions occurring
-        during the termination. Should only be called from the body of an "except:" statement.
-        Reraises the exception caught in that statement.
-        """
-        exc_type, exc_value, exc_traceback = sys.exc_info( )
-        try:
-            self.terminate( wait=False )
-        except Exception as e:
-            log.warn( 'Exception while terminating box', e )
-        raise exc_type, exc_value, exc_traceback
-
     def terminate( self, wait=True ):
         """
         Terminate the EC2 instance represented by this box.
