@@ -91,6 +91,9 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         super( JenkinsMaster, self ).__init__( ctx )
         self.volume = None
 
+    def other_accounts( self ):
+        return super( JenkinsMaster, self ).other_accounts( ) + [ Jenkins.user ]
+
     def create( self, *args, **kwargs ):
         self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
                                                  Jenkins.data_volume_size_gb )
