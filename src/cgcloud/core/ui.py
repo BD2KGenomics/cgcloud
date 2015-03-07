@@ -59,3 +59,9 @@ class CGCloud( Application ):
                 file_handler.setFormatter( logging.Formatter(
                     '%(asctime)s: %(levelname)s: %(name)s: %(message)s' ) )
                 root_logger.addHandler( file_handler )
+            else:
+                # There are quite a few cases where we expect AWS requests to fail, but it seems
+                # that boto handles these by logging the error *and* raising an exception. We
+                # don't want to confuse the user with those error messages.
+                logging.getLogger( 'boto' ).setLevel( logging.CRITICAL )
+                logging.getLogger( 'paramiko' ).setLevel( logging.WARN )
