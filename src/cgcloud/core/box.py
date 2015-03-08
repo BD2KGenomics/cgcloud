@@ -183,6 +183,7 @@ class Box( object ):
                 root_bdt.size = 10
                 root_bdt.snapshot_id = None
                 root_bdt.encrypted = None
+                root_bdt.delete_on_termination = True
                 bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
                 bdm[ '/dev/sda1' ] = root_bdt
                 instance_type_ = kwargs[ 'instance_type' ]
