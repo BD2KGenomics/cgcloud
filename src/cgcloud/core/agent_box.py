@@ -2,10 +2,12 @@ import base64
 import zlib
 
 from fabric.context_managers import settings
+
 from fabric.operations import sudo, run
 from bd2k.util import shell, strict_bool
 
 from cgcloud.core.box import fabric_task
+
 from cgcloud.core.source_control_client import SourceControlClient
 
 
@@ -68,59 +70,53 @@ class AgentBox( SourceControlClient ):
     def _post_install_packages( self ):
         super( AgentBox, self )._post_install_packages( )
         if self.enable_agent:
-            sudo( 'pip install --upgrade pip==1.5.2' )  # lucid & centos5 have an ancient pip
-            sudo( 'pip install --upgrade virtualenv' )
-            self.setup_repo_host_keys( )
-            # By default, virtualenv installs the latest version of pip. We want a specific
-            # version, so we tell virtualenv not to install pip and then install that version of
-            # pip using easy_install.
-            run( 'virtualenv --no-pip ~/agent' )
-            run( '~/agent/bin/easy_install pip==1.5.2' )
-            with settings( forward_agent=True ):
-                run( '~/agent/bin/pip install '
-                     '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
-                     '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
-                     'git+https://github.com/BD2KGenomics/cgcloud-agent.git@master' )
-            other_accounts = self.other_accounts( )
-            kwargs = dict(
-                availability_zone=self.ctx.availability_zone,
-                namespace=self.ctx.namespace,
-                ec2_keypair_globs=' '.join(
-                    shell.quote( glob ) for glob in self.ec2_keypair_globs ),
-                accounts=' '.join( [ self.admin_account( ) ] + other_accounts ),
-                user='root', # self.admin_account( ),
-                group='root' ) # self.admin_account( ) )
-            script = run( '~/agent/bin/cgcloudagent --init-script'
-                          ' --zone {availability_zone}'
-                          ' --namespace {namespace}'
-                          ' --accounts {accounts}'
-                          ' --keypairs {ec2_keypair_globs}'
-                          ' --user {user}'
-                          ' --group {group}'
-                          '| gzip -c | base64'.format( **kwargs ) )
-            script = self.__gunzip_base64_decode( script )
-            self._register_init_script( script, 'cgcloudagent' )
-            self._run_init_script( 'cgcloudagent' )
+            self.__setup_agent( )
 
-    @staticmethod
-    def __gunzip_base64_decode( s ):
-        """
-        Fabric doesn't have get( ..., use_sudo=True ) [1] so we need to use
+    def __setup_agent( self ):
+        kwargs = dict(
+            availability_zone=self.ctx.availability_zone,
+            namespace=self.ctx.namespace,
+            ec2_keypair_globs=' '.join(
+                shell.quote( glob ) for glob in self.ec2_keypair_globs ),
+            accounts=' '.join( [ self.admin_account( ) ] + self.other_accounts( ) ),
+            admin_account=self.admin_account( ),
+            run_dir='/var/run/cgcloudagent',
+            log_dir='/var/log',
+            install_dir='/usr/local/cgcloudagent' )
 
-        sudo( 'cat ...' )
+        def fmt( s ):
+            return s.format( **kwargs )
 
-        to download protected files. However it also munges line endings [2] so to be safe we
-
-        sudo( 'cat ... | gzip | base64' )
-
-        and this method unravels that.
-
-        [1]: https://github.com/fabric/fabric/issues/700
-        [2]: https://github.com/trehn/blockwart/issues/39
-        """
-        # See http://stackoverflow.com/questions/2695152/in-python-how-do-i-decode-gzip-encoding#answer-2695466
-        # for the scoop on 16 + zlib.MAX_WBITS.
-        return zlib.decompress( base64.b64decode( s ), 16 + zlib.MAX_WBITS )
+        sudo( 'pip install --upgrade pip==1.5.2' )  # lucid & centos5 have an ancient pip
+        sudo( 'pip install --upgrade virtualenv' )
+        self.setup_repo_host_keys( )
+        sudo( fmt( 'mkdir {install_dir}' ) )
+        sudo( fmt( 'chown {admin_account}:{admin_account} {install_dir}' ) )
+        # By default, virtualenv installs the latest version of pip. We want a specific
+        # version, so we tell virtualenv not to install pip and then install that version of
+        # pip using easy_install.
+        run( fmt( 'virtualenv --no-pip {install_dir}' ) )
+        run( fmt( '{install_dir}/bin/easy_install pip==1.5.2' ) )
+        with settings( forward_agent=True ):
+            run( fmt( '{install_dir}/bin/pip install '
+                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
+                      '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
+                      'git+https://github.com/BD2KGenomics/cgcloud-agent.git@master' ) )
+        sudo( fmt( 'mkdir {run_dir}' ) )
+        script = self.__gunzip_base64_decode( run( fmt(
+            '{install_dir}/bin/cgcloudagent'
+            ' --init-script'
+            ' --zone {availability_zone}'
+            ' --namespace {namespace}'
+            ' --accounts {accounts}'
+            ' --keypairs {ec2_keypair_globs}'
+            ' --user root'
+            ' --group root'
+            ' --pid-file {run_dir}/cgcloudagent.pid'
+            ' --log-spill {log_dir}/cgcloudagent.out'
+            '| gzip -c | base64' ) ) )
+        self._register_init_script( script, 'cgcloudagent' )
+        self._run_init_script( 'cgcloudagent' )
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( AgentBox, self )._get_iam_ec2_role( )
@@ -168,4 +164,24 @@ class AgentBox( SourceControlClient ):
                             "sns:Subscribe" ] } ] }
             } )
         return role_name, policies
+
+    @staticmethod
+    def __gunzip_base64_decode( s ):
+        """
+        Fabric doesn't have get( ..., use_sudo=True ) [1] so we need to use
+
+        sudo( 'cat ...' )
+
+        to download protected files. However it also munges line endings [2] so to be safe we
+
+        sudo( 'cat ... | gzip | base64' )
+
+        and this method unravels that.
+
+        [1]: https://github.com/fabric/fabric/issues/700
+        [2]: https://github.com/trehn/blockwart/issues/39
+        """
+        # See http://stackoverflow.com/questions/2695152/in-python-how-do-i-decode-gzip-encoding#answer-2695466
+        # for the scoop on 16 + zlib.MAX_WBITS.
+        return zlib.decompress( base64.b64decode( s ), 16 + zlib.MAX_WBITS )
 
