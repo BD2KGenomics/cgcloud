@@ -171,6 +171,13 @@ class RsyncCommand( BoxCommand ):
         super( RsyncCommand, self ).__init__( application )
         self.option( '--user', '--login', '-u', '-l', default=None,
                      help="Name of user to login as." )
+        self.option( '--ssh-opts', '-e', default=None, metavar="OPTS",
+                     help="Additional options to pass to ssh. Note that if OPTS starts with a "
+                          "dash you must use the long option followed by an equal sign. For "
+                          "example, to run ssh in verbose mode, use --ssh-opt=-v. If OPTS is to "
+                          "include spaces, it must be quoted to prevent the shell from breaking "
+                          "it up. So to run ssh in verbose mode and log to syslog, you would use "
+                          "--ssh-opt='-v -y'." )
         self.option( 'args', metavar='...', nargs=argparse.REMAINDER, default=[ ],
                      help="Command line options for rsync(1). The remote path argument must be "
                           "prefixed with a colon. For example, 'cgcloud.py rsync foo -av "
@@ -179,7 +186,7 @@ class RsyncCommand( BoxCommand ):
 
     def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal )
-        box.rsync( options.args, user=options.user )
+        box.rsync( options.args, user=options.user, ssh_opts=options.ssh_opts )
 
 
 class ImageCommand( BoxCommand ):

@@ -753,8 +753,11 @@ class Box( object ):
         subprocess.check_call( self._ssh_args( user, command ) )
 
     @needs_instance
-    def rsync( self, args, user=None ):
-        subprocess.check_call( [ 'rsync', '-e', ' '.join( self._ssh_args( user, [ ] ) ) ] + args )
+    def rsync( self, args, user=None, ssh_opts=None ):
+        ssh_args = self._ssh_args( user, [ ] )
+        if ssh_opts:
+            ssh_args.append( ssh_opts )
+        subprocess.check_call( [ 'rsync', '-e', ' '.join( ssh_args ) ] + args )
 
     def _ssh_args( self, user, command ):
         if user is None: user = self.admin_account( )
