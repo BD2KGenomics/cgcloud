@@ -1,8 +1,7 @@
-from contextlib import contextmanager
 import logging
 import os
 from unittest import TestCase
-import sys
+
 from bd2k.util.exceptions import panic
 
 import cgcloud
@@ -34,6 +33,7 @@ class CoreTests( TestCase ):
     @classmethod
     def __box_test( cls, box ):
         def box_test( self ):
+            ssh_opts = [ '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no' ]
             role = box.role( )
             self.cgcloud( 'create', role )
             try:
@@ -43,8 +43,8 @@ class CoreTests( TestCase ):
                     self.cgcloud( 'terminate', role )
                     self.cgcloud( 'recreate', role )
                     file_name = 'foo-' + role
-                    self.cgcloud( 'ssh', role, 'touch', file_name )
-                    self.cgcloud( 'rsync', role, ':' + file_name, '.' )
+                    self.cgcloud( *( [ 'ssh', role ] + ssh_opts + [ 'touch', file_name ] ) )
+                    self.cgcloud( 'rsync', "--ssh-opts=" + ' '.join( ssh_opts ), role, ':' + file_name, '.' )
                     self.assertTrue( os.path.exists( file_name ) )
                     os.unlink( file_name )
                     self.cgcloud( 'terminate', role )
@@ -53,6 +53,7 @@ class CoreTests( TestCase ):
             except:
                 with panic( log ):
                     self.cgcloud( 'terminate', '-q', role )
+
         return box_test
 
     @classmethod
@@ -68,7 +69,6 @@ class CoreTests( TestCase ):
             self.fail( )
         except SystemExit:
             pass
-
 
 
 CoreTests.make_tests( )
