@@ -388,9 +388,14 @@ class Box( object ):
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
             image = self.ctx.ec2.get_image( instance.image_id )
+            if image is None:  # could already be deleted
+                log.warn( 'Could not get image details for %s.', instance.image_id )
+                options = dict( instance.tags )
+            else:
             options = dict( image.tags )
             options.update( instance.tags )
             self._set_instance_options( options )
+
             if wait_ready:
                 self.__wait_ready( instance, from_states={ 'pending' }, first_boot=None )
             else:
