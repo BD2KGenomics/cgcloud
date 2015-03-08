@@ -82,7 +82,7 @@ class AgentBox( SourceControlClient ):
             admin_account=self.admin_account( ),
             run_dir='/var/run/cgcloudagent',
             log_dir='/var/log',
-            install_dir='/usr/local/cgcloudagent' )
+            install_dir='/opt/cgcloudagent' )
 
         def fmt( s ):
             return s.format( **kwargs )
@@ -90,7 +90,7 @@ class AgentBox( SourceControlClient ):
         sudo( 'pip install --upgrade pip==1.5.2' )  # lucid & centos5 have an ancient pip
         sudo( 'pip install --upgrade virtualenv' )
         self.setup_repo_host_keys( )
-        sudo( fmt( 'mkdir {install_dir}' ) )
+        sudo( fmt( 'mkdir -p {install_dir}' ) )
         sudo( fmt( 'chown {admin_account}:{admin_account} {install_dir}' ) )
         # By default, virtualenv installs the latest version of pip. We want a specific
         # version, so we tell virtualenv not to install pip and then install that version of
