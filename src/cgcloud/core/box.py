@@ -7,7 +7,6 @@ import socket
 import subprocess
 import time
 import itertools
-import sys
 
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from boto.exception import BotoServerError, EC2ResponseError
@@ -392,8 +391,8 @@ class Box( object ):
                 log.warn( 'Could not get image details for %s.', instance.image_id )
                 options = dict( instance.tags )
             else:
-            options = dict( image.tags )
-            options.update( instance.tags )
+                options = dict( image.tags )
+                options.update( instance.tags )
             self._set_instance_options( options )
 
             if wait_ready:
@@ -643,7 +642,7 @@ class Box( object ):
          None if the instance isn't booting, False if the instance is booting but not for the
          first time.
         """
-        log.info( "... waiting for instance ... " )
+        log.info( "... waiting for instance %s ... ", instance.id )
         self.__wait_transition( instance, from_states, 'running' )
         self._on_instance_running( first_boot )
         log.info( "... instance running, waiting for hostname ... " )
