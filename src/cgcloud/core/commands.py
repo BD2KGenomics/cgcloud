@@ -498,14 +498,14 @@ class ImageCommandMixin( Command ):
 class DeleteImageCommand( ImageCommandMixin, RoleCommand ):
     def __init__( self, application ):
         super( DeleteImageCommand, self ).__init__( application, '--image', '-i' )
-        self.option( '--delete-snapshot', '-D',
+        self.option( '--keep-snapshot', '-K',
                      default=False, action='store_true',
-                     help="Delete the EBS volume snapshot associated with the given image. Note "
-                          "that the 'cleanup' command can be used to delete snapshots for which "
-                          "the image has been deleted without passing this option." )
+                     help="Do not delete the EBS volume snapshot associated with the given image. "
+                          "This will leave an orphaned snapshot which should be removed at a "
+                          "later time using the 'cgcloud cleanup' command." )
 
     def run_on_box( self, options, box ):
-        box.delete_image( options.image, delete_snapshot=options.delete_snapshot )
+        box.delete_image( options.image, delete_snapshot=not options.keep_snapshot )
 
 
 class RecreateCommand( ImageCommandMixin, CreationCommand ):
