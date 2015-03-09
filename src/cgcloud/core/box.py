@@ -169,6 +169,8 @@ class Box( object ):
         'hs1.8xlarge': 24
     }
 
+    possible_root_devices = ( '/dev/sda1', '/dev/sda', '/dev/xvda' )
+
     def _populate_instance_creation_args( self, image, kwargs ):
         """
         Add, remove or modify the keyword arguments that will be passed to the EC2 run_instances
@@ -177,7 +179,7 @@ class Box( object ):
         :type image: boto.ec2.image.Image
         :type kwargs: dict
         """
-        for root_device in ( '/dev/sda1', '/dev/sda', '/dev/xvda' ):
+        for root_device in self.possible_root_devices:
             root_bdt = image.block_device_mapping.get( root_device )
             if root_bdt:
                 root_bdt.size = 10
@@ -481,6 +483,7 @@ class Box( object ):
                 log.info( "... created %s (%s).", image.id, image.name )
                 return image_id
             except self.ctx.ec2.ResponseError as e:
+                # FIXME: I don't think get_image can throw this, it should be outside the try
                 if e.error_code != 'InvalidAMIID.NotFound':
                     raise
 
@@ -891,7 +894,25 @@ class Box( object ):
         family = instance_type.split( '.', 2 )[ 0 ].lower( )
         return 'paravirtual' if family in self.paravirtual_families else 'hvm'
 
-    def delete_image( self, image_ref, delete_snapshot=True ):
+    def delete_image( self, image_ref, wait=True, delete_snapshot=True ):
         image = self.__select_image( image_ref )
-        image.deregister( delete_snapshot=delete_snapshot )
-
+        image_id = image.id
+        log.info( "Deregistering image %s", image_id )
+        image.deregister( )
+        if wait:
+            log.info( "Waiting for deregistration to finalize ..." )
+            while True:
+                if self.ctx.ec2.get_image( image_id ):
+                    time.sleep( EC2_POLLING_INTERVAL )
+                else:
+                    log.info( "... image deregistered." )
+                    break
+        if delete_snapshot:
+            for root_device in self.possible_root_devices:
+                root_bdt = image.block_device_mapping.get( root_device )
+                if root_bdt:
+                    snapshot_id = image.block_device_mapping[ root_device ].snapshot_id
+                    log.info( "Deleting snapshot %s.", snapshot_id )
+                    self.ctx.ec2.delete_snapshot( snapshot_id )
+                    return
+            raise RuntimeError( 'Could not determine root device in AMI' )

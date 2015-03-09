@@ -6,6 +6,7 @@ from operator import itemgetter
 import os
 import re
 import sys
+
 from bd2k.util.exceptions import panic
 
 from boto.ec2.connection import EC2Connection
@@ -380,7 +381,7 @@ class CreationCommand( RoleCommand ):
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
-                with panic():
+                with panic( ):
                     box.terminate( wait=False )
             else:
                 raise
@@ -498,14 +499,21 @@ class ImageCommandMixin( Command ):
 class DeleteImageCommand( ImageCommandMixin, RoleCommand ):
     def __init__( self, application ):
         super( DeleteImageCommand, self ).__init__( application, '--image', '-i' )
+        self.begin_mutex( )
         self.option( '--keep-snapshot', '-K',
                      default=False, action='store_true',
                      help="Do not delete the EBS volume snapshot associated with the given image. "
                           "This will leave an orphaned snapshot which should be removed at a "
                           "later time using the 'cgcloud cleanup' command." )
+        self.option( '--quick', '-q', default=False, action='store_true',
+                     help="Exit immediately after deregistration request has been made, "
+                          "don't wait until the image is deregistered. Implies --keep-snapshot." )
+        self.end_mutex( )
 
     def run_on_box( self, options, box ):
-        box.delete_image( options.image, delete_snapshot=not options.keep_snapshot )
+        box.delete_image( options.image,
+                          wait=not options.quick,
+                          delete_snapshot=not options.keep_snapshot )
 
 
 class RecreateCommand( ImageCommandMixin, CreationCommand ):
