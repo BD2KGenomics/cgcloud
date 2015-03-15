@@ -311,6 +311,9 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                     found = True
             if not found:
                 templates.append( new_template )
+            # newer versions of Jenkins add class="empty-list" attribute if there are no templates
+            if templates.attrib.get( 'class' ) == 'empty-list':
+                templates.attrib.pop( 'class' )
 
         jenkins_config_file.truncate( 0 )
         jenkins_config.write( jenkins_config_file,
