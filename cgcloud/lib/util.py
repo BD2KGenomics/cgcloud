@@ -93,7 +93,7 @@ def snake_to_camel( s, separator='_' ):
     return ''.join( [ w.capitalize( ) for w in s.split( separator ) ] )
 
 
-def abreviated_snake_case_class_name( cls, root_cls ):
+def abreviated_snake_case_class_name( cls, root_cls=object ):
     """
     Returns the snake-case (with '-' instead of '_') version of the name of a given class with
     the name of another class removed from the end.
@@ -105,6 +105,9 @@ def abreviated_snake_case_class_name( cls, root_cls ):
     :return: cls.__name__ with root_cls.__name__ removed, converted to snake case with - as the
     separator
 
+    >>> class Dog: pass
+    >>> abreviated_snake_case_class_name(Dog)
+    'dog'
     >>> class Dog: pass
     >>> abreviated_snake_case_class_name(Dog,Dog)
     ''
