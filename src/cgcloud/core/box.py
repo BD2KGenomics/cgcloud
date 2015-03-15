@@ -882,6 +882,14 @@ class Box( object ):
 
     role_prefix = 'cgcloud'
 
+    def _role_arn( self, role_prefix="" ):
+        """
+        Returns the ARN for roles in the given account that have the give prefix
+        """
+        aws_role_prefix = self.ctx.to_aws_name( role_prefix + Box.role_prefix )
+        return "arn:aws:iam::%s:role/%s*" % ( self.ctx.account, aws_role_prefix )
+
+
     def _get_iam_ec2_role( self ):
         return self.role_prefix, { }
 

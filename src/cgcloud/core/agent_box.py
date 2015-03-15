@@ -1,13 +1,12 @@
 import base64
 import zlib
 
+from cgcloud.lib.util import abreviated_snake_case_class_name
 from fabric.context_managers import settings
-
 from fabric.operations import sudo, run
 from bd2k.util import shell, strict_bool
 
 from cgcloud.core.box import fabric_task
-
 from cgcloud.core.source_control_client import SourceControlClient
 
 
@@ -121,7 +120,7 @@ class AgentBox( SourceControlClient ):
     def _get_iam_ec2_role( self ):
         role_name, policies = super( AgentBox, self )._get_iam_ec2_role( )
         if self.enable_agent:
-            role_name += '-agent'
+            role_name += '--' + abreviated_snake_case_class_name( AgentBox )
             policies.update( {
                 'ec2_read_only': {
                     "Version": "2012-10-17",
