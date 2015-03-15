@@ -1,3 +1,4 @@
+from cgcloud.bd2k.ci.cgcloud_jenkins_slave import *
 from cgcloud.bd2k.ci.commands import *
 from cgcloud.bd2k.ci.generic_jenkins_slaves import *
 from cgcloud.bd2k.ci.jenkins_master import *
@@ -16,7 +17,9 @@ BOXES = [
     Fedora20GenericJenkinsSlave,
 
     Centos5RpmbuildJenkinsSlave,
-    Centos6RpmbuildJenkinsSlave ]
+    Centos6RpmbuildJenkinsSlave,
+
+    CgcloudJenkinsSlave ]
 
 COMMANDS = [
     RegisterSlaves ]

@@ -5,8 +5,9 @@ from textwrap import dedent
 from lxml import etree
 from fabric.context_managers import settings
 from fabric.operations import run, sudo, put, get
-from cgcloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key
-from cgcloud.core.box import fabric_task, Box
+from cgcloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key, \
+    abreviated_snake_case_class_name
+from cgcloud.core.box import fabric_task
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.core.source_control_client import SourceControlClient
 
@@ -91,6 +92,9 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         super( JenkinsMaster, self ).__init__( ctx )
         self.volume = None
 
+    def recommended_instance_type( self ):
+        return "m3.large"
+
     def other_accounts( self ):
         return super( JenkinsMaster, self ).other_accounts( ) + [ Jenkins.user ]
 
@@ -122,15 +126,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
     def _list_packages_to_install( self ):
         packages = super( JenkinsMaster, self )._list_packages_to_install( )
         return packages + [
-            'ec2-api-tools',
-            # FIXME: PyCrypto, This should go into a slave box dedicated for testing cgcloud
-            'python-dev',
-            'autoconf',
-            'automake',
-            'binutils',
-            'gcc',
-            'make',
-            'libyaml-dev' ]
+            'ec2-api-tools' ]
 
     @fabric_task
     def _install_packages( self, packages ):
@@ -272,7 +268,6 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
         self.setup_repo_host_keys( user=Jenkins.user )
         restart_needed = self.__create_jenkins_keypair( )
-        restart_needed = self.__inject_aws_credentials( ) or restart_needed
         # For some reason, simply reloading Jenkins via its WS API won't update the configuration
         # of certain plugins (s3-publisher-plugin, for example) so since we might have touched
         # plugin configuration, we need to restart Jenkins.
@@ -331,49 +326,27 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         bdm[ Jenkins.data_device_ext ].no_device = True
         return bdm
 
-    def __role_arn( self, account_id, aws_role_prefix="" ):
-        return "arn:aws:iam::%s:role/%s*" % ( account_id, aws_role_prefix )
-
     def _get_iam_ec2_role( self ):
         role_name, policies = super( JenkinsMaster, self )._get_iam_ec2_role( )
-        account_id = self.ctx.iam.get_user( ).user.arn.split( ':' )[ 4 ]
-        pass_role_arn = self.__role_arn( account_id,
-                                         self.ctx.to_aws_name( Box.role_prefix ) )
-        pass_test_role_arn = self.__role_arn( account_id,
-                                              self.ctx.to_aws_name( 'test/' + Box.role_prefix ) )
-        policies.update( {
-            'ec2_full': {
-                "Version": "2012-10-17",
-                "Statement": [
-                    dict( Effect="Allow", Resource="*", Action="ec2:*" ),
-                    dict( Effect="Allow", Resource="*", Action="elasticloadbalancing:*" ),
-                    dict( Effect="Allow", Resource="*", Action="cloudwatch:*" ),
-                    dict( Effect="Allow", Resource="*", Action="autoscaling:*" ),
-                    dict( Effect="Allow", Resource=pass_role_arn, Action="iam:PassRole" ),
-                    # FIXME: We need this to run the cgcloud tests but we should grant these privs
-                    # to the master but rather a slave and run the tests on the slave. That's more
-                    # secure since the slave is short-lived and has no web ui
-                    { "Effect": "Allow", "Resource": "*", "Action": [
-                        "iam:CreateRole",
-                        "iam:ListRolePolicies",
-                        "iam:DeleteRolePolicy",
-                        "iam:GetRolePolicy",
-                        "iam:PutRolePolicy",
-                        "iam:GetInstanceProfile",
-                        "iam:CreateInstanceProfile",
-                        "iam:RemoveRoleFromInstanceProfile",
-                        "iam:AddRoleToInstanceProfile" ] },
-                    # This assumes that if instance lives in /, then tests running on the
-                    # instance will run in /test. If instance lives in /test, them tests
-                    # running on the instance will run in /test/test.
-                    dict( Effect="Allow", Resource=pass_test_role_arn, Action="iam:PassRole" ) ] },
-            's3_custom': {
-                "Statement": [
+        role_name += '--' + abreviated_snake_case_class_name( JenkinsMaster )
+        policies.update( dict(
+            ec2_full=dict(
+                Version="2012-10-17",
+                Statement=[
+                    # FIXME: Be more specific
+                    dict( Effect="Allow", Resource="*", Action="ec2:*" ) ] ),
+            iam_pass_role=dict(
+                Version="2012-10-17",
+                Statement=[
+                    dict( Effect="Allow", Resource=self._role_arn( ), Action="iam:PassRole" ) ] ),
+            s3_custom=dict(
+                Version="2012-10-17",
+                Statement=[
                     dict( Effect="Allow", Resource="arn:aws:s3:::*", Action="s3:ListAllMyBuckets" ),
                     dict( Effect="Allow", Action="s3:*", Resource=[
                         "arn:aws:s3:::public-artifacts.cghub.ucsc.edu",
-                        "arn:aws:s3:::public-artifacts.cghub.ucsc.edu/*" ] ) ] } } )
-        return role_name + '-jenkins-master', policies
+                        "arn:aws:s3:::public-artifacts.cghub.ucsc.edu/*" ] ) ] ) ) )
+        return role_name, policies
 
     def __patch_config_file( self, path, text_by_xpath ):
         dirty = False
@@ -406,37 +379,3 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
     @fabric_task
     def __restart_jenkins( self ):
         sudo( 'service jenkins restart' )
-
-    # Neither the Jenkins EC2 plugin nor the Jenkins S3 Publisher plugin support getting
-    # temporary credentials from STS. In the interim, we'll have to attach the policies to a IAM
-    # user object and inject that user's credentials in Jenkins' configuration.
-
-
-    def _get_instance_profile_arn( self ):
-        """
-        Setup the IAM user using the same privileges as contained in the IAM role. Piggy-backed
-        onto instance profile creation.
-        """
-        arn = super( JenkinsMaster, self )._get_instance_profile_arn( )
-        user_name = self.ec2_keypair_name( self.ctx )
-        role_name, policies = self._get_iam_ec2_role( )
-        self.ctx.setup_iam_user_policies( user_name, policies )
-        return arn
-
-    @fabric_task( user=Jenkins.user )
-    def __inject_aws_credentials( self ):
-        """
-        Create an access key and inject it into Jenkin's configuration
-        """
-        user_name = self.ec2_keypair_name( self.ctx )
-        access_keys = self.ctx.iam.get_all_access_keys( user_name ).access_key_metadata
-        for access_key in access_keys:
-            self.ctx.iam.delete_access_key( access_key.access_key_id, user_name )
-        access_key = self.ctx.iam.create_access_key( user_name ).access_key
-        access_key_id = access_key.access_key_id
-        secret_key = access_key.secret_access_key
-        dirty = self.__patch_config_file( path='~/config.xml',
-                                          text_by_xpath={
-                                              './/hudson.plugins.ec2.EC2Cloud/accessId': access_key_id,
-                                              './/hudson.plugins.ec2.EC2Cloud/secretKey': secret_key } )
-        return dirty
