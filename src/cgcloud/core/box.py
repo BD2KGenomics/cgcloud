@@ -889,7 +889,6 @@ class Box( object ):
         aws_role_prefix = self.ctx.to_aws_name( role_prefix + Box.role_prefix )
         return "arn:aws:iam::%s:role/%s*" % ( self.ctx.account, aws_role_prefix )
 
-
     def _get_iam_ec2_role( self ):
         return self.role_prefix, { }
 
@@ -911,16 +910,33 @@ class Box( object ):
             log.info( "Waiting for deregistration to finalize ..." )
             while True:
                 if self.ctx.ec2.get_image( image_id ):
+                    log.info( '... image still registered, trying again in %is ...' %
+                              EC2_POLLING_INTERVAL )
                     time.sleep( EC2_POLLING_INTERVAL )
                 else:
                     log.info( "... image deregistered." )
                     break
         if delete_snapshot:
-            for root_device in self.possible_root_devices:
-                root_bdt = image.block_device_mapping.get( root_device )
-                if root_bdt:
-                    snapshot_id = image.block_device_mapping[ root_device ].snapshot_id
+            self.__delete_image_snapshot( image, wait=wait )
+
+    def __delete_image_snapshot( self, image, wait=True ):
+        for root_device in self.possible_root_devices:
+            root_bdt = image.block_device_mapping.get( root_device )
+            if root_bdt:
+                snapshot_id = image.block_device_mapping[ root_device ].snapshot_id
+                while True:
                     log.info( "Deleting snapshot %s.", snapshot_id )
-                    self.ctx.ec2.delete_snapshot( snapshot_id )
-                    return
-            raise RuntimeError( 'Could not determine root device in AMI' )
+                    try:
+                        self.ctx.ec2.delete_snapshot( snapshot_id )
+                    except EC2ResponseError as e:
+                        # It is safe to retry this indefinitely because a snapshot can only be
+                        # referenced by one AMI. See also https://github.com/boto/boto/issues/3019.
+                        if wait and e.error_code == 'InvalidSnapshot.InUse':
+                            log.info( '... snapshot in use, trying again in %is ...' %
+                                      EC2_POLLING_INTERVAL )
+                            time.sleep( EC2_POLLING_INTERVAL )
+                        else:
+                            raise
+                    break
+                return
+        raise RuntimeError( 'Could not determine root device in AMI' )
