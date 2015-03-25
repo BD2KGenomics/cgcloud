@@ -14,8 +14,8 @@ def setup( *args, **kwargs ):
 setup(
     name="cgcloud-agent",
     version="1.0.dev1",
-    package_dir={ '': 'src/main' },
-    packages=find_packages( 'src/main' ),
+    package_dir={ '': 'src' },
+    packages=find_packages( 'src' ),
     entry_points={
         'console_scripts': [
             'cgcloudagent = cgcloud.agent.ui:main' ], },
