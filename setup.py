@@ -3,9 +3,10 @@ from setuptools import setup, find_packages
 setup(
     name="cgcloud-lib",
     version="1.0.dev1",
-    packages=find_packages( ),
+    package_dir={ '': 'src' },
+    packages=find_packages( 'src' ),
     install_requires=[
-        'boto>=2.9.7'
+        'boto>=2.36.0'
     ],
     extras_require={
         'PyCrypto': [ 'PyCrypto>=2.3' ] # otherwise the bundled cgcloud_Crypto will be used
