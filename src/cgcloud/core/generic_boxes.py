@@ -108,7 +108,7 @@ class GenericUbuntuLucidBox( UbuntuBox ):
         """
         See GenericCentos5Box
         """
-        url = 'ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.10-2_amd64.deb'
+        url = 'ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.13-1_amd64.deb'
         package = os.path.basename( urlparse( url ).path )
         run( 'wget ' + url )
         sudo( 'sudo dpkg --force-confold -i ' + package )
