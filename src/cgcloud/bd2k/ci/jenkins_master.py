@@ -67,18 +67,6 @@ class Jenkins:
     The jenkins user's home directory on the build master
     """
 
-    key_dir_path = '%s/.ssh' % home
-    """
-    The path to the directory containing the jenkins user's SSH keys on the EC2 instance.
-    """
-
-    key_path = '%s/id_rsa' % key_dir_path
-    """
-    The path to the file where the jenkins user's public key is stored on the EC2 instance.
-    This public key will be deployed on the build servers such that Jenkins can launch
-    its build agents on those servers.
-    """
-
 
 jenkins = vars( Jenkins )
 
@@ -206,58 +194,9 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
 
     @fabric_task( user=Jenkins.user )
     def __create_jenkins_keypair( self ):
-        # Get keypair or create it if it doesn't exist
+        key_path = '%s/.ssh/id_rsa' % Jenkins.home
         ec2_keypair_name = self.ec2_keypair_name( self.ctx )
-        ec2_keypair = self.ctx.ec2.get_key_pair( ec2_keypair_name )
-        if ec2_keypair is None:
-            ec2_keypair = self.ctx.ec2.create_key_pair( ec2_keypair_name )
-            if not ec2_keypair.material:
-                raise AssertionError( "Created key pair but didn't get back private key" )
-
-        key_file_exists = run( 'test -f %s' % Jenkins.key_path, quiet=True ).succeeded
-
-        if ec2_keypair.material:
-            # Creation will yield new private key, download it
-            ssh_privkey = ec2_keypair.material
-            if key_file_exists:
-                # TODO: make this more prominent, e.g. by displaying all warnings at the end
-                log.warn( 'Warning: Overwriting private key with new one from EC2.' )
-            put( local_path=StringIO( ssh_privkey ), remote_path=Jenkins.key_path )
-            assert ec2_keypair.fingerprint == ec2_keypair_fingerprint( ssh_privkey )
-            run( 'chmod go= {key_path}'.format( **jenkins ) )
-            ssh_pubkey = private_to_public_key( ssh_privkey )
-
-            # Note that we are uploading the public key using the private key's fingerprint
-            self.ctx.upload_ssh_pubkey( ssh_pubkey, ec2_keypair.fingerprint )
-        else:
-            # With an existing keypair there is no way to get the private key from AWS,
-            # all we can do is check whether the locally stored private key is consistent.
-            if key_file_exists:
-                ssh_privkey = StringIO( )
-                get( remote_path=Jenkins.key_path, local_path=ssh_privkey )
-                ssh_privkey = ssh_privkey.getvalue( )
-                fingerprint = ec2_keypair_fingerprint( ssh_privkey )
-                if ec2_keypair.fingerprint != fingerprint:
-                    raise UserError(
-                        "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} "
-                        "doesn't match the fingerprint {fingerprint} of the private key file "
-                        "currently present on the instance. "
-                        "Please delete the key pair from EC2 before retrying."
-                        .format( ec2_keypair=ec2_keypair, fingerprint=fingerprint ) )
-                    # The fingerprints match, now get the public key we stored in S3 and make sure it
-                # matches the private key.
-                ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
-                if ssh_pubkey != private_to_public_key( ssh_privkey ):
-                    raise RuntimeError( "The private key on the data volume doesn't match the "
-                                        "public key in EC2." )
-            else:
-                raise UserError(
-                    "The key pair {ec2_keypair.name} is registered in EC2 but the corresponding "
-                    "private key file {key_path} does not exist on the instance. In order to "
-                    "create the private key file, the key pair must be created at the same time. "
-                    "Please delete the key pair from EC2 before retrying."
-                    .format( ec2_keypair=ec2_keypair, **jenkins ) )
-        put( local_path=StringIO( ssh_pubkey ), remote_path=Jenkins.key_path + '.pub' )
+        ssh_privkey, ssh_pubkey = self._provide_keypair( ec2_keypair_name, key_path )
         return self.__patch_config_file(
             path='~/config.xml',
             text_by_xpath={ './/hudson.plugins.ec2.EC2Cloud/privateKey/privateKey': ssh_privkey } )
