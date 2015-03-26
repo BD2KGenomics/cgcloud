@@ -23,16 +23,6 @@ EC2_POLLING_INTERVAL = 5
 
 log = logging.getLogger( __name__ )
 
-
-def needs_instance( method ):
-    def wrapped_method( self, *args, **kwargs ):
-        if self.instance_id is None:
-            raise AssertionError( "Instance ID not set" )
-        return method( self, *args, **kwargs )
-
-    return wrapped_method
-
-
 # noinspection PyPep8Naming
 class fabric_task( object ):
     # FIXME: not thread-safe
@@ -292,7 +282,6 @@ class Box( object ):
                 message = e.error_message.lower( )
                 if 'invalid iam instance profile' in message or 'no associated iam roles' in message:
                     time.sleep( EC2_POLLING_INTERVAL )
-                    pass
                 else:
                     raise
 
@@ -456,7 +445,6 @@ class Box( object ):
         """
         return None
 
-    @needs_instance
     def image( self ):
         """
         Create an image (AMI) of the EC2 instance represented by this box and return its ID.
@@ -499,7 +487,6 @@ class Box( object ):
             time.sleep( EC2_POLLING_INTERVAL )
         return image_id
 
-    @needs_instance
     def stop( self ):
         """
         Stop the EC2 instance represented by this box. Stopped instances can be started later using
@@ -513,7 +500,6 @@ class Box( object ):
                                 to_state='stopped' )
         log.info( '... instance stopped.' )
 
-    @needs_instance
     def start( self ):
         """
         Start the EC2 instance represented by this box
@@ -526,7 +512,6 @@ class Box( object ):
         # stopped before it goes into pending
         self.__wait_ready( instance, from_states={ 'stopped', 'pending' }, first_boot=False )
 
-    @needs_instance
     def reboot( self ):
         """
         Reboot the EC2 instance represented by this box. When this method returns,
@@ -598,7 +583,6 @@ class Box( object ):
             volume = self.get_attachable_volume( name )
         return volume
 
-    @needs_instance
     def attach_volume( self, volume, device ):
         self.ctx.ec2.attach_volume( volume_id=volume.id,
                                     instance_id=self.instance_id,
@@ -607,7 +591,6 @@ class Box( object ):
         if volume.attach_data.instance_id != self.instance_id:
             raise UserError( "Volume %s is not attached to this instance." )
 
-    @needs_instance
     def _execute_task( self, task, user ):
         """
         Execute the given Fabric task on the EC2 instance represented by this box
@@ -632,7 +615,6 @@ class Box( object ):
                              % (expected_state, actual_state) )
         return instance
 
-    @needs_instance
     def get_instance( self ):
         """
         Return the EC2 instance API object represented by this box.
@@ -767,12 +749,10 @@ class Box( object ):
             raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
                                   % ( resource, to_state, state ) )
 
-    @needs_instance
     def ssh( self, user=None, command=None ):
         if command is None: command = [ ]
         subprocess.check_call( self._ssh_args( user, command ) )
 
-    @needs_instance
     def rsync( self, args, user=None, ssh_opts=None ):
         ssh_args = self._ssh_args( user, [ ] )
         if ssh_opts:
@@ -953,6 +933,7 @@ class Box( object ):
                 return
         raise RuntimeError( 'Could not determine root device in AMI' )
 
+    @fabric_task
     def _provide_keypair( self, ec2_keypair_name, private_key_path, overwrite_local=True,
                           overwrite_ec2=True ):
         """
