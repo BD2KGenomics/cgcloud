@@ -933,10 +933,11 @@ class Box( object ):
                 return
         raise RuntimeError( 'Could not determine root device in AMI' )
 
-    @fabric_task
     def _provide_keypair( self, ec2_keypair_name, private_key_path, overwrite_local=True,
                           overwrite_ec2=True ):
         """
+        Expects to be running in a Fabric task context!
+
         Ensures 1) that a key pair has been generated in EC2 under the given name and 2) that a
         matching private key exists on this box at the given path and 3) that the corresponding
         public key exists at the given path plus ".pub". Since EC2 doesn't even expose the public
