@@ -5,8 +5,8 @@ dependency_base_url = 'git+https://github.com/BD2KGenomics/'
 setup(
     name="cgcloud-bd2k-ci",
     version="1.0.dev1",
-    package_dir={ '': 'src/main' },
-    packages=find_packages( 'src/main' ),
+    package_dir={ '': 'src' },
+    packages=find_packages( 'src' ),
     install_requires=[
         'cgcloud-lib>=1.0.dev1',
         'cgcloud-core>=1.0.dev1',
