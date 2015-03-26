@@ -482,7 +482,7 @@ class Box( object ):
                     self.generation -= 1
                 self.__wait_transition( image, { 'pending' }, 'available' )
                 log.info( "... created %s (%s).", image.id, image.name )
-                return image_id
+                break
             except self.ctx.ec2.ResponseError as e:
                 # FIXME: I don't think get_image can throw this, it should be outside the try
                 if e.error_code != 'InvalidAMIID.NotFound':
@@ -497,6 +497,7 @@ class Box( object ):
             log.info( '... image %s not yet discoverable, trying again in %is ...' % (
                 image_id, EC2_POLLING_INTERVAL ) )
             time.sleep( EC2_POLLING_INTERVAL )
+        return image_id
 
     @needs_instance
     def stop( self ):
