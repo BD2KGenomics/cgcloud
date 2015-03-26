@@ -487,6 +487,16 @@ class Box( object ):
                 # FIXME: I don't think get_image can throw this, it should be outside the try
                 if e.error_code != 'InvalidAMIID.NotFound':
                     raise
+        # There seems to be another race condition in EC2 that causes a freshly created image to
+        # not be included in queries other than by AMI ID.
+        log.info( 'Checking if image %s is discoverable ...' % image_id )
+        while True:
+            if image_id in (_.id for _ in self.list_images( )):
+                log.info( '... image now discoverable.' )
+                break
+            log.info( '... image %s not yet discoverable, trying again in %is ...' % (
+                image_id, EC2_POLLING_INTERVAL ) )
+            time.sleep( EC2_POLLING_INTERVAL )
 
     @needs_instance
     def stop( self ):
