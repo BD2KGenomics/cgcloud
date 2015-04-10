@@ -16,7 +16,8 @@ class GenericCentos5Box( CentosBox ):
     def release( self ):
         return '5.8'
 
-    def supported_virtualization_types( self ):
+    @classmethod
+    def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
     def __update_sudo( self ):
@@ -100,7 +101,8 @@ class GenericUbuntuLucidBox( UbuntuBox ):
     def release( self ):
         return 'lucid'
 
-    def supported_virtualization_types( self ):
+    @classmethod
+    def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
     @fabric_task
@@ -133,7 +135,8 @@ if False:  # out of suppport
         def release( self ):
             return 'maverick'
 
-        def supported_virtualization_types( self ):
+        @classmethod
+        def supported_virtualization_types( cls ):
             return [ 'paravirtual' ]
 
 if False:  # out of suppport
@@ -145,7 +148,8 @@ if False:  # out of suppport
         def release( self ):
             return 'natty'
 
-        def supported_virtualization_types( self ):
+        @classmethod
+        def supported_virtualization_types( cls ):
             return [ 'paravirtual' ]
 
 if False:  # out of suppport
@@ -157,7 +161,8 @@ if False:  # out of suppport
         def release( self ):
             return 'oneiric'
 
-        def supported_virtualization_types( self ):
+        @classmethod
+        def supported_virtualization_types( cls ):
             return [ 'paravirtual' ]
 
 
@@ -238,7 +243,8 @@ class GenericFedora19Box( FedoraBox ):
     def release( self ):
         return 19
 
-    def supported_virtualization_types( self ):
+    @classmethod
+    def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
 
@@ -246,6 +252,7 @@ class GenericFedora20Box( FedoraBox ):
     def release( self ):
         return 20
 
-    def supported_virtualization_types( self ):
+    @classmethod
+    def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 

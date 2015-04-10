@@ -812,10 +812,12 @@ class Box( object ):
         sudo( 'install -t ~{dst_user}/.ssh ~{src_user}/.ssh/authorized_keys '
               '-m 644 -o {dst_user} -g {dst_group}'.format( **args ) )
 
-    def recommended_instance_type( self ):
-        return 't2.micro' if 'hvm' in self.supported_virtualization_types( ) else 't1.micro'
+    @classmethod
+    def recommended_instance_type( cls ):
+        return 't2.micro' if 'hvm' in cls.supported_virtualization_types( ) else 't1.micro'
 
-    def supported_virtualization_types( self ):
+    @classmethod
+    def supported_virtualization_types( cls ):
         """
         Returns the virtualization types supported by this box in order of preference, preferred
         types first.
