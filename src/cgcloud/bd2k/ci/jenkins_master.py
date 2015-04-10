@@ -80,7 +80,8 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         super( JenkinsMaster, self ).__init__( ctx )
         self.volume = None
 
-    def recommended_instance_type( self ):
+    @classmethod
+    def recommended_instance_type( cls ):
         return "m3.large"
 
     def other_accounts( self ):

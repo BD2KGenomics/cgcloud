@@ -8,7 +8,8 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
     A Jenkins slave for runing Cgcloud unit tests
     """
 
-    def recommended_instance_type( self ):
+    @classmethod
+    def recommended_instance_type( cls ):
         return "m3.xlarge"
 
     def _list_packages_to_install( self ):
