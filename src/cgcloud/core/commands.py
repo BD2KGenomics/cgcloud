@@ -8,15 +8,14 @@ import re
 import sys
 
 from bd2k.util.exceptions import panic
-
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
-from cgcloud.lib.util import Application
 from fabric.operations import prompt
+
+from cgcloud.lib.util import Application
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, Command
-
 from cgcloud.core.box import Box
 
 
@@ -120,6 +119,7 @@ class ListCommand( RoleCommand ):
             print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}\t{state}'.format( **box ) )
 
 
+# noinspection PyAbstractClass
 class BoxCommand( RoleCommand ):
     def __init__( self, application, **kwargs ):
         super( BoxCommand, self ).__init__( application, **kwargs )
@@ -384,10 +384,10 @@ class CreationCommand( RoleCommand ):
         try:
             resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
             box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
-                        security_groups=options.security_groups,
-                        instance_type=options.instance_type,
-                        virtualization_type=options.virtualization_type,
-                        **self.instance_options( options ) )
+                         security_groups=options.security_groups,
+                         instance_type=options.instance_type,
+                         virtualization_type=options.virtualization_type,
+                         **self.instance_options( options ) )
             box.create( wait_ready=True )
             self.run_on_creation( box, options )
         except:
