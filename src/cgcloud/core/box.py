@@ -437,6 +437,7 @@ class Box( object ):
             log.info( 'Adopting instance ... ' )
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
+            self.image_id = instance.image_id
             image = self.ctx.ec2.get_image( instance.image_id )
             if image is None:  # could already be deleted
                 log.warn( 'Could not get image details for %s.', instance.image_id )
