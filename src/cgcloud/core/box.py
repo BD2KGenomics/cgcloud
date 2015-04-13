@@ -223,7 +223,7 @@ class Box( object ):
     default_security_groups = [ 'default' ]
 
     def prepare( self, ec2_keypair_globs, instance_type=None, image_ref=None, security_groups=None,
-                virtualization_type=None, **options ):
+                 virtualization_type=None, **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -349,7 +349,7 @@ class Box( object ):
         log.info( '... created %s.', instance.id )
         self._on_instance_created( instance )
         if wait_ready:
-        self.__wait_ready( instance, { 'pending' }, first_boot=True )
+            self.__wait_ready( instance, { 'pending' }, first_boot=True )
 
     def _set_instance_options( self, options ):
         """
@@ -659,7 +659,7 @@ class Box( object ):
         # host = "%s@%s" % ( user, self.ip_address )
         with settings(user=user):
             host = self.ip_address
-        return execute( task, hosts=[ host ] )[ host ]
+            return execute( task, hosts=[ host ] )[ host ]
 
     def __assert_state( self, expected_state ):
         """
@@ -1004,30 +1004,36 @@ class Box( object ):
                 return
         raise RuntimeError( 'Could not determine root device in AMI' )
 
-    def _provide_keypair( self, ec2_keypair_name, private_key_path, overwrite_local=True,
-                          overwrite_ec2=True ):
+    def _provide_generated_keypair( self,
+                                    ec2_keypair_name,
+                                    private_key_path,
+                                    overwrite_local=True,
+                                    overwrite_ec2=False ):
         """
         Expects to be running in a Fabric task context!
 
-        Ensures 1) that a key pair has been generated in EC2 under the given name and 2) that a
-        matching private key exists on this box at the given path and 3) that the corresponding
-        public key exists at the given path plus ".pub". Since EC2 doesn't even expose the public
-        key for a partitluar key pair, the public key of generated keypair is additionally stored
-        in S3 under the private key's fingerprint. Note that this is different to imported EC2
-        keypairs which are identified by their public key's fingerprint, both by EC2 natively and
-        by the mirror public key registry maintained by cgcloud in S3.
+        Ensures that 1) a key pair has been generated in EC2 under the given name, 2) a matching
+        private key exists on this box at the given path and 3) the corresponding public key
+        exists at the given path with .pub appended. A generated keypair is one for which EC2
+        generated the private key. This is different from imported keypairs where the private key
+        is generated locally and the public key is then imported to EC2.
 
-        If there already is a keypair in EC2 and a private key at the given path in this box,
-        they are checked to be consistent with each other. If they are not, an exception will be
-        raised.
+        Since EC2 exposes only the fingerprint for a particular key pair, but not the public key,
+        the public key of the generated key pair is additionally stored in S3. The public key
+        object in S3 will be identified using the key pair's fingerprint, which really is the the
+        private key's fingerprint. Note that this is different to imported key pairs which are
+        identified by their public key's fingerprint, both by EC2 natively and by cgcloud in S3.
 
-        If there already is a local private key but no keypair in EC2, either an exception will
-        be raised (if overwrite_local is False) or a keypair is created and the local private key
-        will be overwritten (if overwrite_local is True).
+        If there already is a key pair in EC2 and a private key at the given path in this box,
+        they are checked to match each other. If they don't, an exception will be raised.
 
-        If there is a keypair in EC2 but no local private key, either an exception will be raised
-        (if overwrite_ec2 is False) or the keypair will be deleted and a new one will be created
-        in its stead (if overwrite_ec2 is True).
+        If there already is a local private key but no key pair in EC2, either an exception will
+        be raised (if overwrite_local is False) or a key pair will be created and the local
+        private key will be overwritten (if overwrite_local is True).
+
+        If there is a key pair in EC2 but no local private key, either an exception will be
+        raised (if overwrite_ec2 is False) or the key pair will be deleted and a new one will be
+        created in its stead (if overwrite_ec2 is True).
 
         To understand the logic behind all this keep in mind that the private component of a
         EC2-generated keypair can only be downloaded once, at creation time.
@@ -1050,17 +1056,18 @@ class Box( object ):
                 else:
                     raise UserError( "Private key already exists on box. Creating a new key pair "
                                      "in EC2 would require overwriting that file" )
-            ssh_privkey, ssh_pubkey = self.__create_keypair( ec2_keypair_name, private_key_path )
+            ssh_privkey, ssh_pubkey = self.__generate_keypair( ec2_keypair_name, private_key_path )
         else:
             # With an existing keypair there is no way to get the private key from AWS,
             # all we can do is check whether the locally stored private key is consistent.
             if key_file_exists:
-                ssh_privkey, ssh_pubkey = self.__verify_keypair( ec2_keypair, private_key_path )
+                ssh_privkey, ssh_pubkey = self.__verify_generated_keypair( ec2_keypair,
+                                                                           private_key_path )
             else:
                 if overwrite_ec2:
                     self.ctx.ec2.delete_key_pair( ec2_keypair_name )
-                    ssh_privkey, ssh_pubkey = self.__create_keypair( ec2_keypair_name,
-                                                                     private_key_path )
+                    ssh_privkey, ssh_pubkey = self.__generate_keypair( ec2_keypair_name,
+                                                                       private_key_path )
                 else:
                     raise UserError(
                         "The key pair {ec2_keypair.name} is registered in EC2 but the "
@@ -1074,7 +1081,7 @@ class Box( object ):
 
         return ssh_privkey, ssh_pubkey
 
-    def __create_keypair( self, ec2_keypair_name, private_key_path ):
+    def __generate_keypair( self, ec2_keypair_name, private_key_path ):
         """
         Generate a keypair in EC2 using the given name and write the private key to the file at
         the given path. Return the private and public key contents as a tuple.
@@ -1090,7 +1097,7 @@ class Box( object ):
         self.ctx.upload_ssh_pubkey( ssh_pubkey, ec2_keypair.fingerprint )
         return ssh_privkey, ssh_pubkey
 
-    def __verify_keypair( self, ec2_keypair, private_key_path ):
+    def __verify_generated_keypair( self, ec2_keypair, private_key_path ):
         """
         Verify that the given EC2 keypair matches the private key at the given path. Return the
         private and public key contents as a tuple.
@@ -1104,9 +1111,39 @@ class Box( object ):
                 "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} doesn't "
                 "match the fingerprint {fingerprint} of the private key file currently present on "
                 "the instance. Please delete the key pair from EC2 before retrying. "
-                .format( **locals( ) ) )
+                    .format( **locals( ) ) )
         ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
         if ssh_pubkey != private_to_public_key( ssh_privkey ):
             raise RuntimeError( "The private key on the data volume doesn't match the "
                                 "public key in EC2." )
+        return ssh_privkey, ssh_pubkey
+
+    def _provide_imported_keypair( self, ec2_keypair_name, private_key_path, overwrite_ec2=False ):
+        """
+        Expects to be running in a Fabric task context!
+
+        Ensures that 1) a key pair has been imported to EC2 under the given name, 2) a matching
+        private key exists on this box at the given path and 3) the corresponding public key
+        exists at the given path with .pub appended.
+
+        If there is no private key at the given path on this box, one will be created. If there
+        already is a imported key pair in EC2, it is checked to match the local public key. If
+        they don't match an exception will be raised (overwrite_ec2 is False) or the EC2 key pair
+        will be replaced with a new one by importing the local public key. The public key itself
+        will be tracked in S3. See _provide_generated_keypair for details.
+
+        :param ec2_keypair_name: the name of the keypair in EC2
+        :param private_key_path: the path to the private key on this box (tilde will be expanded)
+        :return: the actual contents of the private and public keys as a tuple in that order
+        """
+        key_file_exists = run( 'test -f %s' % private_key_path, quiet=True ).succeeded
+        if not key_file_exists:
+            run( "ssh-keygen -N '' -C '%s' -f '%s'" % ( ec2_keypair_name, private_key_path ) )
+        ssh_privkey = StringIO( )
+        get( remote_path=private_key_path, local_path=ssh_privkey )
+        ssh_privkey = ssh_privkey.getvalue( )
+        ssh_pubkey = StringIO( )
+        get( remote_path=private_key_path + '.pub', local_path=ssh_pubkey )
+        ssh_pubkey = ssh_pubkey.getvalue( )
+        self.ctx.register_ssh_pubkey( ec2_keypair_name, ssh_pubkey, force=overwrite_ec2 )
         return ssh_privkey, ssh_pubkey
