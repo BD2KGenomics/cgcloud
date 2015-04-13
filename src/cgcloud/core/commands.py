@@ -324,8 +324,8 @@ class CreationCommand( RoleCommand ):
 
         self.option( '--instance-type', '-t', metavar='TYPE',
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
-                     help='The type of EC2 instance to launch for the box, e.g. t1.micro, m1.small, '
-                          'm1.medium, or m1.large etc. The value of the environment variable '
+                     help='The type of EC2 instance to launch for the box, e.g. t2.micro, m3.small, '
+                          'm3.medium, or m3.large etc. The value of the environment variable '
                           'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
                           'default, an instance type appropriate for the role.' )
 
