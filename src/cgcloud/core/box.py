@@ -15,6 +15,7 @@ from boto import logging
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
+from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint, \
     private_to_public_key
@@ -134,32 +135,6 @@ class Box( object ):
         self.ip_address = None
         self.host_name = None
 
-    num_ephemeral_drives_by_instance_type = {
-        't2.micro': 0,
-        't2.small': 0,
-        't2.medium': 0,
-        'm3.medium': 1,
-        'm3.large': 1,
-        'm3.xlarge': 2,
-        'm3.2xlarge': 2,
-        'c3.large': 2,
-        'c3.xlarge': 2,
-        'c3.2xlarge': 2,
-        'c3.4xlarge': 2,
-        'c3.8xlarge': 2,
-        'g2.2xlarge': 1,
-        'r3.large': 1,
-        'r3.xlarge': 1,
-        'r3.2xlarge': 1,
-        'r3.4xlarge': 1,
-        'r3.8xlarge': 2,
-        'i2.xlarge': 1,
-        'i2.2xlarge': 2,
-        'i2.4xlarge': 4,
-        'i2.8xlarge': 8,
-        'hs1.8xlarge': 24
-    }
-
     possible_root_devices = ( '/dev/sda1', '/dev/sda', '/dev/xvda' )
 
     def _populate_instance_creation_args( self, image, kwargs ):
@@ -180,8 +155,7 @@ class Box( object ):
                 bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
                 bdm[ '/dev/sda1' ] = root_bdt
                 instance_type_ = kwargs[ 'instance_type' ]
-                num_ephemeral_drives = self.num_ephemeral_drives_by_instance_type.get(
-                    instance_type_, 1 )
+                num_ephemeral_drives = ec2_instance_types[ instance_type_ ].num_ephemeral_drives
                 for i in range( num_ephemeral_drives ):
                     device = '/dev/sd' + chr( ord( 'b' ) + i )
                     bdm[ device ] = BlockDeviceType( ephemeral_name='ephemeral%i' % i )
