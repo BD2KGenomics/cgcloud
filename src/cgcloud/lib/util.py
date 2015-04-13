@@ -127,19 +127,6 @@ def abreviated_snake_case_class_name( cls, root_cls=object ):
     return camel_to_snake( name, separator='-' )
 
 
-def mkdir_p( path ):
-    """
-    The equivalent of mkdir -p
-    """
-    try:
-        os.makedirs( path )
-    except OSError as exc:
-        if exc.errno == errno.EEXIST and os.path.isdir( path ):
-            pass
-        else:
-            raise
-
-
 class UserError( RuntimeError ):
     def __init__( self, message=None, cause=None ):
         if message is None == cause is None:
