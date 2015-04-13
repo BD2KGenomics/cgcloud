@@ -91,11 +91,10 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
         sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ), **sudo_kwargs )
 
     @fabric_task
-    def _register_init_script( self, script, name ):
-        put(
-            local_path=StringIO( script ),
-            remote_path='/etc/init/%s.conf' % name,
-            use_sudo=True )
+    def _register_init_script( self, name, script ):
+        path = '/etc/init/%s.conf' % name
+        put( local_path=StringIO( script ), remote_path=path, use_sudo=True )
+        sudo( "chown root:root '%s'" % path )
 
     def _ssh_service_name( self ):
         return 'ssh'

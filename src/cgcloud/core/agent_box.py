@@ -114,7 +114,7 @@ class AgentBox( SourceControlClient ):
             ' --pid-file {run_dir}/cgcloudagent.pid'
             ' --log-spill {log_dir}/cgcloudagent.out'
             '| gzip -c | base64' ) ) )
-        self._register_init_script( script, 'cgcloudagent' )
+        self._register_init_script( 'cgcloudagent', script )
         self._run_init_script( 'cgcloudagent' )
 
     def _get_iam_ec2_role( self ):

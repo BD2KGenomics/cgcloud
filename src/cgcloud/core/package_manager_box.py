@@ -95,7 +95,7 @@ class PackageManagerBox( Box ):
             self.reboot( )
 
     @abstractmethod
-    def _register_init_script( self, script, name ):
+    def _register_init_script( self, name, script ):
         raise NotImplementedError( )
 
     @fabric_task
