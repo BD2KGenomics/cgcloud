@@ -902,6 +902,9 @@ class Box( object ):
         raise NotImplementedError( )
 
     def _get_instance_profile_arn( self ):
+        """
+        Prepares the instance profile to be used for this box and returns its ARN
+        """
         role_name, policies = self._get_iam_ec2_role( )
         aws_role_name = self.ctx.setup_iam_ec2_role( role_name, policies )
         aws_instance_profile_name = self.ctx.to_aws_name( self.role( ) )
@@ -939,12 +942,17 @@ class Box( object ):
 
     def _role_arn( self, role_prefix="" ):
         """
-        Returns the ARN for roles in the given account that have the give prefix
+        Returns the ARN for roles with the given prefix in the current AWS account
         """
         aws_role_prefix = self.ctx.to_aws_name( role_prefix + Box.role_prefix )
         return "arn:aws:iam::%s:role/%s*" % ( self.ctx.account, aws_role_prefix )
 
     def _get_iam_ec2_role( self ):
+        """
+        Returns the IAM role to be associated for this box
+
+        :return A tuple of the form ( role_arn, policy_document ) where policy_document is the
+        """
         return self.role_prefix, { }
 
     # http://aws.amazon.com/amazon-linux-ami/instance-type-matrix/
