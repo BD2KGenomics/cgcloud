@@ -11,11 +11,13 @@ import itertools
 
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from boto.exception import BotoServerError, EC2ResponseError
+from fabric.context_managers import settings
 from fabric.operations import sudo, run, get, put
 from boto import logging
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
+
 from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint, \
@@ -646,7 +648,9 @@ class Box( object ):
         """
         if not callable( task ): task = task( self )
         # using IP instead of host name yields more compact log lines
-        host = "%s@%s" % ( user, self.ip_address )
+        # host = "%s@%s" % ( user, self.ip_address )
+        with settings(user=user):
+            host = self.ip_address
         return execute( task, hosts=[ host ] )[ host ]
 
     def __assert_state( self, expected_state ):
