@@ -87,15 +87,15 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
     def other_accounts( self ):
         return super( JenkinsMaster, self ).other_accounts( ) + [ Jenkins.user ]
 
-    def create( self, *args, **kwargs ):
+    def prepare( self, *args, **kwargs ):
         self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
                                                  Jenkins.data_volume_size_gb )
-        super( JenkinsMaster, self ).create( *args, **kwargs )
+        return super( JenkinsMaster, self ).prepare( *args, **kwargs )
 
-    def _on_instance_running( self, first_boot ):
+    def _on_instance_running( self, instance, first_boot ):
         if first_boot:
             self.attach_volume( self.volume, Jenkins.data_device_ext )
-        super( JenkinsMaster, self )._on_instance_running( first_boot )
+        super( JenkinsMaster, self )._on_instance_running( instance, first_boot )
 
     @fabric_task
     def _setup_package_repos( self ):
@@ -197,7 +197,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
     def __create_jenkins_keypair( self ):
         key_path = '%s/.ssh/id_rsa' % Jenkins.home
         ec2_keypair_name = self.ec2_keypair_name( self.ctx )
-        ssh_privkey, ssh_pubkey = self._provide_keypair( ec2_keypair_name, key_path )
+        ssh_privkey, ssh_pubkey = self._provide_generated_keypair( ec2_keypair_name, key_path )
         return self.__patch_config_file(
             path='~/config.xml',
             text_by_xpath={ './/hudson.plugins.ec2.EC2Cloud/privateKey/privateKey': ssh_privkey } )
@@ -278,11 +278,11 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                 Statement=[
                     # FIXME: Be more specific
                     dict( Effect="Allow", Resource="*", Action="ec2:*" ) ] ),
-            iam_pass_role=dict(
+            jenkins_master_iam_pass_role=dict(
                 Version="2012-10-17",
                 Statement=[
                     dict( Effect="Allow", Resource=self._role_arn( ), Action="iam:PassRole" ) ] ),
-            s3_custom=dict(
+            jenkins_master_s3=dict(
                 Version="2012-10-17",
                 Statement=[
                     dict( Effect="Allow", Resource="arn:aws:s3:::*", Action="s3:ListAllMyBuckets" ),
