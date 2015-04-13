@@ -113,6 +113,19 @@ class Box( object ):
         """
         return False
 
+    def _populate_ec2_keypair_globs( self, ec2_keypair_globs ):
+        """
+        Populate the given list with keypair globs defining the set of keypairs whose public
+        component will be deployed to this box. The base implementation simply returns the
+        argument.
+
+        :param ec2_keypair_globs: the suggested list of globs, may be modified in place
+
+        :return: the actual list of globs to be used on this box, may be the argument, or a new
+        list
+        """
+        return ec2_keypair_globs
+
     def __init__( self, ctx ):
         """
         Initialize an instance of this class. Before invoking any methods on this object,
@@ -234,6 +247,7 @@ class Box( object ):
             str_options[ k ] = str( v )
         self._set_instance_options( str_options )
 
+        ec2_keypair_globs = self._populate_ec2_keypair_globs( ec2_keypair_globs )
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
         if not ec2_keypairs:
             raise UserError( 'No matching key pairs found' )
