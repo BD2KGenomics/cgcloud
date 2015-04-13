@@ -510,8 +510,7 @@ class Context( object ):
     @memoize
     def iam_user_name( self ):
         try:
-            return self.iam.get_user( )[
-                'get_user_response' ][ 'get_user_result' ][ 'user' ][ 'user_name' ]
+            return self.iam.get_user( ).user_name
         except:
             return None
 
