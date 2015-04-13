@@ -1,4 +1,5 @@
 # coding=utf-8
+from abc import ABCMeta, abstractmethod
 import json
 import os
 import urllib
@@ -17,6 +18,7 @@ from boto.ec2.keypair import KeyPair
 from bd2k.util import fnmatch
 from bd2k.util import memoize
 from boto.utils import get_instance_metadata
+import itertools
 
 from cgcloud.lib.message import Message
 from cgcloud.lib.util import ec2_keypair_fingerprint, UserError
