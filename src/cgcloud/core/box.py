@@ -393,7 +393,7 @@ class Box( object ):
         self.__write_options( instance )
         log.info( ' instance tagged %s.', name )
 
-    def _on_instance_running( self, first_boot ):
+    def _on_instance_running( self, instance, first_boot ):
         """
         Invoked while creating, adopting or starting an instance, right after the instance
         entered the running state.
@@ -401,7 +401,7 @@ class Box( object ):
         :param first_boot: True if this is the first time the instance enters the running state
         since its creation
         """
-        pass
+        self.private_ip_address = instance.private_ip_address
 
     def _on_instance_ready( self, first_boot ):
         """
@@ -691,7 +691,7 @@ class Box( object ):
         """
         log.info( "... waiting for instance %s ... ", instance.id )
         self.__wait_transition( instance, from_states, 'running' )
-        self._on_instance_running( first_boot )
+        self._on_instance_running( instance, first_boot )
         log.info( "... instance running, waiting for hostname ... " )
         self.__wait_public_ip_assigned( instance )
         log.info( "... assigned, waiting for ssh ... " )
