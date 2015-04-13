@@ -1,11 +1,14 @@
 import base64
 import zlib
 
-from cgcloud.lib.util import abreviated_snake_case_class_name
 from fabric.context_managers import settings
 from fabric.operations import sudo, run
 from bd2k.util import shell, strict_bool
 
+from cgcloud.core.common_iam_policies import ec2_read_only_policy, s3_read_only_policy, \
+    iam_read_only_policy
+
+from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
 from cgcloud.core.source_control_client import SourceControlClient
 
@@ -121,47 +124,24 @@ class AgentBox( SourceControlClient ):
         role_name, policies = super( AgentBox, self )._get_iam_ec2_role( )
         if self.enable_agent:
             role_name += '--' + abreviated_snake_case_class_name( AgentBox )
-            policies.update( {
-                'ec2_read_only': {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        { "Effect": "Allow", "Resource": "*", "Action": "ec2:Describe*" },
-                        { "Effect": "Allow", "Resource": "*", "Action": "autoscaling:Describe*" },
-                        { "Effect": "Allow", "Resource": "*",
-                            "Action": "elasticloadbalancing:Describe*" },
-                        { "Effect": "Allow", "Resource": "*", "Action": [
-                            "cloudwatch:ListMetrics",
-                            "cloudwatch:GetMetricStatistics",
-                            "cloudwatch:Describe*" ] } ] },
-                's3_read_only': {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        { "Effect": "Allow", "Resource": "*",
-                            "Action": [ "s3:Get*", "s3:List*" ] } ] },
-                'iam_read_only': {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        { "Effect": "Allow", "Resource": "*",
-                            "Action": [ "iam:List*", "iam:Get*" ] } ] },
-                'sqs_custom': {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        { "Effect": "Allow", "Resource": "*", "Action": [
-                            "sqs:Get*",
-                            "sqs:List*",
-                            "sqs:CreateQueue",
-                            "sqs:SetQueueAttributes",
-                            "sqs:ReceiveMessage",
-                            "sqs:DeleteMessage" ] } ] },
-                'sns_custom': {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        { "Effect": "Allow", "Resource": "*", "Action": [
-                            "sns:Get*",
-                            "sns:List*",
-                            "sns:CreateTopic",
-                            "sns:Subscribe" ] } ] }
-            } )
+            policies.update( dict(
+                ec2_read_only=ec2_read_only_policy,
+                s3_read_only=s3_read_only_policy,
+                iam_read_only=iam_read_only_policy,
+                sqs_agent=dict( Version="2012-10-17", Statement=[
+                    dict( Effect="Allow", Resource="*", Action=[
+                        "sqs:Get*",
+                        "sqs:List*",
+                        "sqs:CreateQueue",
+                        "sqs:SetQueueAttributes",
+                        "sqs:ReceiveMessage",
+                        "sqs:DeleteMessage" ] ) ] ),
+                sns_agent=dict( Version="2012-10-17", Statement=[
+                    dict( Effect="Allow", Resource="*", Action=[
+                        "sns:Get*",
+                        "sns:List*",
+                        "sns:CreateTopic",
+                        "sns:Subscribe" ] ) ] ) ) )
         return role_name, policies
 
     @staticmethod
