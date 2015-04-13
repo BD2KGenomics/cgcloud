@@ -451,6 +451,16 @@ class Context( object ):
 
         :rtype: list of KeyPair
         """
+        def iam_lookup( glob ):
+            if glob.startswith('@@'):
+                return ( _.user_name for _ in self.iam.get_group(glob[2:]) )
+            elif glob.startswith('@'):
+                return ( self.iam.get_user( glob[1:] ).user_name, )
+            else:
+                return ( glob, )
+
+        globs = itertools.chain.from_iterable( map( iam_lookup, globs ) )
+
         result = [ ]
         keypairs = dict( (keypair.name, keypair) for keypair in self.ec2.get_all_key_pairs( ) )
         for glob in globs:
