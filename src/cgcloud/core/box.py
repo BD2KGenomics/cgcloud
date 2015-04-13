@@ -84,6 +84,13 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
+    def _image_name_prefix( self ):
+        """
+        Returns the prefix to be used for naming images created from this box
+        :return:
+        """
+        return self.role( )
+
     @abstractmethod
     def _base_image( self, virtualization_type ):
         """
@@ -505,8 +512,8 @@ class Box( object ):
         self.__assert_state( 'stopped' )
 
         log.info( "Creating image ..." )
-        image_name = self.ctx.to_aws_name(
-            "%s_%s" % ( self.role( ), time.strftime( '%Y-%m-%d_%H-%M-%S' ) ) )
+        timestamp = time.strftime( '%Y-%m-%d_%H-%M-%S' )
+        image_name = self.ctx.to_aws_name( self._image_name_prefix( ) + "_" + timestamp )
         image_id = self.ctx.ec2.create_image(
             instance_id=self.instance_id,
             name=image_name,
@@ -881,7 +888,7 @@ class Box( object ):
         """
         :rtype: list of boto.ec2.image.Image
         """
-        image_name_pattern = self.ctx.to_aws_name( self.role( ) + '_' ) + '*'
+        image_name_pattern = self.ctx.to_aws_name( self._image_name_prefix( ) + '_' ) + '*'
         images = self.ctx.ec2.get_all_images( filters={ 'name': image_name_pattern } )
         images.sort( key=attrgetter( 'name' ) )  # that sorts by date, effectively
         return images
