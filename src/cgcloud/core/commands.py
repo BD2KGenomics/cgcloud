@@ -303,24 +303,34 @@ class ListImagesCommand( RoleCommand ):
 class CreationCommand( RoleCommand ):
     def __init__( self, application ):
         super( CreationCommand, self ).__init__( application )
-        default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '__me__ *' ).split( )
+        default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '__me__' ).split( )
         self.option( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
                      dest='ec2_keypair_names', nargs='+',
                      default=default_ec2_keypairs,
-                     help='The names of EC2 key pairs whose public key is to be to injected into '
-                          'the box to facilitate SSH logins. For the first listed argument, '
-                          'the so called primary key pair, a matching private key needs to be '
-                          'present locally. All other arguments may use shell-style globs in '
-                          'which case every key pair whose name matches one of the globs will be '
-                          'deployed to the box. The cgcloud.py agent that will typically be '
-                          'installed on a box, will keep the deployed list of authorized keys up '
-                          'to date in case matching keys are added or removed from EC2. The value '
-                          'of the environment variable CGCLOUD_KEYPAIRS, if that variable is '
-                          'present, overrides the default. The string __me__ anywhere in a key '
-                          'pair name will be substituted with the name of the IAM user whose '
-                          'credentials are used to issue requests to AWS. If the name of that IAM '
-                          'user contains the @ character, anything after the first occurrance of '
-                          'that character will be discarded before the substitution is done.' )
+                     help="The names of EC2 key pairs whose public key is to be to injected into "
+                          "the box to facilitate SSH logins. For the first listed argument, "
+                          "the so called primary key pair, a matching private key needs to be "
+                          "present locally. All other arguments may use shell-style globs in "
+                          "which case every key pair whose name matches one of the globs will be "
+                          "deployed to the box. The cgcloudagent program that will typically be "
+                          "installed on a box, keeps the deployed list of authorized keys up to "
+                          "date in case matching keys are added or removed from EC2. The value of "
+                          "the environment variable CGCLOUD_KEYPAIRS, if that variable is "
+                          "present, overrides the default for this option. The string __me__ "
+                          "anywhere in an argument will be substituted with the name of the IAM "
+                          "user whose credentials are used to issue requests to AWS. An argument "
+                          "beginning with a single @ will be looked up as the name of an IAM "
+                          "user. If that user exists, the name will be used as the name of a key "
+                          "pair. Otherwise an exception is raised. An argument beginning with @@ "
+                          "will be looked up as an IAM group and the name of each user in that "
+                          "group will be used as the name of a keypair. Note that the @ and @@ "
+                          "substitutions depend on the convention that the user and the "
+                          "corresponding key pair have the same name. They only require the "
+                          "respective user or group to exist, while the key pair may be missing. "
+                          "If such a missing key pair is later added, cgcloudagent will "
+                          "automatically add that key pair's public to the list of SSH keys "
+                          "authorized to login to the box. Shell-style globs can not be combined "
+                          "with @ or @@ substitutions within one argument." )
 
         self.option( '--instance-type', '-t', metavar='TYPE',
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
@@ -406,13 +416,11 @@ class RegisterKeyCommand( ContextCommand ):
                      help='Overwrite potentially existing EC2 key pair' )
         self.option( '--keypair', '-k', metavar='NAME',
                      dest='ec2_keypair_name', default='__me__',
-                     help='The desired name of the EC2 key pair. The name should associate '
-                          'the key with you in a way that it is obvious to other users in '
-                          'your organization.  The string __me__ anywhere in the key pair name '
-                          'will be replaced with the name of the IAM user whose credentials are '
-                          'used to issue requests to AWS. If the name of that IAM user contains '
-                          'the @ character, anything after the first occurrance of that character '
-                          'will be discarded before the substitution is done.' )
+                     help='The desired name of the EC2 key pair. The name should associate the '
+                          'key with you in a way that it is obvious to other users in your '
+                          'organization.  The string __me__ anywhere in the key pair name will be '
+                          'replaced with the name of the IAM user whose credentials are used to '
+                          'issue requests to AWS.' )
 
     def run_in_ctx( self, options, ctx ):
         with open( options.ssh_public_key ) as f:
