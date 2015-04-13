@@ -1,6 +1,7 @@
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
 from contextlib import closing
+from copy import copy
 from functools import partial, wraps
 from operator import attrgetter
 import socket
@@ -128,27 +129,51 @@ class Box( object ):
 
     def __init__( self, ctx ):
         """
-        Initialize an instance of this class. Before invoking any methods on this object,
-        you must ensure that a corresponding EC2 instance exists by calling either create() or
-        adopt().
+        Before invoking any methods on this object,
+        you must ensure that a corresponding EC2 instance exists by calling either
+
+         * prepare() and create()
+         * adopt()
 
         :type ctx: Context
         """
+        #
+        # State set by constructor
+        #
         self.ctx = ctx
+        'The context to be used by the instance'
+        #
+        # State set by adopt() and create()
+        #
         self.instance_id = None
+        'The ID of the instance represented by this box'
         self.generation = None
-        self.ec2_keypairs = None
-        self.ec2_keypair_globs = None
-
         """
         The number of previous generations of this box. When an instances is booted from a
         stock AMI, generations is zero. After that instance is set up and imaged and another
         instance is booted from the resulting AMI, generations will be one.
         """
         self.ip_address = None
+        'The public IP of the instance '
         self.host_name = None
+        'The hostname mapping to the public IP'
+        self.private_ip_address = None
+        'The private IP address of this instance'
+        self.image_id = None
+        'The ID of the AMI the instance was booted from'
+        #
+        # State set by prepare() only
+        #
+        self.instance_creation_args = None
+        'Keyword arguments to be passed to RunInstances'
+        self.ec2_keypairs = None
+        'SSH key pairs to be injected into the instance'
+        self.ec2_keypair_globs = None
+        'Globs from which to derive the SSH key pairs to be inhected into the instance'
 
     possible_root_devices = ( '/dev/sda1', '/dev/sda', '/dev/xvda' )
+
+    # FIXME: this can probably be rolled into prepare()
 
     def _populate_instance_creation_args( self, image, kwargs ):
         """
@@ -188,7 +213,7 @@ class Box( object ):
 
     default_security_groups = [ 'default' ]
 
-    def create( self, ec2_keypair_globs, instance_type=None, image_ref=None, security_groups=None,
+    def prepare( self, ec2_keypair_globs, instance_type=None, image_ref=None, security_groups=None,
                 virtualization_type=None, **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
@@ -246,6 +271,7 @@ class Box( object ):
         for k, v in options.iteritems( ):
             str_options[ k ] = str( v )
         self._set_instance_options( str_options )
+        self.image_id = image.id
 
         ec2_keypair_globs = self._populate_ec2_keypair_globs( ec2_keypair_globs )
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
@@ -253,19 +279,55 @@ class Box( object ):
             raise UserError( 'No matching key pairs found' )
         if ec2_keypairs[ 0 ].name != ec2_keypair_globs[ 0 ]:
             raise UserError( "The first key pair name can't be a glob." )
+        self.ec2_keypairs = ec2_keypairs
+        self.ec2_keypair_globs = ec2_keypair_globs
 
-        log.info( 'Creating %s instance ... ', instance_type )
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypairs[ 0 ].name,
                        placement=self.ctx.availability_zone,
                        security_groups=security_groups,
                        instance_profile_arn=self._get_instance_profile_arn( ) )
         self._populate_instance_creation_args( image, kwargs )
+        self.instance_creation_args = kwargs
 
+    def create( self, wait_ready=True ):
+        """
+        Create the EC2 instance represented by this box, and optionally waits for the instance to
+        be ready. If the box was prepared to launch multiple instances, and multiple instances
+        were indeed launched by EC2, clones of this box will be create, one clone for each
+        additional instances. This box will represent the first instance while the clones will
+        represent the subsequent instances. Note that if multiple instances are created,
+        each instance will be waited on in sequence.
+
+        :return: the list of clones of this box, if any
+        """
+        # FIXME: we should be waiting for all instances in parallel, via threads
+        reservation = self._create( )
+        instances = iter( reservation.instances )
+        self.link( next( instances ), wait_ready )
+        result = [ ]
+        try:
+            while True:
+                box = copy( self )
+                box.link( next( instances ), wait_ready )
+                result.append( box )
+        except StopIteration:
+            pass
+        return result
+
+    def _create( self ):
+        """
+        Requests the RunInstances EC2 API call but accounts for the race between recently created
+        instance profiles, IAM roles and an instance creation that refers to them.
+
+        :rtype: boto.ec2.instance.Reservation
+        """
+        instance_type = self.instance_creation_args[ 'instance_type' ]
+        log.info( 'Creating %s instance(s) ... ', instance_type )
         while True:
             try:
-                reservation = self.ctx.ec2.run_instances( image.id, **kwargs )
-                break
+                return self.ctx.ec2.run_instances( self.image_id,
+                                                   **self.instance_creation_args )
             except EC2ResponseError as e:
                 message = e.error_message.lower( )
                 if 'invalid iam instance profile' in message or 'no associated iam roles' in message:
@@ -273,12 +335,11 @@ class Box( object ):
                 else:
                     raise
 
-        instance = unpack_singleton( reservation.instances )
-        log.info( '... created %s.', instance.id )
+    def link( self, instance, wait_ready=True ):
         self.instance_id = instance.id
-        self.ec2_keypairs = ec2_keypairs
-        self.ec2_keypair_globs = ec2_keypair_globs
+        log.info( '... created %s.', instance.id )
         self._on_instance_created( instance )
+        if wait_ready:
         self.__wait_ready( instance, { 'pending' }, first_boot=True )
 
     def _set_instance_options( self, options ):

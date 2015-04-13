@@ -366,18 +366,19 @@ class CreationCommand( RoleCommand ):
     @abstractmethod
     def instance_options( self, options ):
         """
-        Return instance options to be passed box.create()
+        Return dict with instance options to be passed box.create()
         """
         raise NotImplementedError( )
 
     def run_on_box( self, options, box ):
         try:
             resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
-            box.create( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
+            box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
                         security_groups=options.security_groups,
                         instance_type=options.instance_type,
                         virtualization_type=options.virtualization_type,
                         **self.instance_options( options ) )
+            box.create( wait_ready=True )
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
