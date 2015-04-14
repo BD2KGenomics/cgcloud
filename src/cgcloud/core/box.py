@@ -201,9 +201,7 @@ class Box( object ):
                 root_bdt.delete_on_termination = True
                 bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
                 bdm[ '/dev/sda1' ] = root_bdt
-                instance_type_ = kwargs[ 'instance_type' ]
-                num_ephemeral_drives = ec2_instance_types[ instance_type_ ].num_ephemeral_drives
-                for i in range( num_ephemeral_drives ):
+                for i in range( ec2_instance_types[ kwargs[ 'instance_type' ] ].disks ):
                     device = '/dev/sd' + chr( ord( 'b' ) + i )
                     bdm[ device ] = BlockDeviceType( ephemeral_name='ephemeral%i' % i )
                 return
