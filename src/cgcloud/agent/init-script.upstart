@@ -1,6 +1,6 @@
 description "%(exec_name)s"
 author "Hannes Schmidt <hannes@ucsc.edu>"
-console log
+console %(console)s
 start on runlevel [2345]
 stop on runlevel [016]
 respawn

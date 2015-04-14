@@ -1,4 +1,5 @@
 import os
+from subprocess import check_output
 import sys
 import argparse
 import platform
@@ -170,13 +171,18 @@ def generate_init_script( options ):
     import cgcloud.agent
     import platform
 
-    distro = platform.dist( )[ 0 ].lower( )
+    distro, version, codename = map( str.lower, platform.linux_distribution() )
+
     if distro == 'ubuntu':
         script = 'init-script.upstart'
         quote_level = 1
+        # Lucid's version of upstart doesn't support "console log", Precise's does, don't know
+        # about the versions in between
+        console = 'output' if codename < 'precise' else 'log'
     else:
         script = 'init-script.lsb'
         quote_level = 2
+        console = None
 
     init_script = resource_string( cgcloud.agent.__name__, script )
 
@@ -194,5 +200,6 @@ def generate_init_script( options ):
     variables.update( dict( args=' '.join( shell.quote( arg, level=quote_level ) for arg in args ),
                             exec_path=exec_path,
                             exec_name=exec_name,
+                            console=console,
                             description=description ) )
     print init_script % variables
