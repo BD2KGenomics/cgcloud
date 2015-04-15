@@ -1,27 +1,18 @@
 The CGCloud project is aimed at automating the creation and management of
 virtual machines (*instances*) and virtual machine images (*AMIs*) in Amazon
-EC2. It belongs in the same family of tools as Puppet, Chef and Vagrant but its
-closest of kin is probably Ansible because the VM setup is done via SSH,
-keeping the VM on a short leash until it is fully set up. It shines when it
-comes to managing a wide variety of guest Linux distributions. To customize an
-AMI managed by CGCloud you write object-oriented Python code that utilizes
-inheritance to organize VM definitions, also known as ``roles``.
+EC2. Additionally, CGCloud maintains SSH keys on running instances—not just
+the one-time injection of a single key at launch time, but the continuous, near
+real-time management of a configurable set of keys for a fleet of instances.
 
-Additionally, CGCloud maintains SSH keys on running instances. While EC2 only
-supports specifying a single key when an instance is launched, CGCloud Core
-allows you to manage multiple keys over the entire lifecycle of the VM. This
-makes it easy to collaborate on EC2 instances within a team.
+CGCloud can group instances, AMIs and other related cloud resources such as EBS
+volumes in isolated namespaces. Each user can have their own namespace or all
+users can share a root namespace. The production, test and staging environments
+can coexist in separate namespaces, all within one EC2 region.
 
-With CGCloud, virtual machine and other associated cloud resources such as EBS
-volumes exist inside a *namespace* that. Cloud resources belonging to different
-namespaces are logically separated from each other. Namespaces are typically
-used to demarcate deployment environments (e.g. development, test, staging,
-production) or to isolate experiments performed by different users.
-
-CGCloud installs an agent in each VM. The agent is a daemon that performs
-maintenance tasks such as keeping the list of authorized SSH keys up-to-date.
-All agents listen on an SNS/SQS queue for management commands and execute them
-close to real-time.
+CGCloud can be extended with plugins. There is a plugin for setting up a
+continuous integration environment consisting of a continually running Jenkins
+master and several Jenkins slaves that are launched on demand. There also is a
+plugin for quickly creating large Apache Spark clusters.
 
 Prerequisites
 =============
@@ -48,15 +39,16 @@ Quick Start
 Installation
 ------------
 
-Once the prerequisites are installed, use ``pip`` to install cgcloud-core::
+Read the entire section before pasting any commands! Once the prerequisites are
+installed, use ``pip`` to install cgcloud-core::
 
    sudo pip install git+https://github.com/BD2KGenomics/cgcloud-core.git
 
-On OS X systems with a HomeBrewed Python, you should omit the sudo. You can
-find out if that applies to your system by running ``which python``. If it
-prints ``/usr/local/bin/python`` you are most likely using a HomeBrewed Python
-and you should omit ``sudo``. If it prints ``/usr/bin/python`` you need to run
-``pip`` with ``sudo``.
+On OS X systems with a Python that was installed via HomeBrew, you should omit
+`sudo`. You can find out if that applies to your system by running ``which
+python``. If it prints ``/usr/local/bin/python`` you are most likely using a
+HomeBrewed Python and should therefore omit ``sudo``. If it prints
+``/usr/bin/python`` you need to run ``pip`` with ``sudo``.
 
 If you get
 
@@ -76,57 +68,68 @@ for example, run::
    apt-get install libxml2-dev libxslt-dev
    
 If you get an error about ``yaml.h`` being missing you may need to install
-libyaml (OS X via HomeBrew) or libyaml-dev (Linux).
+libyaml (via HomeBrew on OS X) or libyaml-dev (via apt-get or yum on Linux).
 
 The installer places the ``cgcloud`` executable on your ``PATH``. You should be
 able to invoke it now::
 
    cgcloud --help
-   
+
 Configure Boto
 --------------
 
 Boto is the AWS client library for Python that CGCloud uses. If you've already
-installed, correctly configured and successfully used Boto, you can probably
-skip this step.
+installed, correctly configured and successfully used Boto, you can skip this
+step.
 
-Ask your AWS admin to setup an IAM account in AWS for you and log into
-`Amazon's EC2 console <https://console.aws.amazon.com/ec2/>`_.
+Ask your AWS admin to setup an IAM account in AWS for you. Log into Amazon's
+IAM console and generate an `access key`_ for yourself. While your IAM username
+and password are used to authenticate yourself for interactive use via the AWS
+console, the access key is used for programmatic access via ``cgcloud``.
 
-Go to the IAM console (see main menu, under Services) and create an
-access key:
+Once you have an access key, create ``~/.boto`` on you local computer with the
+following contents::
 
-1. Select the row representing your IAM account
-2. Click the *Security Credentials* tab
-3. Click *Manage Access Keys*
-4. Click *Create Access Key*
-5. Click *Show User Security Credentials*, leave the page open
-6. Create ``~/.boto`` with the following contents::
+   [Credentials]
+   aws_access_key_id = PASTE_YOUR_ACCESS_KEY_ID_HERE
+   aws_secret_access_key = PASTE_YOUR_SECRET_ACCESS_KEY_HERE
+   
+.. _access key: http://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSGettingStartedGuide/AWSCredentials.html
 
-      [Credentials]
-      aws_access_key_id = PASTE YOUR ACCESS KEY ID HERE
-      aws_secret_access_key = PASTE YOUR SECRET ACCESS KEY HERE
+Configure the EC2 a region and availability zone
+------------------------------------------------
 
-7. Click *Close Window*
+Edit your ``~/.profile`` or ``~/.bash_profile`` and add the following line::
+
+   export CGCLOUD_ZONE=us-west-2a
+   
+This configures both the region ``us-west-2`` and the availability zone within
+that region: ``a``. Instead of ``us-west-2a`` you could use ``us-east-1a`` or
+any other zone in any other EC2 region.
 
 Register your public SSH key
 ----------------------------
 
-Note: This step is not the same as registering your key pair with EC2. In order
-to be able to manage the team members' public SSH keys, CGCloud needs to know
-the contents of the public key pair. EC2 only exposes the fingerprint via its
-REST API, not the actual key. For this purpose, CGCloud maintains public keys
-in a special S3 bucket. The following procedure registers your public key with
-S3 *and* uploads it to that S3 bucket.
-
 Register your SSH key in EC2 and S3 by running::
 
-    cgcloud register-key ~/.ssh/id_rsa.pub
+   cgcloud register-key ~/.ssh/id_rsa.pub
 
 The above command uploads the given public key to EC2 and S3 and sets the name
 of the key pair in EC2 to your IAM user account name. In S3 your public key
 will be stored under its fingerprint. If you don't have an SSH key, you can
 create one using the ``ssh-keygen`` command.
+
+Note: Importing your key pair using the EC2 console is not equivalent to
+``cgcloud register-key`` . In order to be able to manage key pairs within a
+team, CGCloud needs to know the contents of the public key for every team
+member's key pair. But EC2 only exposes a fingerprint via its REST API, not the
+actual public key. For this purpose, CGCloud maintains public keys in a special
+S3 bucket. Using ``cgcloud register-key`` makes sure that the public key is
+imported to EC2 *and* uploaded to that special S3 bucket. Also note that while
+that S3 bucket is globally visible and the public keys stored therein apply
+across regions, the corresponding key pair in EC2 is only visible within a
+zone. When you switch to a different region, you will have to use ``cgcloud
+register-key`` again to import the key pair into that EC2 region.
 
 Start your first box
 --------------------
@@ -147,8 +150,8 @@ Now login to the newly created box::
 The astute reader will notice that it is not necessary to remember the public
 hostname assigned to the box. As long as there is only one box per role, you
 can refer to the box by using the role's name. Otherwise you will need to
-disambiguate by specifying an ordinal. Use ``cgcloud list`` to view all running
-instances and their ordinals.
+disambiguate by specifying an ordinal using the ``-o`` option. Use ``cgcloud
+list`` to view all running instances and their ordinals.
 
 Also note that it isn't necessary to specify the account name of the
 administrative user to log in as, e.g. ``ec2-user``, ``root`` or ``ubuntu`` .
@@ -216,7 +219,7 @@ First, clone this repository and ``cd`` into it. To run the tests use
 
 We prefer the way listed first as it installs all requirements **and** runs the
 tests under Nose, a test runner superior to ``unittest`` that can run tests in
-parallel and produce Xunit-like test reports. For example, on continuous
+parallel and produces Xunit-like test reports. For example, on continuous
 integration we use
 
 ::
