@@ -47,25 +47,25 @@ in EC2. CGCloud Spark differs from spark-ec2 in the following ways:
 Prerequisites
 =============
 
-The ``cgcloud-spark`` has the same prerequisites as the ``cgcloud-core``_
+The ``cgcloud-spark`` has the same prerequisites_ as the ``cgcloud-core``
 package. Installing ``cgcloud-spark`` will automatically install
 ``cgcloud-core`` and its dependencies.
 
-.. cgcloud-core: https://github.com/BD2KGenomics/cgcloud-core#prerequisites
+.. _prerequisites: https://github.com/BD2KGenomics/cgcloud-core#prerequisites
 
 
 Installation
 ============
 
 Read the entire section before pasting any commands! Once the prerequisites are
-installed, use ``pip`` to install cgcloud-spark::
+installed, use ``pip`` to install ``cgcloud-spark``::
 
    sudo pip install git+https://github.com/BD2KGenomics/cgcloud-spark.git
 
 On OS X systems with a Python that was installed via HomeBrew, you should omit
 `sudo`. You can find out if that applies to your system by running ``which
 python``. If it prints ``/usr/local/bin/python`` you are most likely using a
-HomeBrewed Python and should therefore omit ``sudo``. If it prints
+HomeBrew Python and should therefore omit ``sudo``. If it prints
 ``/usr/bin/python`` you need to run ``pip`` with ``sudo``.
 
 If you get
@@ -79,15 +79,17 @@ try adding ``--process-dependency-links`` after ``install``. This is a known
 
 .. _issue: https://mail.python.org/pipermail/distutils-sig/2014-January/023453.html
 
-Modify your ``.profile`` or ``.bash_profile`` and add the following line::
+Modify your ``.profile`` or ``.bash_profile`` by adding the following line::
 
    export CGCLOUD_PLUGINS=cgcloud.spark
+
+Login and out (or, on OX X, start a new Terminal tab/window).
 
 Verify the installation by running::
 
    cgcloud list-roles
 
-Th returned list should include the ``spark-box`` role.
+The output should include the ``spark-box`` role.
 
 Usage
 =====
@@ -97,10 +99,10 @@ nodes::
 
    cgcloud create spark-box -I -T
 
-The ``-I`` switch stops the box once it is fully setup, takes an AMI of it. The
-``-T`` switch terminates it.
+The ``-I`` switch stops the box once it is fully set up and takes an AMI of it.
+The ``-T`` switch terminates it.
 
-Create a cluster by booting a master and slaves from the AMI::
+Create a cluster by booting a master and the slaves from that AMI::
 
    cgcloud start-spark-cluster -s 2 -t m3.large
    
