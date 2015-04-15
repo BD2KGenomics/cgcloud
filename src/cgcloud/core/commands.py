@@ -37,13 +37,13 @@ class ContextCommand( Command ):
 
     def __init__( self, application, **kwargs ):
         super( ContextCommand, self ).__init__( application, **kwargs )
+        zone = os.environ.get( 'CGCLOUD_ZONE', None )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
-                     default=os.environ.get( 'CGCLOUD_ZONE', 'us-west-1b' ),
-                     dest='availability_zone',
+                     default=zone, dest='availability_zone', required=not bool(zone),
                      help='The name of the EC2 availability zone to operate in, e.g. us-east-1b, '
                           'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
                           'run in. The value of the environment variable CGCLOUD_ZONE, '
-                          'if that variable is present, overrides the default.' )
+                          'if that variable is present, determines the default.' )
         self.option( '--namespace', '-n', metavar='PREFIX',
                      default=os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' ),
                      help='Optional prefix for naming EC2 resource like instances, images, '
