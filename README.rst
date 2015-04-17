@@ -47,9 +47,8 @@ in EC2. CGCloud Spark differs from spark-ec2 in the following ways:
 Prerequisites
 =============
 
-The ``cgcloud-spark`` has the same prerequisites_ as the ``cgcloud-core``
-package. Installing ``cgcloud-spark`` will automatically install
-``cgcloud-core`` and its dependencies.
+The ``cgcloud-spark`` package requires that the ``cgcloud-core`` package and
+its prerequisites_ are present.
 
 .. _prerequisites: https://github.com/BD2KGenomics/cgcloud-core#prerequisites
 
@@ -79,6 +78,11 @@ try adding ``--process-dependency-links`` after ``install``. This is a known
 
 .. _issue: https://mail.python.org/pipermail/distutils-sig/2014-January/023453.html
 
+Configuration
+=============
+
+Be sure to configure_ ``cgcloud-spark`` before proceeding.
+
 Modify your ``.profile`` or ``.bash_profile`` by adding the following line::
 
    export CGCLOUD_PLUGINS=cgcloud.spark
@@ -90,6 +94,8 @@ Verify the installation by running::
    cgcloud list-roles
 
 The output should include the ``spark-box`` role.
+
+.. _configure: https://github.com/BD2KGenomics/cgcloud-core#configuration
 
 Usage
 =====
