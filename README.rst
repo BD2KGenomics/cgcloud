@@ -33,11 +33,8 @@ To install and use CGCloud, you need
 .. _Xcode: https://itunes.apple.com/us/app/xcode/id497799835?mt=12
 .. _Xcode Command Line Tools: http://stackoverflow.com/questions/9329243/xcode-4-4-command-line-tools
 
-Quick Start
-===========
-
 Installation
-------------
+============
 
 Read the entire section before pasting any commands! Once the prerequisites are
 installed, use ``pip`` to install cgcloud-core::
@@ -75,12 +72,11 @@ able to invoke it now::
 
    cgcloud --help
 
-Configure Boto
---------------
+Configuration
+=============
 
-Boto is the AWS client library for Python that CGCloud uses. If you've already
-installed, correctly configured and successfully used Boto, you can skip this
-step.
+Access keys
+-----------
 
 Ask your AWS admin to setup an IAM account in AWS for you. Log into Amazon's
 IAM console and generate an `access key`_ for yourself. While your IAM username
@@ -96,8 +92,8 @@ following contents::
    
 .. _access key: http://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSGettingStartedGuide/AWSCredentials.html
 
-Configure the EC2 a region and availability zone
-------------------------------------------------
+EC2 region and availability zone
+--------------------------------
 
 Edit your ``~/.profile`` or ``~/.bash_profile`` and add the following line::
 
@@ -107,8 +103,8 @@ This configures both the region ``us-west-2`` and the availability zone within
 that region: ``a``. Instead of ``us-west-2a`` you could use ``us-east-1a`` or
 any other zone in any other EC2 region.
 
-Register your public SSH key
-----------------------------
+Public SSH key
+--------------
 
 Register your SSH key in EC2 and S3 by running::
 
@@ -131,8 +127,8 @@ across regions, the corresponding key pair in EC2 is only visible within a
 zone. When you switch to a different region, you will have to use ``cgcloud
 register-key`` again to import the key pair into that EC2 region.
 
-Start your first box
---------------------
+First steps
+===========
 
 That's it, you're ready to create your first *box*, i.e. EC2 instance or VM::
 
@@ -180,7 +176,7 @@ image of it using the ``cgcloud image`` command. You may then use the ``cgcloud
 recreate`` command to bring up a box.
 
 Philosophical remarks
----------------------
+=====================
 
 While creating an image is a viable mechanism to preserve manual modifications
 to a box, it is not the best possible way. The problem with it is that you will
