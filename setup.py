@@ -33,7 +33,7 @@ setup(
     install_requires=[
         add_private_dependency( 'bd2k-python-lib', '1.5' ),
         add_private_dependency( 'cgcloud-lib' ),
-        'pkginfo>=1.1'
+        'pkginfo>=1.1',
         'boto>=2.36.0',
         'Fabric>=1.7.0',
         'PyYAML>=3.10' ],
