@@ -105,32 +105,52 @@ any other zone in any other EC2 region.
 
 Public SSH key
 --------------
+If you don't have an
+SSH key, you can create one using the ``ssh-keygen`` command.
 
-Register your SSH key in EC2 and S3 by running::
+Register your SSH key in EC2 by running::
 
    cgcloud register-key ~/.ssh/id_rsa.pub
 
-The above command uploads the given public key to EC2 and S3 and sets the name
-of the key pair in EC2 to your IAM user account name. In S3 your public key
-will be stored under its fingerprint. If you don't have an SSH key, you can
-create one using the ``ssh-keygen`` command.
+The above command imports the given public key to EC2 as a key pair (I know,
+the terminology is confusing) but also uploads it to S3, see next paragraph for
+an explanation. The name of the key pair in EC2 will be set to your IAM user
+account name. In S3 the public key will be stored under its fingerprint.
 
 Note: Importing your key pair using the EC2 console is not equivalent to
 ``cgcloud register-key`` . In order to be able to manage key pairs within a
 team, CGCloud needs to know the contents of the public key for every team
 member's key pair. But EC2 only exposes a fingerprint via its REST API, not the
-actual public key. For this purpose, CGCloud maintains public keys in a special
-S3 bucket. Using ``cgcloud register-key`` makes sure that the public key is
-imported to EC2 *and* uploaded to that special S3 bucket. Also note that while
-that S3 bucket is globally visible and the public keys stored therein apply
-across regions, the corresponding key pair in EC2 is only visible within a
-zone. When you switch to a different region, you will have to use ``cgcloud
-register-key`` again to import the key pair into that EC2 region.
+actual public key. For this purpose, CGCloud maintains those public keys in a
+special S3 bucket. Using ``cgcloud register-key`` makes sure that the public
+key is imported to EC2 *and* uploaded to that special S3 bucket. Also note that
+while that S3 bucket is globally visible and the public keys stored therein
+apply across regions, the corresponding key pair in EC2 is only visible within
+a zone. So when you switch to a different region, you will have to use
+``cgcloud register-key`` again to import the key pair into that EC2 region.
+
+Multi-user SSH logins
+---------------------
+
+By default, cgcloud only injects your public key into the boxes that it
+creates. This means that only you can SSH into those boxes. If you want other
+team members to be able to SSH into your boxes you can specify a list of key
+pairs to be injected into boxes. You can do so as using a command line option
+to ``cgcloud create`` or by setting an environment variable such that every box
+you create will get those key pairs by default. Add the following line to your
+``.profile`` or ``.bash_profile``::
+
+   export CGCLOUD_KEYPAIRS="__me__ @@developers"
+
+This injects your own key pair (the string ``__me__`` will be substituted with
+your IAM account name which, by convention, is also the name of your key pair)
+and the key pair of every user in the ``developers`` IAM group into every box
+that you create.
 
 First steps
 ===========
 
-That's it, you're ready to create your first *box*, i.e. EC2 instance or VM::
+You're now ready to create your first *box* aka EC2 instance or VM::
 
    cgcloud create generic-ubuntu-trusty-box
 
