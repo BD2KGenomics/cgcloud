@@ -4,13 +4,16 @@ import zlib
 from fabric.context_managers import settings
 from fabric.operations import sudo, run
 from bd2k.util import shell, strict_bool
+from pkg_resources import parse_version
+from pkginfo import Develop, Installed
 
 from cgcloud.core.common_iam_policies import ec2_read_only_policy, s3_read_only_policy, \
     iam_read_only_policy
-
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
 from cgcloud.core.source_control_client import SourceControlClient
+
+version = Develop( '.' ).version or Installed( __name__ ).version
 
 
 class AgentBox( SourceControlClient ):
@@ -84,7 +87,9 @@ class AgentBox( SourceControlClient ):
             admin_account=self.admin_account( ),
             run_dir='/var/run/cgcloudagent',
             log_dir='/var/log',
-            install_dir='/opt/cgcloudagent' )
+            install_dir='/opt/cgcloudagent',
+            # FIXME: We could have a development version on any branch, not just master
+            git_ref='master' if parse_version( version ).is_prerelease else version )
 
         def fmt( s ):
             return s.format( **kwargs )
@@ -103,7 +108,7 @@ class AgentBox( SourceControlClient ):
             run( fmt( '{install_dir}/bin/pip install '
                       '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
                       '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
-                      'git+https://github.com/BD2KGenomics/cgcloud-agent.git@master' ) )
+                      'git+https://github.com/BD2KGenomics/cgcloud-agent.git@{git_ref}' ) )
         sudo( fmt( 'mkdir {run_dir}' ) )
         script = self.__gunzip_base64_decode( run( fmt(
             '{install_dir}/bin/cgcloudagent'
