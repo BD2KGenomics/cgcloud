@@ -16,7 +16,7 @@ def add_private_dependency( name, version=cgcloud_version, git_ref=None ):
 
 
 setup(
-    name="cgcloud-spark-tools",
+    name="cgcloud-sparkbox-tools",
     version=cgcloud_version,
 
     author='Hannes Schmidt',

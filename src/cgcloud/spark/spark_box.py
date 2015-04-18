@@ -65,10 +65,10 @@ hadoop_services = {
 
 spark_services = {
     'master': [ spark_service( 'master' ) ],
-    # FIXME: The start-slaves.sh script actually does ssh localhost on each slave so I am not
-    # sure this is the right thing to do. OTOH, it is the only script starts Tachyon and sets up
-    # the spark:// URL pointing at the master. We would need to duplicate some of its
-    # functionality if we wanted to eliminate the ssh call.
+    # FIXME: The start-slaves.sh script actually does ssh localhost on a slave so I am not sure
+    # this is the right thing to do. OTOH, it is the only script starts Tachyon and sets up the
+    # spark:// URL pointing at the master. We would need to duplicate some of its functionality
+    # if we wanted to eliminate the ssh call.
     'slave': [ spark_service( 'slave', 'slaves' ) ] }
 
 
@@ -114,7 +114,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
         self.lazy_dirs = set( )
         self.__install_hadoop( )
         self.__install_spark( )
-        self.__install_spark_tools( )
+        self.__install_sparkbox_tools( )
         self.__setup_path( )
 
     @fabric_task
@@ -148,17 +148,17 @@ class SparkBox( GenericUbuntuTrustyBox ):
         run( "cd .ssh && cat id_rsa.pub >> authorized_keys2" )
 
     @fabric_task
-    def __install_spark_tools( self ):
+    def __install_sparkbox_tools( self ):
         """
         Installs the spark-master-discovery init script and its companion spark-tools. The latter
         is a Python package distribution that's included in cgcloud-spark as a resource. This is
         in contrast to the cgcloud agent, which is a standalone distribution.
         """
-        package_name = 'cgcloud-spark-tools'
+        package_name = 'cgcloud-sparkbox-tools'
         tools_src_dir = resource_filename( __name__, package_name )
-        tools_install_dir = install_dir + '/spark-tools'
+        tools_install_dir = install_dir + '/tools'
         put( local_path=tools_src_dir, remote_path='/tmp' )
-        admin = self.admin_account()
+        admin = self.admin_account( )
         sudo( fmt( 'mkdir -p {tools_install_dir}' ) )
         sudo( fmt( 'chown {admin}:{admin} {tools_install_dir}' ) )
         run( fmt( 'virtualenv --no-pip {tools_install_dir}' ) )
@@ -283,7 +283,6 @@ class SparkBox( GenericUbuntuTrustyBox ):
             SPARK_WORKER_DIR=self.__lazy_mkdir( spark_var_dir + "/work" ),
             SPARK_LOCAL_DIRS=self.__lazy_mkdir( spark_var_dir + "/local" ),
             JAVA_HOME='/usr/lib/jvm/java-7-oracle',
-            SPARK_LOCAL_IP='spark-node',
             SPARK_MASTER_IP='spark-master' )
         with remote_open( spark_env_sh_path, use_sudo=True ) as spark_env_sh:
             spark_env_sh.write( '\n' )

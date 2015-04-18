@@ -27,10 +27,9 @@ class SparkTools( object ):
 
     Master discovery works as follows: All instances in a Spark cluster are tagged with the
     instance ID of the master. Each instance will look up the private IP of 1) the master
-    instance using the EC2 API (via boto) and 2) itself using the instance metadata endpoint.
-    Generic names will be added for both IPs to /etc/hosts, namely spark-master and spark-node.
-    All configuration files use these names instead of hard-coding the IPs. This is all that's
-    needed to boot a working cluster.
+    instance using the EC2 API (via boto) and 2) itself using the instance metadata endpoint. An
+    entry for spark-master will be added to /etc/hosts. All configuration files use these names
+    instead of hard-coding the IPs. This is all that's needed to boot a working cluster.
 
     In order to facilitate the start-all.sh and stop-all.sh scripts in Hadoop and Spark,
     the slaves file needs to be populated as well. The master seeds the slaves file by listing
@@ -64,7 +63,7 @@ class SparkTools( object ):
             log.info( "Waiting for cloud-init to finish ..." )
             time.sleep( 1 )
         log.info( "Starting sparkbox" )
-        self.__patch_etc_hosts( { 'spark-master': self.master_ip, 'spark-node': self.node_ip } )
+        self.__patch_etc_hosts( { 'spark-master': self.master_ip } )
         self.__create_var_dirs( lazy_dirs )
         if self.master_ip == self.node_ip:
             node_type = 'master'
@@ -81,7 +80,7 @@ class SparkTools( object ):
 
     def stop( self ):
         log.info( "Stopping sparkbox" )
-        self.__patch_etc_hosts( { 'spark-master': None, 'spark-node': None } )
+        self.__patch_etc_hosts( { 'spark-master': None } )
 
     def manage_slaves( self, slaves_to_add=None ):
         log.info( "Managing slaves file" )
