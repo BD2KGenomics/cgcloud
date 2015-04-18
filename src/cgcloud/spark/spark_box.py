@@ -114,7 +114,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
         self.lazy_dirs = set( )
         self.__install_hadoop( )
         self.__install_spark( )
-        self.__install_master_discovery( )
+        self.__install_spark_tools( )
         self.__setup_path( )
 
     @fabric_task
@@ -148,15 +148,23 @@ class SparkBox( GenericUbuntuTrustyBox ):
         run( "cd .ssh && cat id_rsa.pub >> authorized_keys2" )
 
     @fabric_task
-    def __install_master_discovery( self ):
+    def __install_spark_tools( self ):
         """
         Installs the spark-master-discovery init script and its companion spark-tools. The latter
         is a Python package distribution that's included in cgcloud-spark as a resource. This is
         in contrast to the cgcloud agent, which is a standalone distribution.
         """
-        tools_dir = resource_filename( __name__, 'cgcloud-spark-tools' )
-        put( local_path=tools_dir, remote_path='/tmp' )
-        sudo( "cd /tmp/cgcloud-spark-tools && python2.7 setup.py install" )
+        package_name = 'cgcloud-spark-tools'
+        tools_src_dir = resource_filename( __name__, package_name )
+        tools_install_dir = install_dir + '/spark-tools'
+        put( local_path=tools_src_dir, remote_path='/tmp' )
+        admin = self.admin_account()
+        sudo( fmt( 'mkdir -p {tools_install_dir}' ) )
+        sudo( fmt( 'chown {admin}:{admin} {tools_install_dir}' ) )
+        run( fmt( 'virtualenv --no-pip {tools_install_dir}' ) )
+        run( fmt( '{tools_install_dir}/bin/easy_install pip==1.5.2' ) )
+        run( fmt( 'cd /tmp/{package_name} && {tools_install_dir}/bin/python2.7 setup.py install' ) )
+        sudo( fmt( 'chown -R root:root {tools_install_dir}' ) )
 
         lazy_dirs = repr( self.lazy_dirs )
         self._register_init_script(
@@ -167,7 +175,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
                 start on runlevel [2345]
                 stop on runlevel [016]
                 pre-start script
-                python2.7 - <<END
+                {tools_install_dir}/bin/python2.7 - <<END
                 import logging
                 logging.basicConfig( level=logging.INFO )
                 from cgcloud.spark_tools import SparkTools
@@ -175,7 +183,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
                 spark_tools.start( lazy_dirs={lazy_dirs} )
                 end script
                 post-stop script
-                python2.7 - <<END
+                {tools_install_dir}/bin/python2.7 - <<END
                 import logging
                 logging.basicConfig( level=logging.INFO )
                 from cgcloud.spark_tools import SparkTools
@@ -185,7 +193,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
                 end script""" ) )
         script_path = "/usr/local/bin/sparkbox-manage-slaves"
         put( remote_path=script_path, use_sudo=True, local_path=StringIO( heredoc( """
-            #!/usr/bin/env python2.7
+            #!{tools_install_dir}/bin/python2.7
             import sys
             import logging
             logging.basicConfig( level=logging.INFO )
