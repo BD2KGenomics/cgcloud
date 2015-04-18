@@ -106,7 +106,7 @@ nodes::
    cgcloud create spark-box -I -T
 
 The ``-I`` switch stops the box once it is fully set up and takes an AMI of it.
-The ``-T`` switch terminates it.
+The ``-T`` switch terminates it after that.
 
 Create a cluster by booting a master and the slaves from that AMI::
 
