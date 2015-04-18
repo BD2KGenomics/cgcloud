@@ -125,3 +125,9 @@ SSH into the master::
 ... or the second slave::
 
    cgcloud ssh spark-slave -o 1
+
+Interacting with Spark and HDFS should be done as the ``sparkbox`` user::
+
+   cgcloud ssh spark-master -l sparkbox
+   hdfs dfs -ls /
+   spark-shell
