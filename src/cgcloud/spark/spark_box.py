@@ -1,5 +1,6 @@
 from collections import namedtuple
 import json
+import re
 from textwrap import dedent
 from StringIO import StringIO
 import logging
@@ -204,15 +205,46 @@ class SparkBox( GenericUbuntuTrustyBox ):
 
     @fabric_task
     def __setup_path( self ):
-        for _user in ( user, self.admin_account( ) ):
-            with settings( user=_user ):
-                with remote_open( '~/.profile' ) as f:
-                    f.write( '\n' )
-                    for package in ('spark', 'hadoop'):
-                        # We don't include sbin here because too many file names collide in
-                        # Spark's and Hadoop's sbin
-                        for dir in ('bin', ):
-                            f.write( fmt( 'PATH="$PATH:{install_dir}/{package}/{dir}"\n' ) )
+        globally = True
+        if globally:
+            with remote_open( '/etc/environment', use_sudo=True ) as f:
+                new_path = [ fmt( '{install_dir}/{package}/bin' )
+                    for package in ('spark', 'hadoop') ]
+                self.__patch_etc_environment( f, new_path )
+        else:
+            for _user in ( user, self.admin_account( ) ):
+                with settings( user=_user ):
+                    with remote_open( '~/.profile' ) as f:
+                        f.write( '\n' )
+                        for package in ('spark', 'hadoop'):
+                            # We don't include sbin here because too many file names collide in
+                            # Spark's and Hadoop's sbin
+                            f.write( fmt( 'PATH="$PATH:{install_dir}/{package}/bin"\n' ) )
+
+    env_entry_re = re.compile( r'^\s*([^=\s]+)\s*=\s*"?(.*?)"?\s*$' )
+
+    @classmethod
+    def __patch_etc_environment( cls, env_file, dirs ):
+        r"""
+        >>> f=StringIO('FOO = " BAR " \n  PATH =foo:bar\nBLA="FASEL"')
+        >>> f.seek(0,2) # seek to end as if file was opened with 'a'
+        >>> SparkBox._SparkBox__patch_etc_environment( f, [ "new" ] )
+        >>> f.getvalue()
+        'BLA="FASEL"\nFOO=" BAR "\nPATH="foo:bar:new"\n'
+        """
+
+        def parse_entry( s ):
+            m = cls.env_entry_re.match( s )
+            return m.group( 1 ), m.group( 2 )
+
+        env_file.seek( 0 )
+        env = dict( parse_entry( _ ) for _ in env_file.read( ).splitlines( ) )
+        path = env[ 'PATH' ].split( ':' )
+        path.extend( dirs )
+        env[ 'PATH' ] = ':'.join( path )
+        env_file.seek( 0 )
+        env_file.truncate( 0 )
+        for var in sorted( env.items( ) ): env_file.write( '%s="%s"\n' % var )
 
     @fabric_task
     def __install_hadoop( self ):
