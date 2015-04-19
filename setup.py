@@ -33,5 +33,7 @@ setup(
         'Fabric>=1.7.0',
         'lxml>=3.2.1'
     ],
+    setup_requires=[
+        'nose>=1.3.4' ],
     namespace_packages=[ 'cgcloud' ],
     dependency_links=dependency_links )
