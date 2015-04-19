@@ -4,8 +4,7 @@ import logging
 import os
 import sys
 
-from cgcloud.lib.util import Application, app_name, UserError
-
+from cgcloud.lib.util import Application, app_name
 import cgcloud.core
 
 log = logging.getLogger( __name__ )
@@ -15,19 +14,15 @@ PACKAGES = [ cgcloud.core ] + [ import_module( package_name )
     if package_name ]
 
 
-def try_main( args=None ):
+def main( args=None ):
+    """
+    This is the cgcloud entrypoint. It should be installed via setuptools.setup( entry_points=... )
+    """
     app = CGCloud( )
     for package in PACKAGES:
         for command in package.COMMANDS:
             app.add( command )
     app.run( args )
-
-
-def main( args=None ):
-    try:
-        try_main( args )
-    except UserError as e:
-        log.error( e.message )
 
 
 class CGCloud( Application ):
