@@ -31,7 +31,7 @@ class ClusterTests( unittest.TestCase ):
         os.environ.setdefault( 'CGCLOUD_ZONE', 'us-west-2a' )
 
     def test_cluster( self ):
-        cleanup = False
+        cleanup = True
         role = SparkBox.role( )
         self._cgcloud( 'create', role, '-I', '-T' )
         try:
