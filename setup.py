@@ -19,4 +19,6 @@ setup(
     extras_require={
         'PyCrypto': [ 'PyCrypto>=2.3' ]  # otherwise the bundled cgcloud_Crypto will be used
     },
+    setup_requires=[
+        'nose>=1.3.4' ],
     namespace_packages=[ 'cgcloud' ] )
