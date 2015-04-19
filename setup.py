@@ -1,9 +1,9 @@
 from pkg_resources import parse_version
 from setuptools import setup, find_packages
 
-dependency_links = [ ]
-
 cgcloud_version = '1.0.dev1'
+
+dependency_links = [ ]
 
 
 def add_private_dependency( name, version=cgcloud_version, git_ref=None ):

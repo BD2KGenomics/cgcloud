@@ -228,7 +228,7 @@ Building & Testing
 
 First, clone this repository and ``cd`` into it. To run the tests use
 
-* ``python setup.py nosetests``,
+* ``python setup.py nosetests --with-doctest``,
 * ``python setup.py test``,
 * ``nosetest`` or
 * ``python -m unittest discover -s src``.
