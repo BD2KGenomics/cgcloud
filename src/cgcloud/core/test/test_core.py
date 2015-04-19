@@ -1,6 +1,7 @@
 import logging
 import os
 from unittest import TestCase
+import itertools
 
 from bd2k.util.exceptions import panic
 
@@ -26,35 +27,45 @@ class CoreTests( TestCase ):
         # FIXME: on EC2 detect zone automatically
         os.environ.setdefault( 'CGCLOUD_ZONE', 'us-west-2a' )
 
-    def cgcloud( self, *args ):
-        log.info( "Running %r" % (args,) )
-        main( args )
-
     @classmethod
     def __box_test( cls, box ):
         def box_test( self ):
-            ssh_opts = [ '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no' ]
+            """
+            :type self: CoreTests
+            """
             role = box.role( )
-            self.cgcloud( 'create', role )
+            self._cgcloud( 'create', role )
             try:
-                self.cgcloud( 'stop', role )
-                self.cgcloud( 'image', role )
+                self._cgcloud( 'stop', role )
+                self._cgcloud( 'image', role )
                 try:
-                    self.cgcloud( 'terminate', role )
-                    self.cgcloud( 'recreate', role )
+                    self._cgcloud( 'terminate', role )
+                    self._cgcloud( 'recreate', role )
                     file_name = 'foo-' + role
-                    self.cgcloud( *( [ 'ssh', role ] + ssh_opts + [ 'touch', file_name ] ) )
-                    self.cgcloud( 'rsync', "--ssh-opts=" + ' '.join( ssh_opts ), role, ':' + file_name, '.' )
+                    self._ssh( role, 'touch', file_name )
+                    self._rsync( role, ':' + file_name, '.' )
                     self.assertTrue( os.path.exists( file_name ) )
                     os.unlink( file_name )
-                    self.cgcloud( 'terminate', role )
+                    self._cgcloud( 'terminate', role )
                 finally:
-                    self.cgcloud( 'delete-image', role )
+                    self._cgcloud( 'delete-image', role )
             except:
                 with panic( log ):
-                    self.cgcloud( 'terminate', '-q', role )
+                    self._cgcloud( 'terminate', '-q', role )
 
         return box_test
+
+    def _cgcloud( self, *args ):
+        log.info( "Running %r" % (args,) )
+        main( args )
+
+    ssh_opts = [ '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no' ]
+
+    def _ssh( self, role, *args ):
+        self._cgcloud( 'ssh', role, *( itertools.chain( self.ssh_opts, args ) ) )
+
+    def _rsync( self, role, *args ):
+        self._cgcloud( 'rsync', '--ssh-opts=' + ' '.join( self.ssh_opts ), role, *args )
 
     @classmethod
     def make_tests( cls ):
@@ -65,7 +76,7 @@ class CoreTests( TestCase ):
 
     def test_illegal_argument( self ):
         try:
-            self.cgcloud( 'delete-image', self.boxes[ 0 ].role( ), '-1' )
+            self._cgcloud( 'delete-image', self.boxes[ 0 ].role( ), '-1' )
             self.fail( )
         except SystemExit:
             pass
