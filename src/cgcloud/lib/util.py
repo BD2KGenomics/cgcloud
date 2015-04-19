@@ -2,10 +2,12 @@ from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
 import argparse
 import hashlib
+import logging
 import os
 import re
-import errno
 import sys
+
+log = logging.getLogger( __name__ )
 
 try:
     from cgcloud.crypto.PublicKey import RSA
@@ -198,9 +200,8 @@ class Application( object ):
         try:
             command.run( options )
         except UserError as e:
-            sys.stderr.write( e.message )
-            sys.stderr.write( '\n' )
-            exit( 1 )
+            log.error( e.message )
+            sys.exit( 255 )
 
     def prepare( self, options ):
         pass
