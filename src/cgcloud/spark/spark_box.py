@@ -367,9 +367,10 @@ class SparkBox( GenericUbuntuTrustyBox ):
         return 'https://s3-us-west-2.amazonaws.com/bd2k-artifacts/cgcloud/' + os.path.basename(
             path )
 
-    def __to_hadoop_xml_config( self, properties ):
+    @staticmethod
+    def __to_hadoop_xml_config( properties ):
         """
-        >>> print SparkBox(None)._SparkMaster__to_hadoop_xml_config( {'foo' : 'bar'} )
+        >>> print SparkBox._SparkBox__to_hadoop_xml_config( {'foo' : 'bar'} )
         <?xml version='1.0' encoding='utf-8'?>
         <?xml-stylesheet type='text/xsl' href='configuration.xsl'?>
         <configuration>
