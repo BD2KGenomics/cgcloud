@@ -655,7 +655,7 @@ class Box( object ):
         if not callable( task ): task = task( self )
         # using IP instead of host name yields more compact log lines
         # host = "%s@%s" % ( user, self.ip_address )
-        with settings(user=user):
+        with settings( user=user ):
             host = self.ip_address
             return execute( task, hosts=[ host ] )[ host ]
 
@@ -810,7 +810,15 @@ class Box( object ):
 
     def ssh( self, user=None, command=None ):
         if command is None: command = [ ]
-        subprocess.check_call( self._ssh_args( user, command ) )
+        status = subprocess.call( self._ssh_args( user, command ) )
+        # According to ssh(1), SSH returns the status code of the remote process or 255 if
+        # something else went wrong. Python exits with status 1 if an uncaught exception is
+        # thrown. Since this is also the default status code that most other programs return on
+        # failure, there is no easy way to distinguish between failures in programs run remotely
+        # by cgcloud ssh and something being wrong in cgcloud.
+        if status == 255:
+            raise RuntimeError( 'ssh failed' )
+        return status
 
     def rsync( self, args, user=None, ssh_opts=None ):
         ssh_args = self._ssh_args( user, [ ] )

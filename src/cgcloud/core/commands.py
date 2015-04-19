@@ -39,7 +39,7 @@ class ContextCommand( Command ):
         super( ContextCommand, self ).__init__( application, **kwargs )
         zone = os.environ.get( 'CGCLOUD_ZONE', None )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
-                     default=zone, dest='availability_zone', required=not bool(zone),
+                     default=zone, dest='availability_zone', required=not bool( zone ),
                      help='The name of the EC2 availability zone to operate in, e.g. us-east-1b, '
                           'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
                           'run in. The value of the environment variable CGCLOUD_ZONE, '
@@ -160,7 +160,9 @@ class SshCommand( BoxCommand ):
 
     def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal )
-        box.ssh( user=options.user, command=options.command )
+        status = box.ssh( user=options.user, command=options.command )
+        if status != 0:
+            sys.exit( status )
 
 
 class RsyncCommand( BoxCommand ):
