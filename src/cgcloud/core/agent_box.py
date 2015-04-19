@@ -1,5 +1,7 @@
 import base64
 import zlib
+import os
+import itertools
 
 from fabric.context_managers import settings
 from fabric.operations import sudo, run
@@ -12,8 +14,6 @@ from cgcloud.core.common_iam_policies import ec2_read_only_policy, s3_read_only_
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
 from cgcloud.core.source_control_client import SourceControlClient
-
-version = Develop( '.' ).version or Installed( __name__ ).version
 
 
 class AgentBox( SourceControlClient ):
@@ -78,6 +78,9 @@ class AgentBox( SourceControlClient ):
             self.__setup_agent( )
 
     def __setup_agent( self ):
+        version = Installed( __name__ ).version
+        # FIXME: We could have a development version on any branch, not just master
+        git_ref = version if version and not parse_version( version ).is_prerelease else 'master'
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
             namespace=self.ctx.namespace,
@@ -88,8 +91,7 @@ class AgentBox( SourceControlClient ):
             run_dir='/var/run/cgcloudagent',
             log_dir='/var/log',
             install_dir='/opt/cgcloudagent',
-            # FIXME: We could have a development version on any branch, not just master
-            git_ref='master' if parse_version( version ).is_prerelease else version )
+            git_ref=git_ref )
 
         def fmt( s ):
             return s.format( **kwargs )
@@ -168,4 +170,3 @@ class AgentBox( SourceControlClient ):
         # See http://stackoverflow.com/questions/2695152/in-python-how-do-i-decode-gzip-encoding#answer-2695466
         # for the scoop on 16 + zlib.MAX_WBITS.
         return zlib.decompress( base64.b64decode( s ), 16 + zlib.MAX_WBITS )
-
