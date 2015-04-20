@@ -28,4 +28,5 @@ COMMANDS = [
     ListImagesCommand,
     DeleteImageCommand,
     RegisterKeyCommand,
-    CleanupCommand ]
+    CleanupCommand,
+    UpdateInstanceProfile ]

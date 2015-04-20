@@ -628,3 +628,17 @@ class CleanupCommand( ContextCommand ):
                     ctx.ec2.delete_snapshot( snapshot_id )
         else:
             print( 'No unused EBS volume snapshots in EC2.' )
+
+
+class UpdateInstanceProfile( BoxCommand ):
+    """
+    Update the instance profile and associated IAM roles for a given role.
+
+    This command ensures that a box of this role has accurate and up-to-date privileges to
+    interact with AWS resources. The instance profile is updated whenever a box is created. Use
+    this command to update the instance profile for existing boxes.
+    """
+
+    def run_on_box( self, options, box ):
+        box.adopt( ordinal=options.ordinal )
+        box._get_instance_profile_arn( )
