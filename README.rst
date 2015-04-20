@@ -1,25 +1,22 @@
 The CGCloud Spark project lets you setup a functioning Apache Spark cluster in
-EC2 in just minutes, independently of the number of nodes. It is a plugin to
-CGCloud. Apache Spark includes a spark-ec2 script that lets you build a cluster
-in EC2. CGCloud Spark differs from spark-ec2 in the following ways:
+EC2 in just minutes, regardless of the number of nodes. It is a plugin to
+CGCloud. While Apache Spark already comes with a script called ``spark-ec2``
+that lets you build a cluster in EC2, CGCloud Spark differs from ``spark-ec2``
+in the following ways:
 
 * Setup time does not scale linearly with the number of nodes. Setting up a 100
   node cluster takes just as long as setting up a 10 node cluster (2-3 min, as
-  opposed to 45min with spark-ec2). This is made possible by baking all
+  opposed to 45min with ``spark-ec2``). This is made possible by baking all
   required software into a single AMI. All slave nodes boot up concurrently and
   autonomously in just a few minutes.
   
-* Unlike with spark-ec2, the cluster can be stopped and started via the EC2 API
-  or the EC2 console, without involvement of cgcloud.
+* Unlike with ``spark-ec2``, the cluster can be stopped and started via the EC2
+  API or the EC2 console, without involvement of cgcloud.
 
 * The Spark services (master and worker) run as an unprivileged user, not root
   as with spark-ec2. Ditto for the HDFS services (namenode, datanode and
   secondarynamenode).
 
-* The Spark and Hadoop services bind to the instances' private IPs only, not
-  the public IPs as with spark-ec2. The various web UIs are exposed via SSH
-  tunneling.
-  
 * The Spark and Hadoop services are started automatically as the instance boots
   up, via a regular init script.
 
