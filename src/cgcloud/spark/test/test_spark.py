@@ -71,7 +71,7 @@ class ClusterTests( unittest.TestCase ):
         # FIXME: This is, of course, still racy.
         time.sleep( 60 )
 
-    # @unittest.skip( 'Only for interactive invocation' )
+    @unittest.skip( 'Only for interactive invocation' )
     def test_word_count_only( self ):
         self._word_count( )
 
