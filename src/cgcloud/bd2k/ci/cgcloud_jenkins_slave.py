@@ -39,12 +39,14 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                 dict( Effect="Allow",
                       Resource=self._role_arn( 'test/' ),
                       Action="iam:PassRole" ) ] ),
-            s3_cgcloud_jenkins_slave=dict( Version="2012-10-17", Statement=[
-                # for uploading keypair when creating a spark-box
+            register_keypair=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="arn:aws:s3:::*", Action="s3:ListAllMyBuckets" ),
                 dict( Effect="Allow", Action="s3:*", Resource=[
                     cgcloud_bucket_arn,
-                    cgcloud_bucket_arn + "/*" ] ) ] ),
+                    cgcloud_bucket_arn + "/*" ] ),
+                dict( Effect="Allow",
+                      Resource='arn:aws:sns:*:%s:cgcloud-agent-notifications' % self.ctx.account,
+                      Action=[ "sns:Publish", "sns:CreateTopic" ] )] ),
             iam_cgcloud_jenkins_slave=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="*", Action=[
                     "iam:CreateRole",
