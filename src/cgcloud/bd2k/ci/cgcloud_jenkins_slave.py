@@ -23,12 +23,13 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
             'gcc',
             'make',
             'libyaml-dev',
-            'libxml2-dev', 'libxslt-dev', 'zlib1g-dev' # lxml
+            'libxml2-dev', 'libxslt-dev', 'zlib1g-dev'  # lxml
         ]
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( CgcloudJenkinsSlave, self )._get_iam_ec2_role( )
         role_name += '--' + abreviated_snake_case_class_name( CgcloudJenkinsSlave )
+        cgcloud_bucket_arn = "arn:aws:s3:::%s" % self.ctx.s3_bucket_name
         policies.update( dict(
             ec2_full=ec2_full_policy,  # FIXME: Be more specific
             iam_cgcloud_jenkins_slave_pass_role=dict( Version="2012-10-17", Statement=[
@@ -38,6 +39,12 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                 dict( Effect="Allow",
                       Resource=self._role_arn( 'test/' ),
                       Action="iam:PassRole" ) ] ),
+            s3_cgcloud_jenkins_slave=dict( Version="2012-10-17", Statement=[
+                # for uploading keypair when creating a spark-box
+                dict( Effect="Allow", Resource="arn:aws:s3:::*", Action="s3:ListAllMyBuckets" ),
+                dict( Effect="Allow", Action="s3:*", Resource=[
+                    cgcloud_bucket_arn,
+                    cgcloud_bucket_arn + "/*" ] ) ] ),
             iam_cgcloud_jenkins_slave=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="*", Action=[
                     "iam:CreateRole",
