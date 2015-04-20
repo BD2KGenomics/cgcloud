@@ -232,8 +232,17 @@ class Command( object ):
         """
         super( Command, self ).__init__( )
         self.application = application
+        doc = self.__class__.__doc__
+        if doc:
+            doc = doc.split( '\n\n', 1 )
+            help_ = doc[ 0 ]
+            epilog = doc[ 1 ] if len( doc ) > 1 else None
+        else:
+            help_, epilog = None, None
         if not 'help' in kwargs:
-            kwargs[ 'help' ] = self.__class__.__doc__
+            kwargs[ 'help' ] = help_
+        if not 'epilog' in kwargs:
+            kwargs[ 'epilog' ] = epilog
         self.parser = application.subparsers.add_parser(
             self.name( ),
             formatter_class=argparse.ArgumentDefaultsHelpFormatter,
