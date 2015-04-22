@@ -6,13 +6,14 @@ import urllib
 import re
 import socket
 
-from boto import ec2, iam, sns, sqs
+from boto import ec2, iam, sns, sqs, vpc
 from boto.s3.key import Key as S3Key
 from boto.exception import S3ResponseError, BotoServerError
 from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
+from boto.vpc import VPCConnection
 from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
 from bd2k.util import fnmatch
@@ -162,6 +163,15 @@ class Context( object ):
         if self.__ec2 is None:
             self.__ec2 = self.__aws_connect( ec2 )
         return self.__ec2
+
+    @property
+    def vpc( self ):
+        """
+        :rtype: VPCConnection
+        """
+        if self.__vpc is None:
+            self.__vpc = self.__aws_connect( vpc )
+        return self.__vpc
 
     @property
     def s3( self ):
