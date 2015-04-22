@@ -26,7 +26,11 @@ setup(
 
     package_dir={ '': 'src' },
     packages=find_packages( 'src' ),
-    include_package_data=True,
+    package_data={
+        'cgcloud.spark': [
+            'cgcloud-sparkbox-tools/setup.py',
+            'cgcloud-sparkbox-tools/cgcloud/__init__.py',
+            'cgcloud-sparkbox-tools/cgcloud/spark_tools/__init__.py' ] },
     install_requires=[
         add_private_dependency( 'cgcloud-lib' ),
         add_private_dependency( 'cgcloud-core' ),
