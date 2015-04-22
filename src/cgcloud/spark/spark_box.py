@@ -89,6 +89,11 @@ class SparkBox( GenericUbuntuTrustyBox ):
         super( SparkBox, self ).__init__( ctx )
         self.lazy_dirs = None
 
+    def _populate_security_group( self, group_name ):
+        return super( SparkBox, self )._populate_security_group( group_name ) + [
+            dict( ip_protocol='tcp', from_port=0, to_port=65535, src_security_group_name=group_name ),
+            dict( ip_protocol='udp', from_port=0, to_port=65535, src_security_group_name=group_name ) ]
+
     @fabric_task
     def _setup_package_repos( self ):
         super( SparkBox, self )._setup_package_repos( )
