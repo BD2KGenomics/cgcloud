@@ -2,7 +2,14 @@ The CGCloud Spark project lets you setup a functioning Apache Spark cluster in
 EC2 in just minutes, regardless of the number of nodes. It is a plugin to
 CGCloud. While Apache Spark already comes with a script called ``spark-ec2``
 that lets you build a cluster in EC2, CGCloud Spark differs from ``spark-ec2``
-in the following ways:
+in the following ways (bad news first):
+
+* CGCloud Spark does not yet support persistent HDFS, i.e. HDFS backed by EBS
+  volumes.
+
+* Tachyon and Yarn are not yet supported.
+
+* Instance types with more than one ephemeral store are not yet supported.
 
 * Setup time does not scale linearly with the number of nodes. Setting up a 100
   node cluster takes just as long as setting up a 10 node cluster (2-3 min, as
@@ -33,19 +40,15 @@ in the following ways:
 * CGCloud Spark is based on the official Ubuntu Trusty 14.04 LTS, not the
   Amazon Linux AMI.
 
-* CGCloud Spark does not yet support EBS-backed HDFS storage, only instance
-  store.
-  
-* Tachyon and Yarn have not been tested but will soon be supported.
-
-* Instance types with more than one ephemeral store will be supported soon.
-
 
 Prerequisites
 =============
 
-The ``cgcloud-spark`` package requires that the ``cgcloud-core`` package and
-its prerequisites_ are present.
+The ``cgcloud-spark`` package 
+
+* requires that the ``cgcloud-core`` package and its prerequisites_ are present
+
+* also depends on ``lxml`` which requires gcc, libxml2 and libxslt
 
 .. _prerequisites: https://github.com/BD2KGenomics/cgcloud-core#prerequisites
 
@@ -75,6 +78,16 @@ try adding ``--process-dependency-links`` after ``install``. This is a known
 
 .. _issue: https://mail.python.org/pipermail/distutils-sig/2014-January/023453.html
 
+If you get an error message during the installation of the ``lxml`` dependency,
+you might have to install the ``libxml2`` and ``libxslt`` headers. On Ubuntu,
+for example, run::
+
+   sudo apt-get install gcc libxml2-dev libxslt-dev
+   
+On Redhat-based distros, run the following::
+
+   sudo yum install gcc libxml2-devel libxslt-devel
+   
 Configuration
 =============
 
@@ -107,7 +120,7 @@ The ``-T`` switch terminates it after that.
 
 Create a cluster by booting a master and the slaves from that AMI::
 
-   cgcloud start-spark-cluster -s 2 -t m3.large
+   cgcloud create-spark-cluster -s 2 -t m3.large
    
 This will launch a master and two slaves using the ``m3.large`` instance type.
 
