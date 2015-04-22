@@ -26,7 +26,7 @@ To install and use CGCloud, you need
 * Git_
 
 * Mac OS X: Xcode_ and the `Xcode Command Line Tools`_ (needed during the
-  installation of cgcloud-core for compiling the PyCrypto dependency)  
+  installation of cgcloud-core for compiling the PyCrypto dependency)
 
 .. _pip: https://pip.readthedocs.org/en/latest/installing.html
 .. _Git: http://git-scm.com/
@@ -51,19 +51,13 @@ If you get
 
 ::
 
-   Could not find any downloads that satisfy the requirement cgcloud-...
+   Could not find any downloads that satisfy the requirement ...
 
 try adding ``--process-dependency-links`` after ``install``. This is a known
-`issue`_ with pip 1.5.x.
+`issue`_ with pip 1.5.x and above.
 
 .. _issue: https://mail.python.org/pipermail/distutils-sig/2014-January/023453.html
 
-If you get an error message during the installation of the ``lxml`` dependency,
-you might have to install the ``libxml2`` and ``libxslt`` headers. On Ubuntu,
-for example, run::
-
-   apt-get install libxml2-dev libxslt-dev
-   
 If you get an error about ``yaml.h`` being missing you may need to install
 libyaml (via HomeBrew on OS X) or libyaml-dev (via apt-get or yum on Linux).
 
