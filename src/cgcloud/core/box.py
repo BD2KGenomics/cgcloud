@@ -218,10 +218,51 @@ class Box( object ):
         else:
             return self.ctx.ec2.get_image( image_ref )
 
-    default_security_groups = [ 'default' ]
+    def __setup_security_groups( self ):
+        name = self.ctx.to_aws_name( self.role( ) )
+        try:
+            sg = self.ctx.ec2.create_security_group(
+                name=name,
+                description="Security group for box of role %s in namespace %s" % (
+                    self.role( ), self.ctx.namespace ) )
+        except EC2ResponseError as e:
+            if e.error_code == 'InvalidGroup.Duplicate':
+                sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
+            else:
+                raise
+        rules = self._populate_security_group( sg.name )
+        for rule in rules:
+            try:
+                assert self.ctx.ec2.authorize_security_group( group_name=sg.name, **rule )
+            except EC2ResponseError as e:
+                if e.error_code == 'InvalidPermission.Duplicate':
+                    pass
+                else:
+                    raise
+        # FIXME: What about stale rules? I tried writing code that removes them but gave up. The
+        # API in both boto and EC2 is just too brain-dead.
+        return [ sg.name ]
 
-    def prepare( self, ec2_keypair_globs, instance_type=None, image_ref=None, security_groups=None,
-                 virtualization_type=None, **options ):
+    def _populate_security_group( self, group_name ):
+        """
+        :return: A list of rules, each rule is a dict with keyword arguments to
+        boto.ec2.connection.EC2Connection.authorize_security_group, namely
+
+        ip_protocol
+        from_port
+        to_port
+        cidr_ip
+        src_security_group_name
+        src_security_group_owner_id
+        src_security_group_group_id
+        """
+        return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
+
+    def prepare( self, ec2_keypair_globs,
+                 instance_type=None,
+                 image_ref=None,
+                 virtualization_type=None,
+                 **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -264,15 +305,7 @@ class Box( object ):
                 virtualization_type,
                 image.virtualization_type ) )
 
-        if security_groups is None:
-            security_groups = self.default_security_groups
-        security_groups = self.ctx.ec2.get_all_security_groups(
-            groupnames=security_groups,
-            filters={ 'ip-permission.to-port': 22 } )
-        if len( security_groups ) == 0:
-            log.warn( "There is no security group that explicitly mentions port 22. "
-                      "You might have trouble actually connecting with the box via SSH. "
-                      "However, this is a heuristic and may be wrong." )
+        security_groups = self.__setup_security_groups( )
 
         str_options = dict( image.tags )
         for k, v in options.iteritems( ):
@@ -1153,3 +1186,4 @@ class Box( object ):
         ssh_pubkey = ssh_pubkey.getvalue( )
         self.ctx.register_ssh_pubkey( ec2_keypair_name, ssh_pubkey, force=overwrite_ec2 )
         return ssh_privkey, ssh_pubkey
+

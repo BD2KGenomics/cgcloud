@@ -348,12 +348,6 @@ class CreationCommand( RoleCommand ):
                           "on the instance type, but generally speaking, 'hvm' will be used for "
                           "newer instance types." )
 
-        self.option( '--security-groups', '-g', metavar='GROUP',
-                     default=Box.default_security_groups,
-                     nargs='+',
-                     help='The names of the security groups to apply to the instance. Make sure '
-                          'that one of them enables access to port 22.' )
-
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -386,7 +380,6 @@ class CreationCommand( RoleCommand ):
         try:
             resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
             box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
-                         security_groups=options.security_groups,
                          instance_type=options.instance_type,
                          virtualization_type=options.virtualization_type,
                          **self.instance_options( options ) )
