@@ -56,20 +56,20 @@ class ClusterTests( unittest.TestCase ):
                 self._cgcloud( 'delete-image', role )
 
     def _wait_for_slaves( self ):
-        expiration = time.time( ) + 600
-        while True:
-            try:
-                self._ssh( master, 'test $(cat %s/spark/conf/slaves | wc -l) = %s' % (
-                install_dir, num_slaves ) )
-                if time.time( ) >= expiration:
-                    self.fail( "Cluster didn't come up in time" )
-                break
-            except SystemExit:
-                time.sleep( 5 )
-        # The slaves add themselves to the slaves file before the workers start up. Wait a
-        # bit for the services to start.
-        # FIXME: This is, of course, still racy.
-        time.sleep( 60 )
+        delay = 5
+        expiration = time.time( ) + 5 * 60
+        commands = [ 'test $(cat %s/spark/conf/slaves | wc -l) = %s' % ( install_dir, num_slaves ),
+                     "hdfs dfsadmin -report -live | fgrep 'Live datanodes (%s)'" % num_slaves ]
+        for command in commands:
+            while True:
+                try:
+                    self._ssh( master, command )
+                except SystemExit:
+                    if time.time( ) + delay >= expiration:
+                        self.fail( "Cluster didn't come up in time" )
+                    time.sleep( delay )
+                else:
+                    break
 
     @unittest.skip( 'Only for interactive invocation' )
     def test_word_count_only( self ):
