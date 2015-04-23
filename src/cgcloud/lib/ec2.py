@@ -12,13 +12,13 @@ log = logging.getLogger( __name__ )
 
 
 def __not_found( e ):
-    return e.error_code.ends_with( '.NotFound' )
+    return e.error_code.endswith( '.NotFound' )
 
 
 @contextmanager
-def retry_ec2_request( retry_every=a_short_time,
-           retry_for=10 * a_short_time,
-           retry_while=__not_found ):
+def retry_ec2( retry_every=a_short_time,
+               retry_for=10 * a_short_time,
+               retry_while=__not_found ):
     if retry_for > 0:
         expiration = time.time( ) + retry_for
         while True:
