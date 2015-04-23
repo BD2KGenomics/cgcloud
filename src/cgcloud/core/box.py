@@ -217,8 +217,14 @@ class Box( object ):
         else:
             return self.ctx.ec2.get_image( image_ref )
 
+    def _security_group_name( self ):
+        """
+        Override the security group name to be used for this box
+        """
+        return self.role( )
+
     def __setup_security_groups( self ):
-        name = self.ctx.to_aws_name( self.role( ) )
+        name = self.ctx.to_aws_name( self._security_group_name( ) )
         try:
             sg = self.ctx.ec2.create_security_group(
                 name=name,
