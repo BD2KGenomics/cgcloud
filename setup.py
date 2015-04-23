@@ -30,9 +30,6 @@ setup(
         add_private_dependency( 'bd2k-python-lib', '1.5' ),
         'boto>=2.36.0'
     ],
-    extras_require={
-        'PyCrypto': [ 'PyCrypto>=2.3' ]  # otherwise the bundled cgcloud_Crypto will be used
-    },
     setup_requires=[
         'nose>=1.3.4' ],
     dependency_links=dependency_links,
