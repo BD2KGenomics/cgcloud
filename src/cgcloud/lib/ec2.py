@@ -16,7 +16,7 @@ def __not_found( e ):
 
 
 @contextmanager
-def retry_ec2( retry_every=a_short_time,
+def retry_ec2( retry_after=a_short_time,
                retry_for=10 * a_short_time,
                retry_while=__not_found ):
     if retry_for > 0:
@@ -25,9 +25,9 @@ def retry_ec2( retry_every=a_short_time,
             try:
                 yield
             except EC2ResponseError as e:
-                if time.time( ) + retry_every < expiration and retry_while( e ):
-                    log.info( '... got %s, trying again in %is ...' % ( e.error_code, retry_every ) )
-                    time.sleep( retry_every )
+                if time.time( ) + retry_after < expiration and retry_while( e ):
+                    log.info( '... got %s, trying again in %is ...' % ( e.error_code, retry_after ) )
+                    time.sleep( retry_after )
                 else:
                     raise
             else:
