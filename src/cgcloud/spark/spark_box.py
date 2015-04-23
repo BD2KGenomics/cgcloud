@@ -440,6 +440,10 @@ class SparkBox( GenericUbuntuTrustyBox ):
         # Make this class its subclasses use the same image
         return "spark-box"
 
+    def _security_group_name( self ):
+        # Make this class its subclasses use the same security group
+        return "spark-box"
+
 
 class SparkMaster( SparkBox ):
     """
