@@ -20,10 +20,9 @@ from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.context import Context
+from cgcloud.lib.ec2 import retry_ec2_request, a_short_time, a_long_time
 from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint, \
     private_to_public_key
-
-EC2_POLLING_INTERVAL = 5
 
 log = logging.getLogger( __name__ )
 
@@ -364,16 +363,14 @@ class Box( object ):
         """
         instance_type = self.instance_creation_args[ 'instance_type' ]
         log.info( 'Creating %s instance(s) ... ', instance_type )
-        while True:
-            try:
-                return self.ctx.ec2.run_instances( self.image_id,
-                                                   **self.instance_creation_args )
-            except EC2ResponseError as e:
-                message = e.error_message.lower( )
-                if 'invalid iam instance profile' in message or 'no associated iam roles' in message:
-                    time.sleep( EC2_POLLING_INTERVAL )
-                else:
-                    raise
+
+        def instance_profile_inconsistent( e ):
+            m = e.error_message.lower( )
+            return 'invalid iam instance profile' in m or 'no associated iam roles' in m
+
+        with retry_ec2_request( retry_for=a_long_time,
+                                retry_while=instance_profile_inconsistent ):
+            return self.ctx.ec2.run_instances( self.image_id, **self.instance_creation_args )
 
     def link( self, instance, wait_ready=True ):
         self.instance_id = instance.id
@@ -409,17 +406,8 @@ class Box( object ):
 
         :type tagged_ec2_object: boto.ec2.TaggedEC2Object
         """
-        while True:
-            try:
-                tagged_ec2_object.add_tag( tag_name, tag_value )
-            except EC2ResponseError as e:
-                if e.error_code.endswith( 'NotFound' ):
-                    log.info( '... trying again in %is ...' % EC2_POLLING_INTERVAL )
-                    time.sleep( EC2_POLLING_INTERVAL )
-                else:
-                    raise
-            else:
-                break
+        with retry_ec2_request( ):
+            tagged_ec2_object.add_tag( tag_name, tag_value )
 
     def _on_instance_created( self, instance ):
         """
@@ -573,8 +561,8 @@ class Box( object ):
                 log.info( '... image now discoverable.' )
                 break
             log.info( '... image %s not yet discoverable, trying again in %is ...' % (
-                image_id, EC2_POLLING_INTERVAL ) )
-            time.sleep( EC2_POLLING_INTERVAL )
+                image_id, a_short_time ) )
+            time.sleep( a_short_time )
         return image_id
 
     def stop( self ):
@@ -760,7 +748,7 @@ class Box( object ):
                 self.ip_address = ip_address
                 self.host_name = host_name
                 return
-            time.sleep( EC2_POLLING_INTERVAL )
+            time.sleep( a_short_time )
             instance.update( )
 
     def __wait_ssh_port_open( self ):
@@ -773,7 +761,7 @@ class Box( object ):
         for i in itertools.count( ):
             s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
             try:
-                s.settimeout( EC2_POLLING_INTERVAL )
+                s.settimeout( a_short_time )
                 s.connect( (self.ip_address, 22) )
                 return i
             except socket.error:
@@ -792,7 +780,7 @@ class Box( object ):
                 client.set_missing_host_key_policy( self.IgnorePolicy( ) )
                 client.connect( hostname=self.ip_address,
                                 username=self.admin_account( ),
-                                timeout=EC2_POLLING_INTERVAL )
+                                timeout=a_short_time )
                 stdin, stdout, stderr = client.exec_command( 'echo hi' )
                 try:
                     line = stdout.readline( )
@@ -812,7 +800,7 @@ class Box( object ):
                 logging.info( e )
             finally:
                 client.close( )
-            time.sleep( EC2_POLLING_INTERVAL )
+            time.sleep( a_short_time )
 
     def __wait_volume_transition( self, volume, from_states, to_state ):
         """
@@ -834,8 +822,9 @@ class Box( object ):
         """
         state = state_getter( resource )
         while state in from_states:
-            time.sleep( EC2_POLLING_INTERVAL )
-            resource.update( validate=True )
+            time.sleep( a_short_time )
+            with retry_ec2_request( ):
+                resource.update( validate=True )
             state = state_getter( resource )
         if state != to_state:
             raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
@@ -1013,8 +1002,8 @@ class Box( object ):
             while True:
                 if self.ctx.ec2.get_image( image_id ):
                     log.info( '... image still registered, trying again in %is ...' %
-                              EC2_POLLING_INTERVAL )
-                    time.sleep( EC2_POLLING_INTERVAL )
+                              a_short_time )
+                    time.sleep( a_short_time )
                 else:
                     log.info( "... image deregistered." )
                     break
@@ -1026,20 +1015,13 @@ class Box( object ):
             root_bdt = image.block_device_mapping.get( root_device )
             if root_bdt:
                 snapshot_id = image.block_device_mapping[ root_device ].snapshot_id
-                while True:
-                    log.info( "Deleting snapshot %s.", snapshot_id )
-                    try:
-                        self.ctx.ec2.delete_snapshot( snapshot_id )
-                    except EC2ResponseError as e:
-                        # It is safe to retry this indefinitely because a snapshot can only be
-                        # referenced by one AMI. See also https://github.com/boto/boto/issues/3019.
-                        if wait and e.error_code == 'InvalidSnapshot.InUse':
-                            log.info( '... snapshot in use, trying again in %is ...' %
-                                      EC2_POLLING_INTERVAL )
-                            time.sleep( EC2_POLLING_INTERVAL )
-                        else:
-                            raise
-                    break
+                log.info( "Deleting snapshot %s.", snapshot_id )
+                # It is safe to retry this indefinitely because a snapshot can only be
+                # referenced by one AMI. See also https://github.com/boto/boto/issues/3019.
+                with retry_ec2_request( retry_for=a_long_time if wait else 0,
+                                        retry_while=lambda
+                                                e: e.error_code == 'InvalidSnapshot.InUse' ):
+                    self.ctx.ec2.delete_snapshot( snapshot_id )
                 return
         raise RuntimeError( 'Could not determine root device in AMI' )
 
@@ -1186,4 +1168,3 @@ class Box( object ):
         ssh_pubkey = ssh_pubkey.getvalue( )
         self.ctx.register_ssh_pubkey( ec2_keypair_name, ssh_pubkey, force=overwrite_ec2 )
         return ssh_privkey, ssh_pubkey
-
