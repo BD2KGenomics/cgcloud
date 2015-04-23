@@ -25,9 +25,8 @@ def retry_ec2( retry_every=a_short_time,
             try:
                 yield
             except EC2ResponseError as e:
-                if ( expiration is None or time.time( ) < expiration ) and retry_while( e ):
-                    log.info( '... got %s, trying again in %is ...' %
-                              ( e.error_code, a_short_time ) )
+                if time.time( ) + retry_every < expiration and retry_while( e ):
+                    log.info( '... got %s, trying again in %is ...' % ( e.error_code, retry_every ) )
                     time.sleep( retry_every )
                 else:
                     raise
