@@ -2,8 +2,7 @@ from fabric.operations import run
 import yaml
 
 from cgcloud.core.box import Box, fabric_task
-
-__author__ = 'hannes'
+from cgcloud.core.instance_type import ec2_instance_types
 
 
 class CloudInitBox( Box ):
@@ -14,17 +13,7 @@ class CloudInitBox( Box ):
     def _ephemeral_mount_point( self ):
         return '/mnt/ephemeral'
 
-    def _populate_cloud_config( self, instance_type, user_data ):
-        """
-        Populate cloud-init's configuration for injection into a newly created instance
-
-        :param user_data: a dictionary that will be be serialized into YAML and used as the
-        instance's user-data
-        """
-        #
-        # see __wait_for_cloud_init_completion()
-        #
-        user_data.setdefault( 'runcmd', [ ] ).append( [ 'touch', '/tmp/cloud-init.done' ] )
+    def _ephemeral_preparation( self, ephemeral_mount_point, instance_type ):
         #
         # Lucid's and Oneiric's cloud-init mount ephemeral storage on /mnt instead of
         # /mnt/ephemeral, Fedora doesn't mount it at all. To keep it consistent across
@@ -49,12 +38,47 @@ class CloudInitBox( Box ):
         #
         # [1]: https://bugs.launchpad.net/cloud-init/+bug/1291820
         #
+        commands = [ ]
+        instance_type = ec2_instance_types[ instance_type ]
+        if instance_type.disks == 0:
+            pass
+        elif instance_type.disks > 0:
+            # The r3 family does not format the ephemeral SSD volume so will have to do it
+            # manually. Other families may also exhibit that behavior so we will format every SSD
+            # volume. It only takes a second *and* ensures that we have a particular type of
+            # filesystem, i.e. ext4. We don't know what the device will be (cloud-init determines
+            # this at runtime) named so we simply try all possible names.
+            if instance_type.disk_type == 'SSD':
+                for device_name in ('sdb', 'xvdb'):
+                    commands.append( [ 'mkfs.ext4', '-E', 'nodiscard', '/dev/' + device_name ] )
+            commands.append( [ 'mount', ephemeral_mount_point ] )
+        else:
+            assert False
+        return commands
+
+    def _ephemeral_device_name( self ):
+        return 'ephemeral0'
+
+    def _populate_cloud_config( self, instance_type, user_data ):
+        """
+        Populate cloud-init's configuration for injection into a newly created instance
+
+        :param user_data: a dictionary that will be be serialized into YAML and used as the
+        instance's user-data
+        """
+        #
+        # see __wait_for_cloud_init_completion()
+        #
+        runcmd = user_data.setdefault( 'runcmd', [ ] )
+        runcmd.append( [ 'touch', '/tmp/cloud-init.done' ] )
+
+        ephemeral_mount_point = self._ephemeral_mount_point( )
         user_data.setdefault( 'mounts', [ ] ).append(
-            [ 'ephemeral0', self._ephemeral_mount_point( ), 'auto', 'defaults,noauto' ] )
-        if instance_type != 't1.micro':
-            # prepend mount command as best effort to getting this done ASAP
-            user_data.setdefault( 'runcmd', [ ] ).insert(
-                0, [ 'mount', self._ephemeral_mount_point( ) ] )
+            [ self._ephemeral_device_name( ), ephemeral_mount_point, 'auto', 'defaults,noauto' ] )
+        #
+        # prepend mount command as best effort to getting this done ASAP
+        #
+        runcmd[ 0:0 ] = self._ephemeral_preparation( ephemeral_mount_point, instance_type )
 
     def _populate_instance_creation_args( self, image, kwargs ):
         super( CloudInitBox, self )._populate_instance_creation_args( image, kwargs )
