@@ -374,9 +374,10 @@ class Box( object ):
             m = e.error_message.lower( )
             return 'invalid iam instance profile' in m or 'no associated iam roles' in m
 
-        with retry_ec2( retry_for=a_long_time,
-                        retry_while=instance_profile_inconsistent ):
-            return self.ctx.ec2.run_instances( self.image_id, **self.instance_creation_args )
+        for attempt in retry_ec2( retry_for=a_long_time,
+                                  retry_while=instance_profile_inconsistent ):
+            with attempt:
+                return self.ctx.ec2.run_instances( self.image_id, **self.instance_creation_args )
 
     def link( self, instance, wait_ready=True ):
         self.instance_id = instance.id
@@ -407,13 +408,14 @@ class Box( object ):
 
     def _tag_object_persistently( self, tagged_ec2_object, tag_name, tag_value ):
         """
-        Object tagging occasionally fails with "does not exist" types of errors so we need to
+        Object tagging occasionally fails with "NotFound" types of errors so we need to
         retry a few times. Sigh ...
 
         :type tagged_ec2_object: boto.ec2.TaggedEC2Object
         """
-        with retry_ec2( ):
-            tagged_ec2_object.add_tag( tag_name, tag_value )
+        for attempt in retry_ec2( ):
+            with attempt:
+                tagged_ec2_object.add_tag( tag_name, tag_value )
 
     def _on_instance_created( self, instance ):
         """
@@ -829,8 +831,9 @@ class Box( object ):
         state = state_getter( resource )
         while state in from_states:
             time.sleep( a_short_time )
-            with retry_ec2( ):
-                resource.update( validate=True )
+            for attempt in retry_ec2( ):
+                with attempt:
+                    resource.update( validate=True )
             state = state_getter( resource )
         if state != to_state:
             raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
@@ -1024,9 +1027,11 @@ class Box( object ):
                 log.info( "Deleting snapshot %s.", snapshot_id )
                 # It is safe to retry this indefinitely because a snapshot can only be
                 # referenced by one AMI. See also https://github.com/boto/boto/issues/3019.
-                with retry_ec2( retry_for=a_long_time if wait else 0,
-                                retry_while=lambda e: e.error_code == 'InvalidSnapshot.InUse' ):
-                    self.ctx.ec2.delete_snapshot( snapshot_id )
+                for attempt in retry_ec2(
+                        retry_for=a_long_time if wait else 0,
+                        retry_while=lambda e: e.error_code == 'InvalidSnapshot.InUse' ):
+                    with attempt:
+                        self.ctx.ec2.delete_snapshot( snapshot_id )
                 return
         raise RuntimeError( 'Could not determine root device in AMI' )
 
