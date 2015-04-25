@@ -36,6 +36,9 @@ class YumBox( PackageManagerBox ):
         for package in packages:
             run( 'rpm -q %s' % package )
 
+    def _get_package_installation_command( self, package ):
+        return [ 'yum', 'install', '-d', '1', '-y' ] + list( self._substitute_package( package ) )
+
     @fabric_task
     def _upgrade_installed_packages( self ):
         sudo( 'yum update -y -d 1' )

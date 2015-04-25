@@ -42,8 +42,8 @@ class GenericCentos5Box( CentosBox ):
             if False:
                 self._update_openssh( )
 
-    def _ephemeral_mount_point( self ):
-        return "/mnt"
+    def _ephemeral_mount_point( self, i ):
+        return "/mnt" if i == 0 else None
 
     # FIXME: These two methods assume that this class is derived from AgentBox.
 
@@ -83,8 +83,8 @@ class GenericCentos6Box( CentosBox ):
     def release( self ):
         return '6.4'
 
-    def _ephemeral_mount_point( self ):
-        return "/mnt/ephemeral"
+    def _ephemeral_mount_point( self, i ):
+        return "/mnt/ephemeral" if i == 0 else None
 
     def _on_instance_ready( self, first_boot ):
         super( GenericCentos6Box, self )._on_instance_ready( first_boot )
@@ -104,6 +104,9 @@ class GenericUbuntuLucidBox( UbuntuBox ):
     @classmethod
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
+
+    def _get_virtual_block_device_prefix( self ):
+        return "/dev/sd"
 
     @fabric_task
     def __update_sudo( self ):

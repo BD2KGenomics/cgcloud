@@ -109,10 +109,13 @@ class Box( object ):
         raise NotImplementedError( )
 
     @abstractmethod
-    def _ephemeral_mount_point( self ):
+    def _ephemeral_mount_point( self, i ):
         """
-        Returns the absolute path to the directory at which the ephemeral volume is mounted. This
-        depends on the platform, and even on the author of the image.
+        Returns the absolute path to the directory at which the i-th ephemeral volume is mounted
+        or None if no such mount point exists. Note that there must always be a mountpoint for
+        the first volume, so this method always returns a value other than None if i is 0. We
+        have this method because the mount point typically depends on the distribution, and even
+        on the author of the image.
         """
         raise NotImplementedError( )
 
@@ -158,8 +161,8 @@ class Box( object ):
         self.generation = None
         """
         The number of previous generations of this box. When an instances is booted from a
-        stock AMI, generations is zero. After that instance is set up and imaged and another
-        instance is booted from the resulting AMI, generations will be one.
+        stock AMI, generation is zero. After that instance is set up and imaged and another
+        instance is booted from the resulting AMI, generation will be one.
         """
         self.ip_address = None
         'The public IP of the instance '
@@ -744,11 +747,11 @@ class Box( object ):
         log.info( "... waiting for instance %s ... ", instance.id )
         self.__wait_transition( instance, from_states, 'running' )
         self._on_instance_running( instance, first_boot )
-        log.info( "... instance running, waiting for hostname ... " )
+        log.info( "... running, waiting for assignment of public IP ... " )
         self.__wait_public_ip_assigned( instance )
-        log.info( "... assigned, waiting for ssh ... " )
+        log.info( "... assigned, waiting for SSH port ... " )
         self.__wait_ssh_port_open( )
-        log.info( "... port open ... " )
+        log.info( "... open ... " )
         if first_boot is not None:
             log.info( "... testing SSH ... " )
             self.__wait_ssh_working( )
