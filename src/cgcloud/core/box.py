@@ -263,6 +263,25 @@ class Box( object ):
         """
         return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
 
+    def __get_virtualization_type( self, instance_type, virtualization_type ):
+        instance_vtypes = set( ec2_instance_types[ instance_type ].virtualization_types )
+        role_vtypes = self.supported_virtualization_types( )
+        vtypes = instance_vtypes.intersection( role_vtypes )
+        if virtualization_type is None:
+            if vtypes:
+                # find the preferred vtype, i.e. the one listed first in instance_vtypes
+                virtualization_type = next( vtype for vtype in instance_vtypes if vtype in vtypes )
+            else:
+                raise RuntimeError(
+                    'Cannot find a virtualization type that is supported by both role %s and '
+                    'instance type %s' % ( self.role( ), instance_type ) )
+        else:
+            if not virtualization_type in vtypes:
+                raise RuntimeError(
+                    'Virtualization type %s not supported by role %s and instance type %s' % (
+                        virtualization_type, self.role( ), instance_type ) )
+        return virtualization_type
+
     def prepare( self, ec2_keypair_globs,
                  instance_type=None,
                  image_ref=None,
@@ -290,13 +309,7 @@ class Box( object ):
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
 
-        if virtualization_type is None:
-            virtualization_type = self.__default_virtualization_type( instance_type )
-
-        if virtualization_type not in self.supported_virtualization_types( ):
-            raise RuntimeError( 'Virtualization type %s not supported by role %s' % (
-                virtualization_type,
-                self.role( ) ) )
+        virtualization_type = self.__get_virtualization_type( instance_type, virtualization_type )
 
         if image_ref is not None:
             image = self.__select_image( image_ref )
