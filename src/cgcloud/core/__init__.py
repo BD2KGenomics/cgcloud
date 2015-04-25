@@ -6,7 +6,6 @@ BOXES = [
     GenericCentos5Box,
     GenericUbuntuLucidBox,
     GenericUbuntuPreciseBox,
-    GenericUbuntuSaucyBox,
     GenericUbuntuTrustyBox,
     GenericUbuntuUtopicBox,
     GenericFedora19Box,

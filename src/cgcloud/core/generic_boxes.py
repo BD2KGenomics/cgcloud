@@ -196,14 +196,14 @@ if False:  # out of suppport
         def release( self ):
             return 'raring'
 
+if False:
+    class GenericUbuntuSaucyBox( UbuntuBox ):
+        """
+        13.10
+        """
 
-class GenericUbuntuSaucyBox( UbuntuBox ):
-    """
-    13.10
-    """
-
-    def release( self ):
-        return 'saucy'
+        def release( self ):
+            return 'saucy'
 
 
 class GenericUbuntuTrustyBox( UbuntuBox ):
