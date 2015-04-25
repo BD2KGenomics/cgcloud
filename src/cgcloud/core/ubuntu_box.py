@@ -83,6 +83,10 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
         packages = " ".join( packages )
         sudo( '%s install %s' % (self.apt_get, packages ) )
 
+    def _get_package_installation_command( self, package ):
+        return [ 'apt-get', 'install', '-y', '--no-install-recommends' ] + list(
+            self._substitute_package( package ) )
+
     @fabric_task
     def _debconf_set_selection( self, *debconf_selections, **sudo_kwargs ):
         for debconf_selection in debconf_selections:

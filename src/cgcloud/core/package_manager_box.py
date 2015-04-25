@@ -104,7 +104,14 @@ class PackageManagerBox( Box ):
 
     @abstractmethod
     def _ssh_service_name( self ):
-        raise NotImplementedError()
+        raise NotImplementedError( )
+
+    def _substitute_package( self, package ):
+        """
+        Return the set of packages that substitute the given package on this box.
+        """
+        substitutions = dict( self._get_package_substitutions( ) )
+        return self.__substitute_packages( substitutions, [ package ] )
 
     @classmethod
     def __substitute_package( cls, substitutions, package, history=None ):
