@@ -9,7 +9,6 @@ BOXES = [
 
     UbuntuLucidGenericJenkinsSlave,
     UbuntuPreciseGenericJenkinsSlave,
-    UbuntuSaucyGenericJenkinsSlave,
     UbuntuTrustyGenericJenkinsSlave,
     Centos5GenericJenkinsSlave,
     Centos6GenericJenkinsSlave,

@@ -115,13 +115,6 @@ class UbuntuPreciseGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntu
     pass
 
 
-class UbuntuSaucyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuSaucyBox ):
-    """
-    A generic Jenkins slave for Ubuntu 13.10 (EOL July 2014)
-    """
-    pass
-
-
 class UbuntuTrustyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuTrustyBox ):
     """
     A generic Jenkins slave for Ubuntu 14.04 LTS (EOL April 2019)
