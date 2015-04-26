@@ -41,7 +41,7 @@ class JenkinsSlave( SourceControlClient ):
         kwargs = dict(
             user=BUILD_USER,
             dir=BUILD_DIR,
-            ephemeral=self._ephemeral_mount_point( ),
+            ephemeral=self._ephemeral_mount_point( 0 ),
             pubkey=self.__get_master_pubkey( ).strip( ) )
 
         # Create the build user
