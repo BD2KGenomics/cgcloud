@@ -26,10 +26,11 @@
 
 __revision__ = "$Id$"
 
-from cgcloud_Crypto.pct_warnings import GetRandomNumber_DeprecationWarning, PowmInsecureWarning
 from warnings import warn as _warn
 import math
 import sys
+
+from cgcloud_Crypto.pct_warnings import GetRandomNumber_DeprecationWarning, PowmInsecureWarning
 from cgcloud_Crypto.Util.py3compat import *
 
 bignum = long

@@ -1,6 +1,5 @@
 import base64
 import json
-from boto.sqs.message import RawMessage as SQSMessage
 
 
 class UnknownVersion( Exception ):

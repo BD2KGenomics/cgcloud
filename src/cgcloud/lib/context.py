@@ -1,10 +1,10 @@
 # coding=utf-8
-from abc import ABCMeta, abstractmethod
 import json
 import os
 import urllib
 import re
 import socket
+import itertools
 
 from boto import ec2, iam, sns, sqs, vpc
 from boto.s3.key import Key as S3Key
@@ -19,7 +19,6 @@ from boto.ec2.keypair import KeyPair
 from bd2k.util import fnmatch
 from bd2k.util import memoize
 from boto.utils import get_instance_metadata
-import itertools
 
 from cgcloud.lib.message import Message
 from cgcloud.lib.util import ec2_keypair_fingerprint, UserError
