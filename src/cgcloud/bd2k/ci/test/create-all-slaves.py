@@ -6,9 +6,11 @@ import unittest
 import os
 import uuid
 import sys
-from cghub.util.fnmatch import fnmatch
 
 from subprocess32 import check_call, check_output
+
+from cghub.util.fnmatch import fnmatch
+
 
 
 # This is more of an experiment rather than a full-fledged test. It works on multiple EC2

@@ -5,8 +5,8 @@ from textwrap import dedent
 from lxml import etree
 from fabric.context_managers import settings
 from fabric.operations import run, sudo, put, get
-from cgcloud.lib.util import ec2_keypair_fingerprint, UserError, private_to_public_key, \
-    abreviated_snake_case_class_name
+
+from cgcloud.lib.util import UserError, abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.core.source_control_client import SourceControlClient
