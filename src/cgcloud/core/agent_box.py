@@ -78,7 +78,7 @@ class AgentBox( SourceControlClient, AbstractInitBox ):
     def __setup_agent( self ):
         version = Installed( __name__ ).version
         # FIXME: We could have a development version on any branch, not just master
-        git_ref = version if version and not parse_version( version ).is_prerelease else 'systemd-support'
+        git_ref = version if version and not parse_version( version ).is_prerelease else 'master'
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
             namespace=self.ctx.namespace,
