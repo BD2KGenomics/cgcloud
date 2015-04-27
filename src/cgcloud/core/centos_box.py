@@ -4,9 +4,9 @@ from distutils.version import LooseVersion
 
 from fabric.operations import run, sudo
 
-from .box import fabric_task
-from .agent_box import AgentBox
-from .yum_box import YumBox
+from cgcloud.core.box import fabric_task
+from cgcloud.core.agent_box import AgentBox
+from cgcloud.core.yum_box import YumBox
 from cgcloud.core.rc_local_box import RcLocalBox
 
 ADMIN_USER = 'admin'

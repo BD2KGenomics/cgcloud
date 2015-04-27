@@ -1,23 +1,19 @@
-from StringIO import StringIO
 from abc import abstractmethod
 import contextlib
 import csv
 import urllib2
 
-from fabric.operations import sudo, put
+from fabric.operations import sudo
 
 from box import fabric_task
+
+from cgcloud.core.init_box import UpstartBox, SystemdBox
 from cgcloud.core.agent_box import AgentBox
 from cgcloud.core.cloud_init_box import CloudInitBox
 from cgcloud.core.package_manager_box import PackageManagerBox
 from cgcloud.core.rc_local_box import RcLocalBox
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
-
-
-class TemplateDict( dict ):
-    def matches( self, other ):
-        return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
 
 class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
@@ -50,16 +46,20 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     def admin_account( self ):
         return 'ubuntu'
 
+    class TemplateDict( dict ):
+        def matches( self, other ):
+            return all( v == other.get( k ) for k, v in self.iteritems( ) )
+
     def _base_image( self, virtualization_type ):
         release = self.release( )
         image_info = self.__find_image(
-            template=TemplateDict( release=release,
-                                   purpose='server',
-                                   release_type='release',
-                                   storage_type='ebs',
-                                   arch='amd64',
-                                   region=self.ctx.region,
-                                   hypervisor=virtualization_type ),
+            template=UbuntuBox.TemplateDict( release=release,
+                                             purpose='server',
+                                             release_type='release',
+                                             storage_type='ebs',
+                                             arch='amd64',
+                                             region=self.ctx.region,
+                                             hypervisor=virtualization_type ),
             url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
             fields=[
                 'release', 'purpose', 'release_type', 'release_date',
@@ -94,12 +94,15 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
                 raise RuntimeError( 'Double quotes in debconf selections are not supported yet' )
         sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ), **sudo_kwargs )
 
-    @fabric_task
-    def _register_init_script( self, name, script ):
-        path = '/etc/init/%s.conf' % name
-        put( local_path=StringIO( script ), remote_path=path, use_sudo=True )
-        sudo( "chown root:root '%s'" % path )
-
     def _ssh_service_name( self ):
         return 'ssh'
+
+
+class UpstartUbuntuBox( UbuntuBox, UpstartBox ):
+    pass
+
+
+class SystemdUbuntuBox( UbuntuBox, SystemdBox ):
+    pass
+
 

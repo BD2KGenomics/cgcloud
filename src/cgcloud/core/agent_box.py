@@ -1,22 +1,20 @@
 import base64
 import zlib
-import os
-import itertools
 
 from fabric.context_managers import settings
 from fabric.operations import sudo, run
 from bd2k.util import shell, strict_bool
 from pkg_resources import parse_version
-from pkginfo import Develop, Installed
+from pkginfo import Installed
 
-from cgcloud.core.common_iam_policies import ec2_read_only_policy, s3_read_only_policy, \
-    iam_read_only_policy
+from cgcloud.core.init_box import AbstractInitBox
+from cgcloud.core.common_iam_policies import *
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
 from cgcloud.core.source_control_client import SourceControlClient
 
 
-class AgentBox( SourceControlClient ):
+class AgentBox( SourceControlClient, AbstractInitBox ):
     """
     A box on which to install the agent. It inherits SourceControlClient because we would like to
     install the agent directly from its source repository.
@@ -80,7 +78,7 @@ class AgentBox( SourceControlClient ):
     def __setup_agent( self ):
         version = Installed( __name__ ).version
         # FIXME: We could have a development version on any branch, not just master
-        git_ref = version if version and not parse_version( version ).is_prerelease else 'master'
+        git_ref = version if version and not parse_version( version ).is_prerelease else 'systemd-support'
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
             namespace=self.ctx.namespace,

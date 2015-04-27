@@ -5,7 +5,7 @@ from fabric.operations import run, sudo, os
 from cgcloud.core.box import fabric_task
 from cgcloud.core.centos_box import CentosBox
 from cgcloud.core.fedora_box import FedoraBox
-from cgcloud.core.ubuntu_box import UbuntuBox
+from cgcloud.core.ubuntu_box import UpstartUbuntuBox, SystemdUbuntuBox
 
 
 class GenericCentos5Box( CentosBox ):
@@ -93,7 +93,7 @@ class GenericCentos6Box( CentosBox ):
                 self._update_openssh( )
 
 
-class GenericUbuntuLucidBox( UbuntuBox ):
+class GenericUbuntuLucidBox( UpstartUbuntuBox ):
     """
     10.04 LTS
     """
@@ -130,7 +130,7 @@ class GenericUbuntuLucidBox( UbuntuBox ):
 
 
 if False:  # out of suppport
-    class GenericUbuntuMaverickBox( UbuntuBox ):
+    class GenericUbuntuMaverickBox( UpstartUbuntuBox ):
         """
         10.10
         """
@@ -143,7 +143,7 @@ if False:  # out of suppport
             return [ 'paravirtual' ]
 
 if False:  # out of suppport
-    class GenericUbuntuNattyBox( UbuntuBox ):
+    class GenericUbuntuNattyBox( UpstartUbuntuBox ):
         """
         11.04
         """
@@ -156,7 +156,7 @@ if False:  # out of suppport
             return [ 'paravirtual' ]
 
 if False:  # out of suppport
-    class GenericUbuntuOneiricBox( UbuntuBox ):
+    class GenericUbuntuOneiricBox( UpstartUbuntuBox ):
         """
         11.10
         """
@@ -169,7 +169,7 @@ if False:  # out of suppport
             return [ 'paravirtual' ]
 
 
-class GenericUbuntuPreciseBox( UbuntuBox ):
+class GenericUbuntuPreciseBox( UpstartUbuntuBox ):
     """
     12.04 LTS
     """
@@ -179,7 +179,7 @@ class GenericUbuntuPreciseBox( UbuntuBox ):
 
 
 if False:  # out of suppport
-    class GenericUbuntuQuantalBox( UbuntuBox ):
+    class GenericUbuntuQuantalBox( UpstartUbuntuBox ):
         """
         12.10
         """
@@ -188,7 +188,7 @@ if False:  # out of suppport
             return 'quantal'
 
 if False:  # out of suppport
-    class GenericUbuntuRaringBox( UbuntuBox ):
+    class GenericUbuntuRaringBox( UpstartUbuntuBox ):
         """
         13.04
         """
@@ -197,7 +197,7 @@ if False:  # out of suppport
             return 'raring'
 
 if False:
-    class GenericUbuntuSaucyBox( UbuntuBox ):
+    class GenericUbuntuSaucyBox( UpstartUbuntuBox ):
         """
         13.10
         """
@@ -206,7 +206,7 @@ if False:
             return 'saucy'
 
 
-class GenericUbuntuTrustyBox( UbuntuBox ):
+class GenericUbuntuTrustyBox( UpstartUbuntuBox ):
     """
     14.04
     """
@@ -215,7 +215,7 @@ class GenericUbuntuTrustyBox( UbuntuBox ):
         return 'trusty'
 
 
-class GenericUbuntuUtopicBox( UbuntuBox ):
+class GenericUbuntuUtopicBox( UpstartUbuntuBox ):
     """
     14.10
     """
@@ -223,6 +223,13 @@ class GenericUbuntuUtopicBox( UbuntuBox ):
     def release( self ):
         return 'utopic'
 
+class GenericUbuntuVividBox( SystemdUbuntuBox ):
+    """
+    15.04
+    """
+
+    def release( self ):
+        return 'vivid'
 
 class GenericFedora17Box( FedoraBox ):
     """

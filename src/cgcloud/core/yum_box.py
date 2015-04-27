@@ -1,16 +1,15 @@
-from cStringIO import StringIO
 import os.path
 from urlparse import urlparse
 
-from fabric.operations import sudo, run, put
+from fabric.operations import sudo, run
+
+from cgcloud.core.init_box import SysvInitdBox
 
 from cgcloud.core.box import fabric_task
 from cgcloud.core.package_manager_box import PackageManagerBox
 
-__author__ = 'hannes'
 
-
-class YumBox( PackageManagerBox ):
+class YumBox( PackageManagerBox, SysvInitdBox ):
     """
     A box that uses redhat's yum package manager
     """
@@ -74,21 +73,6 @@ class YumBox( PackageManagerBox ):
         return super( YumBox, self )._get_package_substitutions( ) + [
             ( 'python-dev', 'python-devel' ),
         ]
-
-    @staticmethod
-    def _init_script_path( name ):
-        return '/etc/init.d/%s' % name
-
-    @fabric_task
-    def _register_init_script( self, name, script ):
-        script_path = self._init_script_path( name )
-        put(
-            local_path=StringIO( script ),
-            remote_path=script_path,
-            mode=0755,
-            use_sudo=True )
-        sudo( "chown root:root '%s'" % script_path )
-        sudo( 'sudo chkconfig --add %s' % name )
 
     def _ssh_service_name( self ):
         return 'sshd'

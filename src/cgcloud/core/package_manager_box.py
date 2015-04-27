@@ -95,14 +95,6 @@ class PackageManagerBox( Box ):
             self.reboot( )
 
     @abstractmethod
-    def _register_init_script( self, name, script ):
-        raise NotImplementedError( )
-
-    @fabric_task
-    def _run_init_script( self, name, command='start' ):
-        sudo( "service %s %s" % ( name, command ) )
-
-    @abstractmethod
     def _ssh_service_name( self ):
         raise NotImplementedError( )
 

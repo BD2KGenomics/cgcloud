@@ -9,11 +9,11 @@ import subprocess
 import time
 import itertools
 
-from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
+from boto import logging
 from boto.exception import BotoServerError, EC2ResponseError
+from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from fabric.context_managers import settings
 from fabric.operations import sudo, run, get, put
-from boto import logging
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
