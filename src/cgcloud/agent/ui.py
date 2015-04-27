@@ -11,8 +11,8 @@ from bd2k.util.logging import Utf8SyslogFormatter
 from bd2k.util import uid_to_name, gid_to_name, name_to_uid, name_to_gid, shell
 from bd2k.util.lockfile import SmartPIDLockFile
 from bd2k.util.throttle import LocalThrottle
-from cgcloud.lib.context import Context
 
+from cgcloud.lib.context import Context
 from cgcloud.agent import Agent
 
 log = logging.getLogger( )
@@ -158,6 +158,7 @@ def main( ):
                                        gid=name_to_gid( options.group ),
                                        stderr=log_spill, stdout=log_spill,
                                        files_preserve=[ handler.socket ],
+                                       detach_process=True,  # needed for systemd (see [1])
                                        pidfile=pid_lock_file ):
                 run( )
         finally:
@@ -165,23 +166,29 @@ def main( ):
                 log_spill.close( )
 
 
+# [1]: http://echorand.me/2013/08/02/notes-on-writing-systemd-unit-files-for-beakers-daemon-processes/
+
+
 def generate_init_script( options ):
     from pkg_resources import resource_string
     import cgcloud.agent
     import platform
 
-    distro, version, codename = map( str.lower, platform.linux_distribution() )
+    distro, version, codename = map( str.lower, platform.linux_distribution( ) )
 
+    console = None
     if distro == 'ubuntu':
-        script = 'init-script.upstart'
         quote_level = 1
-        # Lucid's version of upstart doesn't support "console log", Precise's does, don't know
-        # about the versions in between
-        console = 'output' if codename < 'precise' else 'log'
+        if codename < 'vivid':
+            script = 'init-script.upstart'
+            # Lucid's version of upstart doesn't support "console log", Precise's does, don't know
+            # about the versions in between
+            console = 'output' if codename < 'precise' else 'log'
+        else:
+            script = 'init-script.systemd'
     else:
         script = 'init-script.lsb'
         quote_level = 2
-        console = None
 
     init_script = resource_string( cgcloud.agent.__name__, script )
 

@@ -40,5 +40,5 @@ setup(
         'argparse>=1.2.1' if sys.version_info < (2, 7) else None ] ),
     namespace_packages=[ 'cgcloud' ],
     package_data={
-        'cgcloud.agent': [ 'init-script.lsb', 'init-script.upstart' ] },
+        'cgcloud.agent': [ 'init-script.*' ] },
     dependency_links=dependency_links )
