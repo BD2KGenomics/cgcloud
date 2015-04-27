@@ -30,7 +30,7 @@ fi
 RETVAL=0
 
 start() {
-    echo -n $"Starting $exec_name: "
+    echo -n "Starting $exec_name: "
     mkdir -p ${pid_file%%/*} ${log_spill%%/*}
     chown $user:$group ${pid_file%%/*}
     chmod 755 ${pid_file%%/*} ${log_spill%%/*}
@@ -42,7 +42,7 @@ start() {
 }
 
 stop() {
-    echo -n $"Stopping $exec_name: "
+    echo -n "Stopping $exec_name: "
     killproc -p $pid_file $exec_path
     RETVAL=$?
     echo
@@ -84,7 +84,7 @@ case "$1" in
         restart
         ;;
     *)
-        echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
+        echo "Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
         exit 1
         ;;
 esac
