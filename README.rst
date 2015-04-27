@@ -242,3 +242,24 @@ setup.py develop``. To remove the editable install ``python setup.py develop
 -u``.
 
 .. _editable: http://pythonhosted.org//setuptools/setuptools.html#development-mode
+
+Troubleshooting
+===============
+
+If you get the following error::
+
+   ERROR: Exception: Incompatible ssh peer (no acceptable kex algorithm)
+   ERROR: Traceback (most recent call last):
+   ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1585, in run
+   ERROR:     self._handler_table[ptype](self, m)
+   ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1664, in _negotiate_keys
+   ERROR:     self._parse_kex_init(m)
+   ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1779, in _parse_kex_init
+   ERROR:     raise SSHException('Incompatible ssh peer (no acceptable kex algorithm)')
+   ERROR: SSHException: Incompatible ssh peer (no acceptable kex algorithm)
+
+try upgrading paramiko::
+
+   pip install --upgrade paramiko
+   
+See also https://github.com/fabric/fabric/issues/1212
