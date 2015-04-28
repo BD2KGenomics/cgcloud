@@ -1,3 +1,5 @@
+import os
+from subprocess import check_output
 from pkg_resources import parse_version
 from setuptools import setup, find_packages
 
@@ -8,7 +10,11 @@ dependency_links = [ ]
 
 def add_private_dependency( name, version=cgcloud_version, git_ref=None ):
     if git_ref is None:
-        git_ref = 'master' if parse_version( version ).is_prerelease else version
+        if parse_version( version ).is_prerelease:
+            git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
+                                    cwd=os.path.dirname( __file__ ) )
+        else:
+            git_ref = version
     url = 'git+https://github.com/BD2KGenomics'
     dependency_links.append(
         '{url}/{name}.git@{git_ref}#egg={name}-{version}'.format( **locals( ) ) )
