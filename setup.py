@@ -33,7 +33,8 @@ setup(
 
     packages=find_packages( ),
     install_requires=[
-        add_private_dependency( 'bd2k-python-lib', '1.6.dev1' ),
+        add_private_dependency( 'bd2k-python-lib', '1.5' ),
+        add_private_dependency( 'cgcloud-lib' ),
         'boto>=2.9.7'
     ],
     namespace_packages=[ 'cgcloud' ],
