@@ -68,8 +68,8 @@ class SparkTools( object ):
             time.sleep( 1 )
         log.info( "Starting sparkbox" )
         self.__patch_etc_hosts( { 'spark-master': self.master_ip } )
+        self.__mount_ebs_volume( )
         self.__create_lazy_dirs( lazy_dirs )
-        self.__mount_persistent_hdfs( )
         if self.master_ip == self.node_ip:
             node_type = 'master'
             self.__publish_host_key( )
@@ -192,7 +192,7 @@ class SparkTools( object ):
         log.info( "Master IP is '%s'", master_ip )
         return master_ip
 
-    def __mount_persistent_hdfs( self ):
+    def __mount_ebs_volume( self ):
         ebs_volume_size = self.__get_instance_tag( self.instance_id, 'ebs_volume_size' ) or '0'
         ebs_volume_size = int( ebs_volume_size )
         if ebs_volume_size:
@@ -206,19 +206,16 @@ class SparkTools( object ):
             volume.attach( self.instance_id, '/dev/sdf' )
 
             # Only format empty volumes
-            if check_output( 'file', '-sL', '/dev/xvdf' ) == '/dev/xvdf: data':
-                check_call( 'mkfs', '-t', 'ext4', '/dev/xvdf' )
-                check_call( 'e2label', '/dev/xvdf', volume_name )
+            if check_output( [ 'file', '-sL', '/dev/xvdf' ] ) == '/dev/xvdf: data':
+                check_call( [ 'mkfs', '-t', 'ext4', '/dev/xvdf' ] )
+                check_call( [ 'e2label', '/dev/xvdf', volume_name ] )
             else:
                 # if the volume is not empty, verify the file system label
-                label = check_output( 'e2label', '/dev/xvdf' )
+                label = check_output( [ 'e2label', '/dev/xvdf' ] )
                 if label != volume_name:
                     raise AssertionError(
                         "Expected volume label '%s' but got '%s'" % ( volume_name, label ) )
-            check_call( 'mount /dev/xvdf', self.persistent_dir )
-            # in case the UID is different on the volume
-            check_call( 'useradd -d {home} -g {group} -s /bin/bash {user}'.format( **jenkins ) )
-            check_call( 'chown -R {user} {home}'.format( **jenkins ) )
+            check_call( [ 'mount', '/dev/xvdf', self.persistent_dir ] )
         else:
             self.persistent_dir = self.ephemeral_dir
 
