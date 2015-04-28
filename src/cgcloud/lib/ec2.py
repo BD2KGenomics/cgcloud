@@ -1,8 +1,11 @@
 from contextlib import contextmanager
 import logging
+from operator import attrgetter
 import time
 
 from boto.exception import EC2ResponseError
+
+from cgcloud.lib.util import UserError
 
 a_short_time = 5
 
@@ -113,3 +116,83 @@ def retry_ec2( retry_after=a_short_time,
             yield
 
         yield single_attempt( )
+
+
+class EC2VolumeHelper( object ):
+    """
+    A helper for creating, looking up and attaching an EBS volume in EC2
+    """
+
+    def __init__( self, ec2, name, size, availability_zone ):
+        """
+        :param ec2: the Boto EC2 connection object
+        :type ec2: boto.ec2.connection.EC2Connection
+        """
+        super( EC2VolumeHelper, self ).__init__( )
+        self.availability_zone = availability_zone
+        self.ec2 = ec2
+        self.name = name
+        volume = self.__lookup( )
+        if volume is None:
+            log.info( "Creating volume %s, ...", self.name )
+            volume = self.ec2.create_volume( size, availability_zone )
+            self.__wait_volume_transition( volume, { 'creating' }, 'available' )
+            volume.add_tag( 'Name', self.name )
+            log.info( '... created %s.', volume.id )
+            volume = self.__lookup( )
+        self.volume = volume
+
+    def attach( self, instance_id, device ):
+        self.ec2.attach_volume( volume_id=self.volume.id,
+                                instance_id=instance_id,
+                                device=device )
+        self.__wait_volume_transition( self.volume, { 'available' }, 'in-use' )
+        if self.volume.attach_data.instance_id != instance_id:
+            raise UserError( "Volume %s is not attached to this instance." )
+
+    def __lookup( self ):
+        """
+        Ensure that an EBS volume of the given name is available in the current availability zone.
+        If the EBS volume exists but has been placed into a different zone, or if it is not
+        available, an exception will be thrown.
+        """
+        volumes = self.ec2.get_all_volumes( filters={ 'tag:Name': self.name } )
+        if len( volumes ) < 1:
+            return None
+        if len( volumes ) > 1:
+            raise UserError( "More than one EBS volume named %s" % self.name )
+        volume = volumes[ 0 ]
+        if volume.status != 'available':
+            raise UserError( "EBS volume %s is not available." % self.name )
+        expected_zone = self.availability_zone
+        if volume.zone != expected_zone:
+            raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
+                             % (self.name, volume.zone, expected_zone ) )
+        return volume
+
+    @staticmethod
+    def __wait_volume_transition( volume, from_states, to_state ):
+        wait_transition( volume, from_states, to_state, attrgetter( 'status' ) )
+
+
+def wait_transition( resource, from_states, to_state, state_getter=attrgetter( 'state' ) ):
+    """
+    Wait until the specified EC2 resource (instance, image, volume, ...) transitions from any
+    of the given 'from' states to the specified 'to' state. If the instance is found in a state
+    other that the to state or any of the from states, an exception will be thrown.
+
+    :param resource: the resource to monitor
+    :param from_states:
+        a set of states that the resource is expected to be in before the  transition occurs
+    :param to_state: the state of the resource when this method returns
+    """
+    state = state_getter( resource )
+    while state in from_states:
+        time.sleep( a_short_time )
+        for attempt in retry_ec2( ):
+            with attempt:
+                resource.update( validate=True )
+        state = state_getter( resource )
+    if state != to_state:
+        raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
+                              % ( resource, to_state, state ) )
