@@ -14,7 +14,7 @@ def add_private_dependency( name, version=cgcloud_version, git_ref=None ):
     if git_ref is None:
         if parse_version( version ).is_prerelease:
             git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
-                                    cwd=os.path.dirname( __file__ ) )
+                                    cwd=os.path.dirname( __file__ ) ).strip()
             # pip checks out individual commits which creates a detached HEAD, so we look at remote branches containing the
             if git_ref == 'HEAD':
                 git_ref = check_output( [ 'git', 'branch', '-r', '--contains', 'HEAD' ] ).strip( )
