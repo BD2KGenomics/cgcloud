@@ -1,8 +1,9 @@
 import base64
+from subprocess import check_output
 import zlib
 
 from fabric.context_managers import settings
-from fabric.operations import sudo, run
+from fabric.operations import sudo, run, os
 from bd2k.util import shell, strict_bool
 from pkg_resources import parse_version
 from pkginfo import Installed
@@ -77,8 +78,12 @@ class AgentBox( SourceControlClient, AbstractInitBox ):
 
     def __setup_agent( self ):
         version = Installed( __name__ ).version
-        # FIXME: We could have a development version on any branch, not just master
-        git_ref = version if version and not parse_version( version ).is_prerelease else 'master'
+        if version and not parse_version( version ).is_prerelease:
+            git_ref = version
+        else:
+            git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
+                                    cwd=os.path.join(
+                                        os.path.dirname( __file__ ) ) )
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
             namespace=self.ctx.namespace,
