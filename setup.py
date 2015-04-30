@@ -1,3 +1,6 @@
+import os
+from subprocess import check_output
+
 from pkg_resources import parse_version
 from setuptools import setup, find_packages
 
@@ -8,7 +11,20 @@ cgcloud_version = '1.0.dev1'
 
 def add_private_dependency( name, version=cgcloud_version, git_ref=None ):
     if git_ref is None:
-        git_ref = 'master' if parse_version( version ).is_prerelease else version
+        if parse_version( version ).is_prerelease:
+            git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
+                                    cwd=os.path.dirname( __file__ ) ).strip( )
+            # pip checks out individual commits which creates a detached HEAD, so we look at
+            # remote branches containing the
+            if git_ref == 'HEAD':
+                git_ref = check_output( [ 'git', 'branch', '-r', '--contains', 'HEAD' ],
+                                        cwd=os.path.dirname( __file__ ) ).strip( )
+                assert '\n' not in git_ref
+                git_ref = git_ref.split( '/' )
+                assert len( git_ref ) == 2
+                git_ref = git_ref[ 1 ]
+        else:
+            git_ref = version
     url = 'git+https://github.com/BD2KGenomics'
     dependency_links.append(
         '{url}/{name}.git@{git_ref}#egg={name}-{version}'.format( **locals( ) ) )
