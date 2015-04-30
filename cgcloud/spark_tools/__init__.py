@@ -44,7 +44,7 @@ class SparkTools( object ):
     for every incarnation of the AMI and after each restart of the master instance.
     """
 
-    def __init__( self, user, install_dir, ephemeral_dir, persistent_dir ):
+    def __init__( self, user, install_dir, ephemeral_dir, persistent_dir, lazy_dirs ):
         """
         :param user: the user the services run as
         :param install_dir: root installation directory, e.g. /opt
@@ -56,8 +56,9 @@ class SparkTools( object ):
         self.persistent_dir = persistent_dir
         self.uid = getpwnam( self.user ).pw_uid
         self.gid = getgrnam( self.user ).gr_gid
+        self.lazy_dirs = lazy_dirs
 
-    def start( self, lazy_dirs ):
+    def start( self ):
         """
         Start the Hadoop and Spark services on this node
 
@@ -69,7 +70,7 @@ class SparkTools( object ):
         log.info( "Starting sparkbox" )
         self.__patch_etc_hosts( { 'spark-master': self.master_ip } )
         self.__mount_ebs_volume( )
-        self.__create_lazy_dirs( lazy_dirs )
+        self.__create_lazy_dirs( )
         if self.master_ip == self.node_ip:
             node_type = 'master'
             self.__publish_host_key( )
@@ -197,25 +198,34 @@ class SparkTools( object ):
         ebs_volume_size = int( ebs_volume_size )
         if ebs_volume_size:
             instance_name = self.__get_instance_tag( self.instance_id, 'Name' )
-            cluster_ordinal = self.__get_instance_tag( self.instance_id, 'cluster_ordinal' )
+            cluster_ordinal = int( self.__get_instance_tag( self.instance_id, 'cluster_ordinal' ) )
             volume_name = '%s__%d' % ( instance_name, cluster_ordinal )
             volume = EC2VolumeHelper( ec2=self.ec2,
                                       availability_zone=self.availability_zone,
                                       name=volume_name,
                                       size=ebs_volume_size )
+            # TODO: handle case where volume is already attached
             volume.attach( self.instance_id, '/dev/sdf' )
 
             # Only format empty volumes
-            if check_output( [ 'file', '-sL', '/dev/xvdf' ] ) == '/dev/xvdf: data':
+            if check_output( [ 'file', '-sL', '/dev/xvdf' ] ).strip( ) == '/dev/xvdf: data':
                 check_call( [ 'mkfs', '-t', 'ext4', '/dev/xvdf' ] )
                 check_call( [ 'e2label', '/dev/xvdf', volume_name ] )
             else:
                 # if the volume is not empty, verify the file system label
-                label = check_output( [ 'e2label', '/dev/xvdf' ] )
+                label = check_output( [ 'e2label', '/dev/xvdf' ] ).strip( )
                 if label != volume_name:
                     raise AssertionError(
                         "Expected volume label '%s' but got '%s'" % ( volume_name, label ) )
-            check_call( [ 'mount', '/dev/xvdf', self.persistent_dir ] )
+            current_mount_point = self.__mount_point( '/dev/xvdf' )
+            if current_mount_point is None:
+                check_call( [ 'mount', '/dev/xvdf', self.persistent_dir ] )
+            elif current_mount_point == self.persistent_dir:
+                pass
+            else:
+                raise RuntimeError(
+                    "Can't mount device /dev/xvdf on '%s' since it is already mounted on '%s'" % (
+                    self.persistent_dir, current_mount_point) )
         else:
             self.persistent_dir = self.ephemeral_dir
 
@@ -281,9 +291,9 @@ class SparkTools( object ):
         master_host_key = self.__get_host_key( )
         self.ec2.create_tags( self.master_id, dict( ssh_host_key=master_host_key ) )
 
-    def __create_lazy_dirs( self, dirs ):
+    def __create_lazy_dirs( self ):
         log.info( "Bind-mounting directory structure" )
-        for (parent, name, location ) in dirs:
+        for (parent, name, location ) in self.lazy_dirs:
             assert parent[ 0 ] == os.path.sep
             physical_path = os.path.join( location, parent[ :1 ], name )
             mkdir_p( physical_path )
@@ -328,3 +338,10 @@ class SparkTools( object ):
         tags = self.ec2.get_all_tags( filters={ 'resource-id': instance_id, 'key': key } )
         return tags[ 0 ].value if tags else None
 
+    def __mount_point( self, device ):
+        with open( '/proc/mounts' ) as f:
+            for line in f:
+                line = line.split( )
+                if line[ 0 ] == device:
+                    return line[ 1 ]
+        return None
