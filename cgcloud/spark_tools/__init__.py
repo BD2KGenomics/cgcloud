@@ -225,7 +225,7 @@ class SparkTools( object ):
             else:
                 raise RuntimeError(
                     "Can't mount device /dev/xvdf on '%s' since it is already mounted on '%s'" % (
-                    self.persistent_dir, current_mount_point) )
+                        self.persistent_dir, current_mount_point) )
         else:
             self.persistent_dir = self.ephemeral_dir
 
@@ -293,9 +293,9 @@ class SparkTools( object ):
 
     def __create_lazy_dirs( self ):
         log.info( "Bind-mounting directory structure" )
-        for (parent, name, location ) in self.lazy_dirs:
+        for (parent, name, location) in self.lazy_dirs:
             assert parent[ 0 ] == os.path.sep
-            physical_path = os.path.join( location, parent[ :1 ], name )
+            physical_path = os.path.join( location, parent[ 1: ], name )
             mkdir_p( physical_path )
             os.chown( physical_path, self.uid, self.gid )
             logical_path = os.path.join( parent, name )
