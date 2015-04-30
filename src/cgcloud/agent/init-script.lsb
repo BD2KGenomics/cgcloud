@@ -34,7 +34,7 @@ start() {
     mkdir -p ${pid_file%%/*} ${log_spill%%/*}
     chown $user:$group ${pid_file%%/*}
     chmod 755 ${pid_file%%/*} ${log_spill%%/*}
-    daemon $exec_path %(args)s
+    daemon $exec_path --init sysv %(args)s
     RETVAL=$?
     echo
     [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$exec_name

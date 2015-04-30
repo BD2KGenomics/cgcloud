@@ -102,6 +102,12 @@ def main( ):
                              'make it executable and run chkconfig to '
                              'update the run levels.' % exec_name )
 
+    group.add_argument( '--init', metavar='NAME', default=None, required=False,
+                        choices=[ 'sysv', 'upstart', 'systemd' ],
+                        help="The init system invoking this program. This parameter is only "
+                             "needed when this program is run as a service under the auspices of "
+                             "a init daemon." )
+
     options = parser.parse_args( )
 
     # The lock file path will be evaluated by DaemonContext after the chdir to /,
@@ -158,7 +164,8 @@ def main( ):
                                        gid=name_to_gid( options.group ),
                                        stderr=log_spill, stdout=log_spill,
                                        files_preserve=[ handler.socket ],
-                                       detach_process=True,  # needed for systemd (see [1])
+                                       # True needed for systemd (see [1])
+                                       detach_process=True if options.init == 'systemd' else None,
                                        pidfile=pid_lock_file ):
                 run( )
         finally:
