@@ -136,43 +136,51 @@ class EC2VolumeHelper( object ):
         if volume is None:
             log.info( "Creating volume %s, ...", self.name )
             volume = self.ec2.create_volume( size, availability_zone )
-            self.__wait_volume_transition( volume, { 'creating' }, 'available' )
+            self.__wait_transition( volume, { 'creating' }, 'available' )
             volume.add_tag( 'Name', self.name )
             log.info( '... created %s.', volume.id )
             volume = self.__lookup( )
         self.volume = volume
 
     def attach( self, instance_id, device ):
-        self.ec2.attach_volume( volume_id=self.volume.id,
-                                instance_id=instance_id,
-                                device=device )
-        self.__wait_volume_transition( self.volume, { 'available' }, 'in-use' )
-        if self.volume.attach_data.instance_id != instance_id:
-            raise UserError( "Volume %s is not attached to this instance." )
+        if self.volume.attach_data.instance_id == instance_id:
+            log.info( "Volume '%s' already attached to instance '%s'." %
+                      (self.volume.id, instance_id) )
+        else:
+            self.__assert_attachable( )
+            self.ec2.attach_volume( volume_id=self.volume.id,
+                                    instance_id=instance_id,
+                                    device=device )
+            self.__wait_transition( self.volume, { 'available' }, 'in-use' )
+            if self.volume.attach_data.instance_id != instance_id:
+                raise UserError( "Volume %s is not attached to this instance." )
 
     def __lookup( self ):
         """
         Ensure that an EBS volume of the given name is available in the current availability zone.
         If the EBS volume exists but has been placed into a different zone, or if it is not
         available, an exception will be thrown.
+
+        :rtype: boto.ec2.volume.Volume
         """
         volumes = self.ec2.get_all_volumes( filters={ 'tag:Name': self.name } )
         if len( volumes ) < 1:
             return None
         if len( volumes ) > 1:
             raise UserError( "More than one EBS volume named %s" % self.name )
-        volume = volumes[ 0 ]
-        if volume.status != 'available':
-            raise UserError( "EBS volume %s is not available." % self.name )
-        expected_zone = self.availability_zone
-        if volume.zone != expected_zone:
-            raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
-                             % (self.name, volume.zone, expected_zone ) )
-        return volume
+        return volumes[ 0 ]
 
     @staticmethod
-    def __wait_volume_transition( volume, from_states, to_state ):
+    def __wait_transition( volume, from_states, to_state ):
         wait_transition( volume, from_states, to_state, attrgetter( 'status' ) )
+
+    def __assert_attachable( self ):
+        if self.volume.status != 'available':
+            raise UserError( "EBS volume %s is not available." % self.name )
+        expected_zone = self.availability_zone
+        if self.volume.zone != expected_zone:
+            raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
+                             % (self.name, self.volume.zone, expected_zone ) )
 
 
 def wait_transition( resource, from_states, to_state, state_getter=attrgetter( 'state' ) ):
