@@ -1,6 +1,7 @@
 from collections import namedtuple
 import json
 import re
+from subprocess import check_output
 from textwrap import dedent
 from StringIO import StringIO
 import logging
@@ -8,9 +9,10 @@ import logging
 from fabric.context_managers import settings
 from lxml import etree
 from lxml.builder import ElementMaker
-from pkg_resources import resource_filename
+from pkg_resources import parse_version
 from fabric.operations import run, put, os
 from bd2k.util.strings import interpolate as fmt
+from pkginfo import Installed
 
 from cgcloud.core import fabric_task
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
@@ -28,9 +30,13 @@ user = 'sparkbox'
 
 install_dir = '/opt/sparkbox'
 
-var_dir = '/mnt/ephemeral/sparkbox'
+var_dir = '/var/lib/sparkbox'
 
-log_dir = var_dir + "/log"
+log_dir = "/var/log/sparkbox"
+
+ephemeral_dir = '/mnt/ephemeral'
+
+persistent_dir = '/mnt/persistent'
 
 hdfs_replication = 1
 
@@ -91,8 +97,10 @@ class SparkBox( GenericUbuntuTrustyBox ):
 
     def _populate_security_group( self, group_name ):
         return super( SparkBox, self )._populate_security_group( group_name ) + [
-            dict( ip_protocol='tcp', from_port=0, to_port=65535, src_security_group_name=group_name ),
-            dict( ip_protocol='udp', from_port=0, to_port=65535, src_security_group_name=group_name ) ]
+            dict( ip_protocol='tcp', from_port=0, to_port=65535,
+                  src_security_group_name=group_name ),
+            dict( ip_protocol='udp', from_port=0, to_port=65535,
+                  src_security_group_name=group_name ) ]
 
     @fabric_task
     def _setup_package_repos( self ):
@@ -190,30 +198,30 @@ class SparkBox( GenericUbuntuTrustyBox ):
                 start on runlevel [2345]
                 stop on runlevel [016]
                 pre-start script
-                {tools_install_dir}/bin/python2.7 - <<END
+                {tools_dir}/bin/python2.7 - <<END
                 import logging
                 logging.basicConfig( level=logging.INFO )
                 from cgcloud.spark_tools import SparkTools
-                spark_tools = SparkTools( user="{user}", install_dir="{install_dir}" )
-                spark_tools.start( lazy_dirs={lazy_dirs} )
+                spark_tools = {spark_tools}
+                spark_tools.start()
                 end script
                 post-stop script
-                {tools_install_dir}/bin/python2.7 - <<END
+                {tools_dir}/bin/python2.7 - <<END
                 import logging
                 logging.basicConfig( level=logging.INFO )
                 from cgcloud.spark_tools import SparkTools
-                spark_tools = SparkTools( user="{user}", install_dir="{install_dir}" )
+                spark_tools = {spark_tools}
                 spark_tools.stop()
                 END
                 end script""" ) )
         script_path = "/usr/local/bin/sparkbox-manage-slaves"
         put( remote_path=script_path, use_sudo=True, local_path=StringIO( heredoc( """
-            #!{tools_install_dir}/bin/python2.7
+            #!{tools_dir}/bin/python2.7
             import sys
             import logging
             logging.basicConfig( level=logging.INFO )
             from cgcloud.spark_tools import SparkTools
-            spark_tools = SparkTools( user="{user}", install_dir="{install_dir}" )
+            spark_tools = {spark_tools}
             spark_tools.manage_slaves( slaves_to_add=sys.argv[1:] )""" ) ) )
         sudo( fmt( "chown root:root {script_path} && chmod 755 {script_path}" ) )
 
@@ -268,7 +276,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
 
         # Add environment variables to hadoop_env.sh
         hadoop_env = dict(
-            HADOOP_LOG_DIR=self.__lazy_mkdir( log_dir + "/hadoop" ),
+            HADOOP_LOG_DIR=self.__lazy_mkdir( log_dir, "hadoop", ephemeral_dir ),
             JAVA_HOME='/usr/lib/jvm/java-7-oracle' )
         hadoop_env_sh_path = fmt( "{install_dir}/hadoop/etc/hadoop/hadoop-env.sh" )
         with remote_open( hadoop_env_sh_path, use_sudo=True ) as hadoop_env_sh:
@@ -283,9 +291,9 @@ class SparkBox( GenericUbuntuTrustyBox ):
              local_path=StringIO( self.__to_hadoop_xml_config( {
                  'dfs.replication': str( hdfs_replication ),
                  'dfs.permissions': 'false',
-                 'dfs.name.dir': self.__lazy_mkdir( hdfs_dir + '/name' ),
-                 'dfs.data.dir': self.__lazy_mkdir( hdfs_dir + '/data' ),
-                 'fs.checkpoint.dir': self.__lazy_mkdir( hdfs_dir + '/checkpoint' ),
+                 'dfs.name.dir': self.__lazy_mkdir( hdfs_dir, 'name', persistent_dir ),
+                 'dfs.data.dir': self.__lazy_mkdir( hdfs_dir, 'data', persistent_dir ),
+                 'fs.checkpoint.dir': self.__lazy_mkdir( hdfs_dir, 'checkpoint', persistent_dir ),
                  'dfs.namenode.http-address': 'spark-master:50070',
                  'dfs.namenode.secondary.http-address': 'spark-master:50090' } ) ) )
 
@@ -309,9 +317,19 @@ class SparkBox( GenericUbuntuTrustyBox ):
         # This should trigger the launch of the Hadoop and Spark services
         self._run_init_script( 'sparkbox' )
 
-    def __lazy_mkdir( self, path ):
-        self.lazy_dirs.add( path )
-        return path
+    def __lazy_mkdir( self, parent, name, location ):
+        """
+        __lazy_mkdir( '/foo', 'dir', '/mnt/bar' ) creates /foo/dir now and ensures that
+        /mnt/bar/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        """
+        assert '/' not in name
+        assert parent.startswith( '/' )
+        assert location.startswith( '/' )
+        assert not location.startswith( parent ) and not parent.startswith( location )
+        logical_path = parent + '/' + name
+        sudo( 'mkdir -p "%s"' % logical_path )
+        self.lazy_dirs.add( ( parent, name, location ) )
+        return logical_path
 
     @fabric_task
     def __install_spark( self ):
@@ -319,15 +337,15 @@ class SparkBox( GenericUbuntuTrustyBox ):
         path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop2.4.tgz' )
         self.__install_apache_package( path )
 
-        spark_var_dir = var_dir + "/spark"
+        spark_dir = var_dir + "/spark"
 
         # Add environment variables to spark_env.sh
         spark_env_sh_path = fmt( "{install_dir}/spark/conf/spark-env.sh" )
         sudo( fmt( "cp {spark_env_sh_path}.template {spark_env_sh_path}" ) )
         spark_env = dict(
-            SPARK_LOG_DIR=self.__lazy_mkdir( log_dir + "/spark" ),
-            SPARK_WORKER_DIR=self.__lazy_mkdir( spark_var_dir + "/work" ),
-            SPARK_LOCAL_DIRS=self.__lazy_mkdir( spark_var_dir + "/local" ),
+            SPARK_LOG_DIR=self.__lazy_mkdir( log_dir, "spark", ephemeral_dir ),
+            SPARK_WORKER_DIR=self.__lazy_mkdir( spark_dir, "work", ephemeral_dir ),
+            SPARK_LOCAL_DIRS=self.__lazy_mkdir( spark_dir, "local", ephemeral_dir ),
             JAVA_HOME='/usr/lib/jvm/java-7-oracle',
             SPARK_MASTER_IP='spark-master' )
         with remote_open( spark_env_sh_path, use_sudo=True ) as spark_env_sh:
@@ -338,7 +356,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
         # Configure Spark properties
         spark_defaults = {
             'spark.eventLog.enabled': 'true',
-            'spark.eventLog.dir': self.__lazy_mkdir( spark_var_dir + "/history" ),
+            'spark.eventLog.dir': self.__lazy_mkdir( spark_dir, "history", ephemeral_dir ),
             'spark.master': 'spark://spark-master:7077'
         }
         spark_defaults_conf_path = fmt( "{install_dir}/spark/conf/spark-defaults.conf" )
@@ -442,15 +460,17 @@ class SparkBox( GenericUbuntuTrustyBox ):
         policies.update( dict(
             ec2_read_only=ec2_read_only_policy,
             ec2_spark_box=dict( Version="2012-10-17", Statement=[
-                dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ) ] ) ) )
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
         return role_name, policies
 
     def _image_name_prefix( self ):
-        # Make this class its subclasses use the same image
+        # Make this class and its subclasses use the same image
         return "spark-box"
 
     def _security_group_name( self ):
-        # Make this class its subclasses use the same security group
+        # Make this class and its subclasses use the same security group
         return "spark-box"
 
 
@@ -459,10 +479,11 @@ class SparkMaster( SparkBox ):
     A SparkBox that serves as the Spark/Hadoop master
     """
 
-    def __init__( self, ctx ):
+    def __init__( self, ctx, ebs_volume_size=0 ):
         super( SparkMaster, self ).__init__( ctx )
         self.preparation_args = None
         self.preparation_kwargs = None
+        self.ebs_volume_size = ebs_volume_size
 
     def prepare( self, *args, **kwargs ):
         # Stash awat arguments to prepare() so we can use them when cloning the slaves
@@ -470,10 +491,10 @@ class SparkMaster( SparkBox ):
         self.preparation_kwargs = kwargs
         return super( SparkBox, self ).prepare( *args, **kwargs )
 
-    def _on_instance_created( self, instance ):
-        super( SparkBox, self )._on_instance_created( instance )
-        # master tags itself:
-        self._tag_object_persistently( instance, 'spark_master', self.instance_id )
+    def _populate_instance_tags( self, tags_dict ):
+        super( SparkMaster, self )._populate_instance_tags( tags_dict )
+        tags_dict[ 'spark_master' ] = self.instance_id
+        tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
     def _post_install_packages( self ):
         super( SparkMaster, self )._post_install_packages( )
@@ -481,18 +502,20 @@ class SparkMaster( SparkBox ):
         # generic SparkBox would block waiting for the spark_master tag.
         self.__start_services( )
 
-    def clone( self, num_slaves, slave_instance_type ):
+    def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
         """
         Create a number of slave boxes that are connected to this master.
         """
         master = self
-        first_slave = SparkSlave( master.ctx, num_slaves, master.instance_id )
+        first_slave = SparkSlave( master.ctx, num_slaves, master.instance_id, ebs_volume_size )
         args = master.preparation_args
         kwargs = master.preparation_kwargs.copy( )
         kwargs[ 'instance_type' ] = slave_instance_type
         first_slave.prepare( *args, **kwargs )
-        other_slaves = first_slave.create( wait_ready=False )
-        return [ first_slave ] + other_slaves
+        other_slaves = first_slave.create( wait_ready=False,
+                                           cluster_ordinal=master.cluster_ordinal + 1 )
+        all_slaves = [ first_slave ] + other_slaves
+        return all_slaves
 
 
 class SparkSlave( SparkBox ):
@@ -501,19 +524,21 @@ class SparkSlave( SparkBox ):
     calling the SparkMaster.clone() method.
     """
 
-    def __init__( self, ctx, num_slaves=1, spark_master_id=None ):
+    def __init__( self, ctx, num_slaves=1, spark_master_id=None, ebs_volume_size=0 ):
         super( SparkSlave, self ).__init__( ctx )
         self.num_slaves = num_slaves
         self.spark_master_id = spark_master_id
+        self.ebs_volume_size = ebs_volume_size
 
     def _populate_instance_creation_args( self, image, kwargs ):
         kwargs.update( dict( min_count=self.num_slaves, max_count=self.num_slaves ) )
         return super( SparkSlave, self )._populate_instance_creation_args( image, kwargs )
 
-    def _on_instance_created( self, instance ):
-        super( SparkSlave, self )._on_instance_created( instance )
+    def _populate_instance_tags( self, tags_dict ):
+        super( SparkSlave, self )._populate_instance_tags( tags_dict )
         if self.spark_master_id:
-            self._tag_object_persistently( instance, 'spark_master', self.spark_master_id )
+            tags_dict[ 'spark_master' ] = self.spark_master_id
+            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
 
 def heredoc( s ):
