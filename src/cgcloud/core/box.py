@@ -20,7 +20,7 @@ from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.context import Context
-from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time
+from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
 from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint, \
     private_to_public_key
 
@@ -148,39 +148,44 @@ class Box( object ):
 
         :type ctx: Context
         """
-        #
-        # State set by constructor
-        #
+
+        # The context to be used by the instance
         self.ctx = ctx
-        'The context to be used by the instance'
-        #
-        # State set by adopt() and create()
-        #
+
+        # Set by adopt() and create(), the ID of the instance represented by this box
         self.instance_id = None
-        'The ID of the instance represented by this box'
+
+        # Set by adopt() and create(), the number of previous generations of this box. When an
+        # instances is booted from a stock AMI, generation is zero. After that instance is set up
+        # and imaged and another instance is booted from the resulting AMI, generation will be
+        # one.
         self.generation = None
-        """
-        The number of previous generations of this box. When an instances is booted from a
-        stock AMI, generation is zero. After that instance is set up and imaged and another
-        instance is booted from the resulting AMI, generation will be one.
-        """
+
+        # Set by adopt() and create(), the ordinal of this box within a cluster of boxes. For
+        # boxes that don't join a cluster, this will be 0
+        self.cluster_ordinal = None
+
+        # Set by adopt() and create(), the public IP of the instance
         self.ip_address = None
-        'The public IP of the instance '
+
+        # Set by adopt() and create(), the hostname mapping to the public IP
         self.host_name = None
-        'The hostname mapping to the public IP'
+
+        # Set by adopt() and create(), the private IP address of this instance
         self.private_ip_address = None
-        'The private IP address of this instance'
+
+        # Set by adopt() and create(), the ID of the AMI the instance was booted from
         self.image_id = None
-        'The ID of the AMI the instance was booted from'
-        #
-        # State set by prepare() only
-        #
+
+        # Set by prepare() only, the keyword arguments to be passed to RunInstances
         self.instance_creation_args = None
-        'Keyword arguments to be passed to RunInstances'
+
+        # Set by prepare() only, the SSH key pairs to be injected into the instance'
         self.ec2_keypairs = None
-        'SSH key pairs to be injected into the instance'
+
+        # Set by prepare() only, the globs from which to derive the SSH key pairs to be inhected
+        # into the instance'
         self.ec2_keypair_globs = None
-        'Globs from which to derive the SSH key pairs to be inhected into the instance'
 
     possible_root_devices = ( '/dev/sda1', '/dev/sda', '/dev/xvda' )
 
@@ -351,7 +356,7 @@ class Box( object ):
         self._populate_instance_creation_args( image, kwargs )
         self.instance_creation_args = kwargs
 
-    def create( self, wait_ready=True ):
+    def create( self, wait_ready=True, cluster_ordinal=0 ):
         """
         Create the EC2 instance represented by this box, and optionally waits for the instance to
         be ready. If the box was prepared to launch multiple instances, and multiple instances
@@ -364,13 +369,14 @@ class Box( object ):
         """
         # FIXME: we should be waiting for all instances in parallel, via threads
         reservation = self._create( )
-        instances = iter( reservation.instances )
-        self.link( next( instances ), wait_ready )
+        instances = iter( sorted( reservation.instances, key=attrgetter( 'id' ) ) )
+        cluster_ordinal = itertools.count( start=cluster_ordinal )
+        self._bind( next( instances ), next( cluster_ordinal ), wait_ready )
         result = [ ]
         try:
             while True:
                 box = copy( self )
-                box.link( next( instances ), wait_ready )
+                box._bind( next( instances ), next( cluster_ordinal ), wait_ready )
                 result.append( box )
         except StopIteration:
             pass
@@ -395,9 +401,13 @@ class Box( object ):
             with attempt:
                 return self.ctx.ec2.run_instances( self.image_id, **self.instance_creation_args )
 
-    def link( self, instance, wait_ready=True ):
-        self.instance_id = instance.id
+    def _bind( self, instance, cluster_ordinal, wait_ready=True ):
+        """
+        Link the given newly created instance with this box.
+        """
         log.info( '... created %s.', instance.id )
+        self.instance_id = instance.id
+        self.cluster_ordinal = cluster_ordinal
         self._on_instance_created( instance )
         if wait_ready:
             self.__wait_ready( instance, { 'pending' }, first_boot=True )
@@ -415,14 +425,7 @@ class Box( object ):
         """
         return dict( generation=str( self.generation ) )
 
-    def __write_options( self, tagged_ec2_object ):
-        """
-        :type tagged_ec2_object: boto.ec2.TaggedEC2Object
-        """
-        for k, v in self._get_instance_options( ).iteritems( ):
-            self._tag_object_persistently( tagged_ec2_object, k, v )
-
-    def _tag_object_persistently( self, tagged_ec2_object, tag_name, tag_value ):
+    def _tag_object_persistently( self, tagged_ec2_object, tags_dict ):
         """
         Object tagging occasionally fails with "NotFound" types of errors so we need to
         retry a few times. Sigh ...
@@ -431,7 +434,13 @@ class Box( object ):
         """
         for attempt in retry_ec2( ):
             with attempt:
-                tagged_ec2_object.add_tag( tag_name, tag_value )
+                tagged_ec2_object.add_tags( tags_dict )
+
+    def _populate_instance_tags( self, tags_dict ):
+        name = self.ctx.to_aws_name( self.role( ) )
+        tags_dict.update( dict( Name=name,
+                                cluster_ordinal=str( self.cluster_ordinal ) ) )
+        tags_dict.update( self._get_instance_options( ) )
 
     def _on_instance_created( self, instance ):
         """
@@ -440,10 +449,10 @@ class Box( object ):
         :type instance: boto.ec2.instance.Instance
         """
         log.info( 'Tagging instance ... ' )
-        name = self.ctx.to_aws_name( self.role( ) )
-        self._tag_object_persistently( instance, 'Name', name )
-        self.__write_options( instance )
-        log.info( ' instance tagged %s.', name )
+        tags_dict = { }
+        self._populate_instance_tags( tags_dict )
+        self._tag_object_persistently( instance, tags_dict )
+        log.info( ' instance tagged %r.', tags_dict )
 
     def _on_instance_running( self, instance, first_boot ):
         """
@@ -481,6 +490,7 @@ class Box( object ):
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
             self.image_id = instance.image_id
+            self.cluster_ordinal = int( instance.tags.get( 'cluster_ordinal', '0' ) )
             image = self.ctx.ec2.get_image( instance.image_id )
             if image is None:  # could already be deleted
                 log.warn( 'Could not get image details for %s.', instance.image_id )
@@ -567,10 +577,10 @@ class Box( object ):
                 image = self.ctx.ec2.get_image( image_id )
                 self.generation += 1
                 try:
-                    self.__write_options( image )
+                    self._tag_object_persistently( image, self._get_instance_options( ) )
                 finally:
                     self.generation -= 1
-                self.__wait_transition( image, { 'pending' }, 'available' )
+                wait_transition( image, { 'pending' }, 'available' )
                 log.info( "... created %s (%s).", image.id, image.name )
                 break
             except self.ctx.ec2.ResponseError as e:
@@ -597,9 +607,9 @@ class Box( object ):
         instance = self.__assert_state( 'running' )
         log.info( 'Stopping instance ...' )
         self.ctx.ec2.stop_instances( [ instance.id ] )
-        self.__wait_transition( instance,
-                                from_states={ 'running', 'stopping' },
-                                to_state='stopped' )
+        wait_transition( instance,
+                         from_states={ 'running', 'stopping' },
+                         to_state='stopped' )
         log.info( '... instance stopped.' )
 
     def start( self ):
@@ -635,63 +645,13 @@ class Box( object ):
                 log.info( 'Terminating instance ...' )
                 self.ctx.ec2.terminate_instances( [ self.instance_id ] )
                 if wait:
-                    self.__wait_transition( instance,
-                                            from_states={ 'running', 'shutting-down', 'stopped' },
-                                            to_state='terminated' )
+                    wait_transition( instance,
+                                     from_states={ 'running', 'shutting-down', 'stopped' },
+                                     to_state='terminated' )
                 log.info( '... instance terminated.' )
 
-    def get_attachable_volume( self, name ):
-        """
-        Ensure that an EBS volume of the given name is available in the current availability zone.
-        If the EBS volume exists but has been placed into a different zone, or if it is not
-        available, an exception will be thrown.
-
-        :param name: the name of the volume
-        """
-        name = self.ctx.absolute_name( name )
-        volumes = self.ctx.ec2.get_all_volumes(
-            filters={ 'tag:Name': self.ctx.to_aws_name( name ) } )
-        if len( volumes ) < 1: return None
-        if len( volumes ) > 1: raise UserError( "More than one EBS volume named %s" % name )
-        volume = volumes[ 0 ]
-        if volume.status != 'available':
-            raise UserError( "EBS volume %s is not available." % name )
-        expected_zone = self.ctx.availability_zone
-        if volume.zone != expected_zone:
-            raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
-                             % (name, volume.zone, expected_zone ) )
-        return volume
-
-    def get_or_create_volume( self, name, size, **kwargs ):
-        """
-        Ensure that an EBS volume of the given name is available in the current availability zone.
-        If the EBS volume exists but has been placed into a different zone, or if it is not
-        available, an exception will be thrown. If the volume does not exist, it will be created
-        in the current zone with the specified size.
-
-        :param name: the name of the volume
-        :param size: the size to be used if it needs to be created
-        :param kwargs: additional parameters for boto.connection.create_volume()
-        :return: the volume
-        """
-        volume = self.get_attachable_volume( name )
-        if volume is None:
-            log.info( "Creating volume %s, ...", name )
-            zone = self.ctx.availability_zone
-            volume = self.ctx.ec2.create_volume( size, zone, **kwargs )
-            self.__wait_volume_transition( volume, { 'creating' }, 'available' )
-            volume.add_tag( 'Name', self.ctx.to_aws_name( name ) )
-            log.info( '... created %s.', volume.id )
-            volume = self.get_attachable_volume( name )
-        return volume
-
-    def attach_volume( self, volume, device ):
-        self.ctx.ec2.attach_volume( volume_id=volume.id,
-                                    instance_id=self.instance_id,
-                                    device=device )
-        self.__wait_volume_transition( volume, { 'available' }, 'in-use' )
-        if volume.attach_data.instance_id != self.instance_id:
-            raise UserError( "Volume %s is not attached to this instance." )
+    def _attach_volume( self, volume_helper, device ):
+        volume_helper.attach( self.instance_id, device )
 
     def _execute_task( self, task, user ):
         """
@@ -745,7 +705,7 @@ class Box( object ):
          first time.
         """
         log.info( "... waiting for instance %s ... ", instance.id )
-        self.__wait_transition( instance, from_states, 'running' )
+        wait_transition( instance, from_states, 'running' )
         self._on_instance_running( instance, first_boot )
         log.info( "... running, waiting for assignment of public IP ... " )
         self.__wait_public_ip_assigned( instance )
@@ -825,35 +785,6 @@ class Box( object ):
             finally:
                 client.close( )
             time.sleep( a_short_time )
-
-    def __wait_volume_transition( self, volume, from_states, to_state ):
-        """
-        Same as :py:meth:`_wait_transition`, but for volumes which use 'status' instead of 'state'.
-        """
-        self.__wait_transition( volume, from_states, to_state, lambda vol: vol.status )
-
-    def __wait_transition( self, resource, from_states, to_state,
-                           state_getter=lambda resource: resource.state ):
-        """
-        Wait until the specified EC2 resource (instance, image, volume, ...) transitions from any
-        of the given 'from' states to the specified 'to' state. If the instance is found in a state
-        other that the to state or any of the from states, an exception will be thrown.
-
-        :param resource: the resource to monitor
-        :param from_states:
-            a set of states that the resource is expected to be in before the  transition occurs
-        :param to_state: the state of the resource when this method returns
-        """
-        state = state_getter( resource )
-        while state in from_states:
-            time.sleep( a_short_time )
-            for attempt in retry_ec2( ):
-                with attempt:
-                    resource.update( validate=True )
-            state = state_getter( resource )
-        if state != to_state:
-            raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
-                                  % ( resource, to_state, state ) )
 
     def ssh( self, user=None, command=None ):
         if command is None: command = [ ]
