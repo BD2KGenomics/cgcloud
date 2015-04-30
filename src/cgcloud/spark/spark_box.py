@@ -160,19 +160,28 @@ class SparkBox( GenericUbuntuTrustyBox ):
         is a Python package distribution that's included in cgcloud-spark as a resource. This is
         in contrast to the cgcloud agent, which is a standalone distribution.
         """
-        package_name = 'cgcloud-sparkbox-tools'
-        tools_src_dir = resource_filename( __name__, package_name )
-        tools_install_dir = install_dir + '/tools'
-        put( local_path=tools_src_dir, remote_path='/tmp' )
+        version = Installed( __name__ ).version
+        if version and not parse_version( version ).is_prerelease:
+            git_ref = version
+        else:
+            git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
+                                    cwd=os.path.dirname( __file__ ) )
+        tools_dir = install_dir + '/tools'
         admin = self.admin_account( )
-        sudo( fmt( 'mkdir -p {tools_install_dir}' ) )
-        sudo( fmt( 'chown {admin}:{admin} {tools_install_dir}' ) )
-        run( fmt( 'virtualenv --no-pip {tools_install_dir}' ) )
-        run( fmt( '{tools_install_dir}/bin/easy_install pip==1.5.2' ) )
-        run( fmt( 'cd /tmp/{package_name} && {tools_install_dir}/bin/python2.7 setup.py install' ) )
-        sudo( fmt( 'chown -R root:root {tools_install_dir}' ) )
-
-        lazy_dirs = repr( self.lazy_dirs )
+        sudo( fmt( 'mkdir -p {tools_dir} {persistent_dir} {ephemeral_dir}' ) )
+        sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) )
+        run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
+        run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+        with settings( forward_agent=True ):
+            run( fmt( '{tools_dir}/bin/pip install '
+                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
+                      'git+https://github.com/BD2KGenomics/cgcloud-spark-tools.git@{git_ref}' ) )
+        sudo( fmt( 'chown -R root:root {tools_dir}' ) )
+        spark_tools = "SparkTools(**%r)" % dict( user=user,
+                                                 install_dir=install_dir,
+                                                 ephemeral_dir=ephemeral_dir,
+                                                 persistent_dir=persistent_dir,
+                                                 lazy_dirs=self.lazy_dirs )
         self._register_init_script(
             "sparkbox",
             heredoc( """

@@ -26,14 +26,10 @@ setup(
 
     package_dir={ '': 'src' },
     packages=find_packages( 'src' ),
-    package_data={
-        'cgcloud.spark': [
-            'cgcloud-sparkbox-tools/setup.py',
-            'cgcloud-sparkbox-tools/cgcloud/__init__.py',
-            'cgcloud-sparkbox-tools/cgcloud/spark_tools/__init__.py' ] },
     install_requires=[
         add_private_dependency( 'cgcloud-lib' ),
         add_private_dependency( 'cgcloud-core' ),
+        add_private_dependency( 'bd2k-python-lib', '1.6.dev1' ),
         'Fabric>=1.7.0',
         'lxml>=3.2.1'
     ],
