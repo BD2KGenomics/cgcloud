@@ -1,5 +1,4 @@
 import os
-from subprocess import check_output
 import sys
 
 from pkg_resources import parse_version
@@ -8,6 +7,24 @@ from setuptools import setup, find_packages
 dependency_links = [ ]
 
 cgcloud_version = '1.0.dev1'
+
+try:
+    from subprocess import check_output
+except ImportError:
+    # check_output is not available in Python 2.6
+    from subprocess import Popen, PIPE, CalledProcessError
+    def check_output(*popenargs, **kwargs):
+        if 'stdout' in kwargs:
+            raise ValueError('stdout argument not allowed, it will be overridden.')
+        process = Popen(stdout=PIPE, *popenargs, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = popenargs[0]
+            raise CalledProcessError(retcode, cmd, output=output)
+        return output
 
 
 def add_private_dependency( name, version=cgcloud_version, git_ref=None ):
