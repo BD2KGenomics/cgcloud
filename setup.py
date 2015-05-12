@@ -16,11 +16,14 @@ def add_private_dependency( name, version=cgcloud_version, git_ref=None ):
             git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
                                     cwd=project_dir ).strip( )
             # pip checks out individual commits which creates a detached HEAD, so we look at
-            # remote branches containing the
+            # remote branches containing the commit
             if git_ref == 'HEAD':
                 git_ref = check_output( [ 'git', 'branch', '-r', '--contains', 'HEAD' ],
                                         cwd=project_dir ).strip( )
-                assert '\n' not in git_ref
+                # Just take the first branch
+                # FIXME: this is, of course, silly
+                git_ref = git_ref.split('\n')[0]
+                # Split remote from branch name
                 git_ref = git_ref.split( '/' )
                 assert len( git_ref ) == 2
                 git_ref = git_ref[ 1 ]
