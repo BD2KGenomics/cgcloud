@@ -6,6 +6,7 @@ from lxml import etree
 from fabric.context_managers import settings
 from fabric.operations import run, sudo, put, get
 
+from cgcloud.lib.ec2 import EC2VolumeHelper
 from cgcloud.lib.util import UserError, abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
@@ -88,13 +89,15 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         return super( JenkinsMaster, self ).other_accounts( ) + [ Jenkins.user ]
 
     def prepare( self, *args, **kwargs ):
-        self.volume = self.get_or_create_volume( Jenkins.data_volume_name,
-                                                 Jenkins.data_volume_size_gb )
+        self.volume = EC2VolumeHelper( ec2=self.ctx.ec2,
+                                       name=self.ctx.to_aws_name( Jenkins.data_volume_name ),
+                                       size=Jenkins.data_volume_size_gb,
+                                       availability_zone=self.ctx.availability_zone )
         return super( JenkinsMaster, self ).prepare( *args, **kwargs )
 
     def _on_instance_running( self, instance, first_boot ):
         if first_boot:
-            self.attach_volume( self.volume, Jenkins.data_device_ext )
+            self.volume.attach( self.instance_id, device=Jenkins.data_device_ext )
         super( JenkinsMaster, self )._on_instance_running( instance, first_boot )
 
     @fabric_task
