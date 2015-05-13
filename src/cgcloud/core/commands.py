@@ -2,6 +2,7 @@ from __future__ import print_function
 from abc import abstractmethod
 import argparse
 import functools
+import logging
 from operator import itemgetter
 import os
 import re
@@ -17,6 +18,8 @@ from cgcloud.lib.util import Application
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, Command
 from cgcloud.core.box import Box
+
+log = logging.getLogger( __name__ )
 
 
 class ContextCommand( Command ):
@@ -66,11 +69,11 @@ class ContextCommand( Command ):
             raise UserError( cause=e )
         except:
             # print the namespace without __me__ substituted
-            print( "Using zone '%s' and namespace '%s'" % (zone, namespace ), file=sys.stderr )
+            log.error( "An error occurred. Using zone '%s' and namespace '%s'", zone, namespace )
             raise
         else:
             # print the namespace with __me__ substituted
-            print( "Using zone '%s' and namespace '%s'" % (ctx.availability_zone, ctx.namespace ) )
+            log.info( "Using zone '%s' and namespace '%s'", ctx.availability_zone, ctx.namespace )
             return self.run_in_ctx( options, ctx )
         finally:
             if ctx is not None: ctx.close( )
