@@ -13,8 +13,12 @@ log = logging.getLogger( __name__ )
 
 master = SparkMaster.role( )
 slave = SparkSlave.role( )
+role = SparkBox.role( )
 
 num_slaves = 2
+
+cleanup = True
+create_image = True
 
 
 class ClusterTests( unittest.TestCase ):
@@ -29,37 +33,72 @@ class ClusterTests( unittest.TestCase ):
         os.environ.setdefault( 'CGCLOUD_NAMESPACE', '/test/' )
         # FIXME: on EC2 detect zone automatically
         os.environ.setdefault( 'CGCLOUD_ZONE', 'us-west-2a' )
+        if create_image:
+            cls._cgcloud( 'create', role, '-I', '-T' )
 
-    def test_cluster( self ):
-        cleanup = True
-        role = SparkBox.role( )
-        self._cgcloud( 'create', role, '-I', '-T' )
+    @classmethod
+    def tearDownClass( cls ):
+        if cleanup and create_image:
+            cls._cgcloud( 'delete-image', role )
+        super( ClusterTests, cls ).tearDownClass( )
+
+    def test_wordcount( self ):
+        self._create_cluster( )
         try:
-            self._cgcloud( 'create-spark-cluster', '-s', str( num_slaves ) )
-            try:
-                # Proof that failed remote commands lead to test failures
-                self._ssh( master, 'true' )
-                try:
-                    self._ssh( master, 'false' )
-                    self.fail( )
-                except SystemExit as e:
-                    self.assertEqual( e.code, 1 )
-                self._wait_for_slaves( )
-                self._word_count( )
-            finally:
-                if cleanup:
-                    for i in xrange( num_slaves ):
-                        self._cgcloud( 'terminate', slave )
-                    self._cgcloud( 'terminate', master )
+            self._assert_remote_failure( )
+            self._wait_for_slaves( )
+            self._word_count( )
         finally:
             if cleanup:
-                self._cgcloud( 'delete-image', role )
+                self._terminate_cluster( )
+
+    def test_persistence( self ):
+        volume_size_gb = 1
+        self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
+        try:
+            self._wait_for_slaves( )
+            # Create and checksum a random file taking up 75% of the cluster's theoretical
+            # storage capacity an  replication factor of 1.
+            test_file_size_mb = volume_size_gb * 1024 * num_slaves * 3 / 4
+            self._ssh( master, 'dd if=/dev/urandom bs=1M count=%d '
+                               '| tee >(md5sum > test.bin.md5) '
+                               '| hdfs dfs -put -f - /test.bin' % test_file_size_mb )
+            self._ssh( master, 'hdfs dfs -put -f test.bin.md5 /' )
+        finally:
+            self._terminate_cluster( )
+        self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
+        try:
+            self._wait_for_slaves( )
+            self._ssh( master, 'test "$(hdfs dfs -cat /test.bin.md5)" '
+                               '== "$(hdfs dfs -cat /test.bin | md5sum)"' )
+        finally:
+            if cleanup:
+                self._terminate_cluster( )
+
+    def _create_cluster( self, *args ):
+        self._cgcloud( 'create-spark-cluster', '-s', str( num_slaves ), *args )
+
+    def _terminate_cluster( self ):
+        for i in xrange( num_slaves ):
+            self._cgcloud( 'terminate', slave )
+        self._cgcloud( 'terminate', master )
+
+    def _assert_remote_failure( self ):
+        """
+        Proof that failed remote commands lead to test failures
+        """
+        self._ssh( master, 'true' )
+        try:
+            self._ssh( master, 'false' )
+            self.fail( )
+        except SystemExit as e:
+            self.assertEqual( e.code, 1 )
 
     def _wait_for_slaves( self ):
         delay = 5
-        expiration = time.time( ) + 5 * 60
+        expiration = time.time( ) + 10 * 60
         commands = [ 'test $(cat %s/spark/conf/slaves | wc -l) = %s' % ( install_dir, num_slaves ),
-                     "hdfs dfsadmin -report -live | fgrep 'Live datanodes (%s)'" % num_slaves ]
+            "hdfs dfsadmin -report -live | fgrep 'Live datanodes (%s)'" % num_slaves ]
         for command in commands:
             while True:
                 try:
@@ -108,19 +147,22 @@ class ClusterTests( unittest.TestCase ):
 
     ssh_opts = [ '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no' ]
 
-    def _ssh( self, role, *args ):
-        self._cgcloud( 'ssh',
-                       '-l', 'sparkbox',
-                       role,
-                       *itertools.chain( self.ssh_opts, args ) )
+    @classmethod
+    def _ssh( cls, role, *args ):
+        cls._cgcloud( 'ssh',
+                      '-l', 'sparkbox',
+                      role,
+                      *itertools.chain( cls.ssh_opts, args ) )
 
-    def _rsync( self, role, *args ):
-        self._cgcloud( 'rsync',
-                       '--ssh-opts=' + ' '.join( self.ssh_opts ),
-                       '-l', 'sparkbox',
-                       role,
-                       *args )
+    @classmethod
+    def _rsync( cls, role, *args ):
+        cls._cgcloud( 'rsync',
+                      '--ssh-opts=' + ' '.join( cls.ssh_opts ),
+                      '-l', 'sparkbox',
+                      role,
+                      *args )
 
-    def _cgcloud( self, *args ):
+    @classmethod
+    def _cgcloud( cls, *args ):
         log.info( "Running %r" % (args,) )
         main( args )
