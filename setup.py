@@ -70,9 +70,10 @@ setup(
     install_requires=filter( None, [
         add_private_dependency( 'bd2k-python-lib', '1.5' ),
         add_private_dependency( 'cgcloud-lib' ),
-        'python-daemon>=1.6',
-        'boto>=2.9.7',
-        'argparse>=1.2.1' if sys.version_info < (2, 7) else None ] ),
+        # The agent is installed in a virtualenv so we can be specific with the versions
+        'python-daemon>=2.0.5',
+        'boto==2.36.0',
+        'argparse==1.2.1' if sys.version_info < (2, 7) else None ] ),
     namespace_packages=[ 'cgcloud' ],
     package_data={
         'cgcloud.agent': [ 'init-script.*' ] },
