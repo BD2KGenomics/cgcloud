@@ -47,9 +47,7 @@ python``. If it prints ``/usr/local/bin/python`` you are most likely using a
 HomeBrewed Python and should therefore omit ``sudo``. If it prints
 ``/usr/bin/python`` you need to run ``pip`` with ``sudo``.
 
-If you get
-
-::
+If you get::
 
    Could not find any downloads that satisfy the requirement ...
 
@@ -60,6 +58,14 @@ try adding ``--process-dependency-links`` after ``install``. This is a known
 
 If you get an error about ``yaml.h`` being missing you may need to install
 libyaml (via HomeBrew on OS X) or libyaml-dev (via apt-get or yum on Linux).
+
+If you get::
+
+   AttributeError: 'tuple' object has no attribute 'is_prerelease'
+
+you might need to upgrade setuptools::
+
+   sudo pip install --upgrade setuptools
 
 The installer places the ``cgcloud`` executable on your ``PATH``. You should be
 able to invoke it now::
