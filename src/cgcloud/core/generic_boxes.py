@@ -254,6 +254,11 @@ class GenericFedora19Box( FedoraBox ):
         return 19
 
     @classmethod
+    def recommended_instance_type( cls ):
+        # On t1.micro, the agent installation runs out of memory
+        return "m1.small"
+
+    @classmethod
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
@@ -261,6 +266,11 @@ class GenericFedora19Box( FedoraBox ):
 class GenericFedora20Box( FedoraBox ):
     def release( self ):
         return 20
+
+    @classmethod
+    def recommended_instance_type( cls ):
+        # On t1.micro, the agent installation runs out of memory
+        return "m1.small"
 
     @classmethod
     def supported_virtualization_types( cls ):
