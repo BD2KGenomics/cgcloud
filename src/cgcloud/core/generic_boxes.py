@@ -17,6 +17,11 @@ class GenericCentos5Box( CentosBox ):
         return '5.8'
 
     @classmethod
+    def recommended_instance_type( cls ):
+        # On t1.micro, the agent installation runs out of memory
+        return "m1.small"
+
+    @classmethod
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
