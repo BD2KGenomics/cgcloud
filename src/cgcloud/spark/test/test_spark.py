@@ -52,6 +52,8 @@ class ClusterTests( unittest.TestCase ):
             if cleanup:
                 self._terminate_cluster( )
 
+    # FIXME: Delete volumes
+
     def test_persistence( self ):
         volume_size_gb = 1
         self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
