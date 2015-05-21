@@ -1,0 +1,16 @@
+description "%(exec_name)s"
+author "Hannes Schmidt <hannes@ucsc.edu>"
+console %(console)s
+start on runlevel [2345]
+stop on runlevel [016]
+respawn
+exec %(exec_path)s --init upstart %(args)s
+pre-start script
+    pid_file=%(pid_file)s
+    log_spill=%(log_spill)s
+    user=%(user)s
+    group=%(group)s
+    mkdir -p ${pid_file%%/*} ${log_spill%%/*}
+    chown $user:$group ${pid_file%%/*}
+    chmod 755 ${pid_file%%/*} ${log_spill%%/*}
+end script

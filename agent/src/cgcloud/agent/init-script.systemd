@@ -1,0 +1,19 @@
+[Unit]
+Description=%(exec_name)s
+Documentation=https://github.com/BD2KGenomics/cgcloud-agent
+After=network.target
+
+[Service]
+Type=forking
+PIDFile=%(pid_file)s
+ExecStart=%(exec_path)s --init systemd %(args)s
+User=%(user)s
+Group=%(group)s
+ExecStartPre=\
+    pid_file="%(pid_file)s" ; \
+    log_spill="%(log_spill)s" ; \
+    user=%(user)s ; \
+    group=%(group)s ; \
+    mkdir -p "${pid_file%%/*}" "${log_spill%%/*}" ; \
+    chown $user:$group "${pid_file%%/*}" ; \
+    chmod 755 ${pid_file%%/*} ${log_spill%%/*}

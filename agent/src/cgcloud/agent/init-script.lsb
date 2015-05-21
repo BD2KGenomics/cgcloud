@@ -1,0 +1,91 @@
+#!/bin/sh
+#
+# chkconfig: 35 99 1
+# description: %(description)s
+# processname: %(exec_name)s
+# pid_file: %(pid_file)s
+#
+
+### BEGIN INIT INFO
+# Provides: %(exec_name)s
+# Required-Start: $network
+# Required-Stop: 3 5
+# Default-Start: 3 5
+# Default-Stop:
+# Short-Description: %(exec_name)s
+# Description: %(description)s
+### END INIT INFO
+
+exec_path=%(exec_path)s
+exec_name=%(exec_name)s
+pid_file=%(pid_file)s
+log_spill=%(log_spill)s
+user=%(user)s
+group=%(group)s
+
+if [ -f /etc/rc.d/init.d/functions ]; then
+        . /etc/rc.d/init.d/functions
+fi
+
+RETVAL=0
+
+start() {
+    echo -n "Starting $exec_name: "
+    mkdir -p ${pid_file%%/*} ${log_spill%%/*}
+    chown $user:$group ${pid_file%%/*}
+    chmod 755 ${pid_file%%/*} ${log_spill%%/*}
+    daemon $exec_path --init sysv %(args)s
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && touch /var/lock/subsys/$exec_name
+    return $RETVAL
+}
+
+stop() {
+    echo -n "Stopping $exec_name: "
+    killproc -p $pid_file $exec_path
+    RETVAL=$?
+    echo
+    if [ $RETVAL -eq 0 ]; then
+        rm -f /var/lock/subsys/$exec_name
+    fi
+}
+
+restart() {
+    stop
+    start
+}
+
+# See how we were called.
+case "$1" in
+    start)
+        [ -f /var/lock/subsys/$exec_name ] && exit 0
+        $1
+        ;;
+    stop)
+        [ -f /var/lock/subsys/$exec_name ] || exit 0
+        $1
+        ;;
+    restart)
+        $1
+        ;;
+    status)
+        status -p $pid_file $exec_path
+        RETVAL=$?
+        ;;
+    condrestart|try-restart)
+        [ -f /var/lock/subsys/$exec_name ] && restart || :
+        ;;
+    reload)
+        echo "can't reload configuration, you have to restart it"
+        RETVAL=3
+        ;;
+    force-reload)
+        restart
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload}"
+        exit 1
+        ;;
+esac
+exit $RETVAL
