@@ -1,7 +1,6 @@
 from collections import namedtuple
 import json
 import re
-from subprocess import check_output
 from textwrap import dedent
 from StringIO import StringIO
 import logging
@@ -9,10 +8,8 @@ import logging
 from fabric.context_managers import settings
 from lxml import etree
 from lxml.builder import ElementMaker
-from pkg_resources import parse_version
 from fabric.operations import run, put, os
 from bd2k.util.strings import interpolate as fmt
-from pkginfo import Installed
 
 from cgcloud.core import fabric_task
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
@@ -122,7 +119,6 @@ class SparkBox( GenericUbuntuTrustyBox ):
     def _post_install_packages( self ):
         super( SparkBox, self )._post_install_packages( )
         self._propagate_authorized_keys( user, user )
-        self.setup_repo_host_keys( user=user )
         self.__setup_ssh_config( )
         self.__create_spark_keypair( )
         self.lazy_dirs = set( )
@@ -168,22 +164,15 @@ class SparkBox( GenericUbuntuTrustyBox ):
         is a Python package distribution that's included in cgcloud-spark as a resource. This is
         in contrast to the cgcloud agent, which is a standalone distribution.
         """
-        version = Installed( __name__ ).version
-        if version and not parse_version( version ).is_prerelease:
-            git_ref = version
-        else:
-            git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
-                                    cwd=os.path.dirname( __file__ ) )
         tools_dir = install_dir + '/tools'
         admin = self.admin_account( )
         sudo( fmt( 'mkdir -p {tools_dir} {persistent_dir} {ephemeral_dir}' ) )
         sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) )
         run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+        spark_tools_artifacts = ' '.join( self._project_artifacts( 'spark-tools' ) )
         with settings( forward_agent=True ):
-            run( fmt( '{tools_dir}/bin/pip install '
-                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
-                      'git+https://github.com/BD2KGenomics/cgcloud-spark-tools.git@{git_ref}' ) )
+            run( fmt( '{tools_dir}/bin/pip install {spark_tools_artifacts}' ) )
         sudo( fmt( 'chown -R root:root {tools_dir}' ) )
         spark_tools = "SparkTools(**%r)" % dict( user=user,
                                                  install_dir=install_dir,

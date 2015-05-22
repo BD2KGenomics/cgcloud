@@ -1,1 +1,4 @@
-/src/cgcloud_mesos.egg-info
+/build
+/dist
+*.egg-info
+*.pyc

@@ -50,7 +50,7 @@ The ``cgcloud-spark`` package
 
 * also depends on ``lxml`` which requires gcc, libxml2 and libxslt
 
-.. _prerequisites: https://github.com/BD2KGenomics/cgcloud-core#prerequisites
+.. _prerequisites: ../core#prerequisites
 
 
 Installation
@@ -59,7 +59,7 @@ Installation
 Read the entire section before pasting any commands! Once the prerequisites are
 installed, use ``pip`` to install ``cgcloud-spark``::
 
-   sudo pip install git+https://github.com/BD2KGenomics/cgcloud-spark.git
+   sudo pip install cgcloud-spark
 
 On OS X systems with a Python that was installed via HomeBrew, you should omit
 `sudo`. You can find out if that applies to your system by running ``which
@@ -91,7 +91,7 @@ On Redhat-based distros, run the following::
 Configuration
 =============
 
-Be sure to configure_ ``cgcloud-spark`` before proceeding.
+Be sure to configure_ ``cgcloud-core`` before proceeding.
 
 Modify your ``.profile`` or ``.bash_profile`` by adding the following line::
 
@@ -141,3 +141,4 @@ Interacting with Spark and HDFS should be done as the ``sparkbox`` user::
    cgcloud ssh spark-master -l sparkbox
    hdfs dfs -ls /
    spark-shell
+

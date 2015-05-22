@@ -8,6 +8,7 @@ import socket
 import subprocess
 import time
 import itertools
+import os
 
 from boto import logging
 from boto.exception import BotoServerError, EC2ResponseError
@@ -19,6 +20,7 @@ from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.instance_type import ec2_instance_types
+from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
 from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint, \
@@ -1125,3 +1127,20 @@ class Box( object ):
         ssh_pubkey = ssh_pubkey.getvalue( )
         self.ctx.register_ssh_pubkey( ec2_keypair_name, ssh_pubkey, force=overwrite_ec2 )
         return ssh_privkey, ssh_pubkey
+
+    def _project_artifacts( self, project_name ):
+        """
+        Like project.project_artifacts() but uploads any source distributions to the instance
+        represented by this box such that a pip running on that instance box can install them.
+        Must be called directly or indirectly from a function decorated with fabric_task. Returns
+        a list of artifacts references, each reference being either a remote path to a source
+        distribution or a versioned dependency reference, typically referring to a package on PyPI.
+        """
+
+        def upload_artifact( artifact ):
+            if artifact.startswith( '/' ):
+                return put( local_path=artifact )[0]
+            else:
+                return artifact
+
+        return [ upload_artifact( _ ) for _ in project_artifacts( project_name ) ]

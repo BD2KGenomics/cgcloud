@@ -1,24 +1,20 @@
 import base64
-from subprocess import check_output
 import zlib
 
 from fabric.context_managers import settings
-from fabric.operations import sudo, run, os
+from fabric.operations import sudo, run
 from bd2k.util import shell, strict_bool
-from pkg_resources import parse_version
-from pkginfo import Installed
 
 from cgcloud.core.init_box import AbstractInitBox
 from cgcloud.core.common_iam_policies import *
+from cgcloud.core.package_manager_box import PackageManagerBox
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
-from cgcloud.core.source_control_client import SourceControlClient
 
 
-class AgentBox( SourceControlClient, AbstractInitBox ):
+class AgentBox( PackageManagerBox, AbstractInitBox ):
     """
-    A box on which to install the agent. It inherits SourceControlClient because we would like to
-    install the agent directly from its source repository.
+    A box on which to install the agent.
     """
 
     def other_accounts( self ):
@@ -77,31 +73,22 @@ class AgentBox( SourceControlClient, AbstractInitBox ):
             self.__setup_agent( )
 
     def __setup_agent( self ):
-        version = Installed( __name__ ).version
-        if version and not parse_version( version ).is_prerelease:
-            git_ref = version
-        else:
-            git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
-                                    cwd=os.path.join(
-                                        os.path.dirname( __file__ ) ) )
         kwargs = dict(
             availability_zone=self.ctx.availability_zone,
             namespace=self.ctx.namespace,
-            ec2_keypair_globs=' '.join(
-                shell.quote( glob ) for glob in self.ec2_keypair_globs ),
+            ec2_keypair_globs=' '.join( shell.quote( _ ) for _ in self.ec2_keypair_globs ),
             accounts=' '.join( [ self.admin_account( ) ] + self.other_accounts( ) ),
             admin_account=self.admin_account( ),
             run_dir='/var/run/cgcloudagent',
             log_dir='/var/log',
             install_dir='/opt/cgcloudagent',
-            git_ref=git_ref )
+            agent_artifacts=' '.join( self._project_artifacts( 'agent' ) ) )
 
         def fmt( s ):
             return s.format( **kwargs )
 
         sudo( 'pip install --upgrade pip==1.5.2' )  # lucid & centos5 have an ancient pip
         sudo( 'pip install --upgrade virtualenv' )
-        self.setup_repo_host_keys( )
         sudo( fmt( 'mkdir -p {install_dir}' ) )
         sudo( fmt( 'chown {admin_account}:{admin_account} {install_dir}' ) )
         # By default, virtualenv installs the latest version of pip. We want a specific
@@ -109,11 +96,11 @@ class AgentBox( SourceControlClient, AbstractInitBox ):
         # pip using easy_install.
         run( fmt( 'virtualenv --no-pip {install_dir}' ) )
         run( fmt( '{install_dir}/bin/easy_install pip==1.5.2' ) )
+
         with settings( forward_agent=True ):
             run( fmt( '{install_dir}/bin/pip install '
-                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
                       '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
-                      'git+https://github.com/BD2KGenomics/cgcloud-agent.git@{git_ref}' ) )
+                      '{agent_artifacts}' ) )
         sudo( fmt( 'mkdir {run_dir}' ) )
         script = self.__gunzip_base64_decode( run( fmt(
             '{install_dir}/bin/cgcloudagent'
