@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev1'
+cgcloud_version = '1.0.dev2'
 
 setup(
     name='cgcloud-mesos',
