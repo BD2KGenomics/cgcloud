@@ -56,27 +56,20 @@ The ``cgcloud-spark`` package
 Installation
 ============
 
-Read the entire section before pasting any commands! Once the prerequisites are
-installed, use ``pip`` to install ``cgcloud-spark``::
+Read the entire section before pasting any commands and ensure that all
+prerequisites are installed. It is recommended to install cgcloud into a
+virtualenv. Create a virtualenv and use ``pip`` to install
+cgcloud-spark::
 
-   sudo pip install cgcloud-spark
+   virtualenv cgcloud
+   source cgcloud/bin/activate
+   pip install cgcloud-spark
 
 On OS X systems with a Python that was installed via HomeBrew, you should omit
 `sudo`. You can find out if that applies to your system by running ``which
 python``. If it prints ``/usr/local/bin/python`` you are most likely using a
 HomeBrew Python and should therefore omit ``sudo``. If it prints
 ``/usr/bin/python`` you need to run ``pip`` with ``sudo``.
-
-If you get
-
-::
-
-   Could not find any downloads that satisfy the requirement cgcloud-...
-
-try adding ``--process-dependency-links`` after ``install``. This is a known
-`issue`_ with pip 1.5.x.
-
-.. _issue: https://mail.python.org/pipermail/distutils-sig/2014-January/023453.html
 
 If you get an error message during the installation of the ``lxml`` dependency,
 you might have to install the ``libxml2`` and ``libxslt`` headers. On Ubuntu,
@@ -88,10 +81,10 @@ On Redhat-based distros, run the following::
 
    sudo yum install gcc libxml2-devel libxslt-devel
    
+Be sure to configure_ ``cgcloud-core`` before proceeding.
+
 Configuration
 =============
-
-Be sure to configure_ ``cgcloud-core`` before proceeding.
 
 Modify your ``.profile`` or ``.bash_profile`` by adding the following line::
 

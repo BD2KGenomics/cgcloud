@@ -21,7 +21,7 @@ To install and use CGCloud, you need
 
 * Python ≧ 2.7.x
 
-* pip_
+* pip_ and virtualenv_
 
 * Git_
 
@@ -29,6 +29,7 @@ To install and use CGCloud, you need
   installation of cgcloud-core for compiling the PyCrypto dependency)
 
 .. _pip: https://pip.readthedocs.org/en/latest/installing.html
+.. _virtualenv: https://virtualenv.pypa.io/en/latest/installation.html
 .. _Git: http://git-scm.com/
 .. _Xcode: https://itunes.apple.com/us/app/xcode/id497799835?mt=12
 .. _Xcode Command Line Tools: http://stackoverflow.com/questions/9329243/xcode-4-4-command-line-tools
@@ -36,25 +37,14 @@ To install and use CGCloud, you need
 Installation
 ============
 
-Read the entire section before pasting any commands! Once the prerequisites are
-installed, use ``pip`` to install cgcloud-core::
+Read the entire section before pasting any commands and ensure that all
+prerequisites are installed. It is recommended to install CGCloud into a
+virtualenv. Create a virtualenv and use ``pip`` to install
+the ``cgcloud-core`` package::
 
-   sudo pip install git+https://github.com/BD2KGenomics/cgcloud-core.git
-
-On OS X systems with a Python that was installed via HomeBrew, you should omit
-`sudo`. You can find out if that applies to your system by running ``which
-python``. If it prints ``/usr/local/bin/python`` you are most likely using a
-HomeBrewed Python and should therefore omit ``sudo``. If it prints
-``/usr/bin/python`` you need to run ``pip`` with ``sudo``.
-
-If you get::
-
-   Could not find any downloads that satisfy the requirement ...
-
-try adding ``--process-dependency-links`` after ``install``. This is a known
-`issue`_ with pip 1.5.x and above.
-
-.. _issue: https://mail.python.org/pipermail/distutils-sig/2014-January/023453.html
+   virtualenv cgcloud
+   source cgcloud/bin/activate
+   pip install cgcloud-core
 
 If you get an error about ``yaml.h`` being missing you may need to install
 libyaml (via HomeBrew on OS X) or libyaml-dev (via apt-get or yum on Linux).
@@ -63,12 +53,24 @@ If you get::
 
    AttributeError: 'tuple' object has no attribute 'is_prerelease'
 
-you might need to upgrade setuptools::
+you may need to upgrade setuptools::
 
    sudo pip install --upgrade setuptools
 
-The installer places the ``cgcloud`` executable on your ``PATH``. You should be
-able to invoke it now::
+If, on Mountain Lion, you get::
+
+   clang: error: unknown argument: '-mno-fused-madd' [-Wunused-command-line-argument-hard-error-in-future]
+   clang: note: this will be a hard error (cannot be downgraded to a warning) in the future
+   error: command 'clang' failed with exit status 1
+
+try the following work-around::
+   
+   export CFLAGS=-Qunused-arguments
+   export CPPFLAGS=-Qunused-arguments
+
+The installer places the ``cgcloud`` executable into the ``bin`` directory of
+the virtualenv or, if you didn't create a virtualenv for cgcloud, into a
+directory on your ``PATH``. You should be able to invoke it now::
 
    cgcloud --help
 
@@ -132,20 +134,32 @@ a zone. So when you switch to a different region, you will have to use
 Multi-user SSH logins
 ---------------------
 
-By default, cgcloud only injects your public key into the boxes that it
+By default, CGCloud only injects your public key into the boxes that it
 creates. This means that only you can SSH into those boxes. If you want other
-team members to be able to SSH into your boxes you can specify a list of key
-pairs to be injected into boxes. You can do so as using a command line option
-to ``cgcloud create`` or by setting an environment variable such that every box
-you create will get those key pairs by default. Add the following line to your
-``.profile`` or ``.bash_profile``::
+people to be able to SSH into boxes created by you, you can specify a list of
+key pairs to be injected into boxes. You can do so as using the ``-k`` command
+line option to ``cgcloud create`` or by setting the ``CGCLOUD_KEYPAIRS``
+environment variable. The latter will inject those key pairs by default into
+every box that you create. The default for ``-k`` is the special string
+``__me__`` which is substituted with the name of the current IAM user. This
+only works your IAM user account and your SSH key pair in EC2 have the same
+name, a practice that is highly recommended. The ``cgcloud register-key``
+command follows that convention by default.
+
+The most useful shortcut for ``-k`` and ``CGCLOUD_KEYPAIRS`` however is to list
+the name of an IAM group by prefixing the group name with ``@@``. Assuming that
+there exists an IAM group called ``developers``, adding the following line to
+your ``.profile`` or ``.bash_profile``::
 
    export CGCLOUD_KEYPAIRS="__me__ @@developers"
 
-This injects your own key pair (the string ``__me__`` will be substituted with
-your IAM account name which, by convention, is also the name of your key pair)
-and the key pair of every user in the ``developers`` IAM group into every box
-that you create.
+will inject your own key pair and the key pair of every user in the
+``developers`` IAM group into every box that you create. Obviously, this only
+works if EC2 key pairs and IAM usernames are identical. If a user is removed
+from the IAM group or their key pair deleted from EC2, and within minutes his
+or her key pair will automatically be removed from every box that is running
+the agent. Unless you specifically tell CGCloud not to, it installs the agent
+on boxes by default.
 
 First steps
 ===========
@@ -209,7 +223,7 @@ is typically done by creating a CGCloud plugin, i.e. a Python package with VM
 definitions aka ``roles``. A role is a subclass of the Box class while a box
 (aka VM aka EC2 instance) is an instance of that class. The prominent design
 patterns formed by Box and its derived classes are *Template Method* and
-*Mixin*. The mixin pattern introduces a sensitivity to Python's method
+*Mix-in*. The mix-in pattern introduces a sensitivity to Python's method
 resolution order so you need to be aware of that.
 
 Creating an image makes sense even if you didn't make any modifications after
