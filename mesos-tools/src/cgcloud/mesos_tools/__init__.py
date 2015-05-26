@@ -43,6 +43,10 @@ class MesosTools( object ):
         log.info( "Starting %s services" % node_type )
         check_call( [ initctl, 'emit', 'mesosbox-start-%s' % node_type ] )
 
+    def stop( self ):
+        log.info( "Stopping sparkbox" )
+        self.__patch_etc_hosts( { 'spark-master': None } )
+
     def __patch_etc_hosts( self, hosts ):
         log.info( "Patching /etc/host" )
         # FIXME: The handling of /etc/hosts isn't atomic
@@ -70,6 +74,11 @@ class MesosTools( object ):
     @classmethod
     def instance_data( cls, path ):
         return urlopen( 'http://169.254.169.254/latest/' + path ).read( )
+
+    @property
+    @memoize
+    def ec2( self ):
+        return boto.ec2.connect_to_region( self.region )
 
     @property
     @memoize
