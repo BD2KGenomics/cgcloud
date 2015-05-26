@@ -33,7 +33,7 @@ class MesosTools( object ):
             log.info( "Waiting for cloud-init to finish ..." )
             time.sleep( 1 )
 
-        self.__patch_etc_hosts( { 'spark-master': self.master_ip } )
+        self.__patch_etc_hosts( { 'mesos-master': self.master_ip } )
 
         if self.master_ip == self.node_ip:
             node_type = 'master'
@@ -44,8 +44,8 @@ class MesosTools( object ):
         check_call( [ initctl, 'emit', 'mesosbox-start-%s' % node_type ] )
 
     def stop( self ):
-        log.info( "Stopping sparkbox" )
-        self.__patch_etc_hosts( { 'spark-master': None } )
+        log.info( "Stopping mesosbox" )
+        self.__patch_etc_hosts( { 'mesos-master': None } )
 
     def __patch_etc_hosts( self, hosts ):
         log.info( "Patching /etc/host" )
@@ -114,9 +114,24 @@ class MesosTools( object ):
     @memoize
     def master_id( self ):
         while True:
-            master_id = self.__get_instance_tag( self.instance_id, 'spark_master' )
+            master_id = self.__get_instance_tag( self.instance_id, 'mesos_master' )
             if master_id:
                 log.info( "Master's instance ID is '%s'", master_id )
                 return master_id
             log.warn( "Instance not tagged with master's instance ID, retrying" )
             time.sleep( 5 )
+    @property
+    @memoize
+    def region( self ):
+        m = re.match( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$', self.availability_zone )
+        assert m
+        region = m.group( 1 )
+        log.info( "Region is '%s'", region )
+        return region
+
+    @property
+    @memoize
+    def availability_zone( self ):
+        zone = self.meta_data( 'placement/availability-zone' )
+        log.info( "Availability zone is '%s'", zone )
+        return zone
