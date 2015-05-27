@@ -90,7 +90,7 @@ Modify your ``.profile`` or ``.bash_profile`` by adding the following line::
 
    export CGCLOUD_PLUGINS=cgcloud.spark
 
-Login and out (or, on OX X, start a new Terminal tab/window).
+Login and out (or, on OS X, start a new Terminal tab/window).
 
 Verify the installation by running::
 
