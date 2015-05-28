@@ -4,6 +4,7 @@ from unittest import TestCase
 import itertools
 
 from bd2k.util.exceptions import panic
+from subprocess import check_call
 
 import cgcloud
 from cgcloud.core.ui import main
@@ -57,7 +58,10 @@ class CoreTests( TestCase ):
 
     def _cgcloud( self, *args ):
         log.info( "Running %r" % (args,) )
-        main( args )
+        if os.environ.get( 'CGCLOUD_TEST_EXEC', "" ):
+            check_call( ( 'cgcloud', ) + args )
+        else:
+            main( args )
 
     ssh_opts = [ '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no' ]
 
