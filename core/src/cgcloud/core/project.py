@@ -1,8 +1,8 @@
 import glob
+from itertools import dropwhile
 import os
-import warnings
 
-from pkginfo import Installed
+import pkg_resources
 
 
 def project_artifacts( project_name ):
@@ -15,6 +15,35 @@ def project_artifacts( project_name ):
     else:
         return [ project_artifact( 'lib' ), project_artifact( project_name ) ]
 
+def rindex(l,v):
+    """
+    Like l.index(v) but finds last occurrence of v in l.
+
+    >>> rindex( [0], 0 )
+    0
+    >>> rindex( [0,0], 0 )
+    1
+    >>> rindex( [0,1], 0 )
+    0
+    >>> rindex( [0,1,0,1], 0 )
+    2
+    >>> rindex( [0,1,0,1], 1 )
+    3
+    >>> rindex( [0], 1 )
+    Traceback (most recent call last):
+    ...
+    ValueError: 1
+    >>> rindex( [None], None )
+    0
+    >>> rindex( [], None )
+    Traceback (most recent call last):
+    ...
+    ValueError: None
+    """
+    try:
+        return len(l) - dropwhile( lambda (i,x): v != x, enumerate( reversed( l ),1 ) ).next()[0]
+    except StopIteration:
+        raise ValueError( v )
 
 def project_artifact( project_name ):
     """
@@ -31,16 +60,16 @@ def project_artifact( project_name ):
     :return: Either an absolute path to a source distribution or a requirement specifier to be
     looked up in the Python package index (PyPI).
     """
-    with warnings.catch_warnings( ):
-        warnings.simplefilter( "ignore" )
-        version = Installed( __name__ ).version
-    if version is None:
-        dir_path = os.path.dirname( os.path.abspath( __file__ ) )
-        while not os.path.exists( os.path.join( dir_path, 'setup.py' ) ):
-            parent_dir_path = os.path.dirname( dir_path )
-            if parent_dir_path == dir_path:
-                raise RuntimeError( "Couldn't find parent directory" )
-            dir_path = parent_dir_path
+    dir_path = os.path.abspath( __file__ ).split( os.path.sep )
+    try:
+        # If the 'src' directory is in the module's file path, we must be in development mode.
+        i = rindex( dir_path, 'src' )
+    except ValueError:
+        # Otherwise, we must be installed and need to determine our current version.
+        version = pkg_resources.get_distribution( 'cgcloud-core' ).version
+        return 'cgcloud-%s==%s' % ( project_name, version )
+    else:
+        dir_path = os.path.sep.join( dir_path[ :i ] )
         project_path = os.path.join( os.path.dirname( dir_path ), project_name )
         sdist_glob = os.path.join( project_path, 'dist', 'cgcloud-%s*.tar.gz' % project_name )
         sdist = glob.glob( sdist_glob )
@@ -54,5 +83,3 @@ def project_artifact( project_name ):
             raise RuntimeError( "Can't find '%s' source distribution. Looking for '%s'." % (
                 project_name, sdist_glob ) )
         return sdist
-    else:
-        return 'cgcloud-%s==%s' % ( project_name, version )

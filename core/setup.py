@@ -24,7 +24,6 @@ setup(
     install_requires=[
         'bd2k-python-lib>=1.6.dev1',
         'cgcloud-lib==' + cgcloud_version,
-        'pkginfo>=1.1',
         'boto>=2.36.0',
         'Fabric>=1.7.0',
         'PyYAML>=3.10' ],
