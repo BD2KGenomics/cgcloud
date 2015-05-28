@@ -24,7 +24,10 @@ again. Otherwise, `cgcloud create` will install a stale version of these on the
 remote box.
 
 Depending on your Python installation, certain steps in the Makefile may
-require root privileges. Don't run `sudo make` because that will create files owned by root in the source tree. Instead use `make sudo=sudo`. If you did accidentially run `sudo make`, run `sudo make clean` to delete those files first and then run `make sudo=sudo`.
+require root privileges. Don't run `sudo make` because that will create files
+owned by root in the source tree. Instead use `make sudo=sudo`. If you did
+accidentially run `sudo make`, run `sudo make clean` to delete those files
+first and then run `make sudo=sudo`.
 
 To have `make` use a particular Python interpreter, pass the `python` variable
 to it, e.g. `make python=/usr/bin/python2.7`.
