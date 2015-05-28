@@ -2,7 +2,7 @@ import os
 from pkg_resources import parse_version
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev2'
+cgcloud_version = '1.0.dev3'
 
 setup(
     name='cgcloud-lib',
