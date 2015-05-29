@@ -129,9 +129,10 @@ SSH into the master::
 
    cgcloud ssh spark-slave -o 1
 
-Interacting with Spark and HDFS should be done as the ``sparkbox`` user::
+Interactions with Spark and HDFS should be done as the ``sparkbox`` user::
 
    cgcloud ssh spark-master -l sparkbox
    hdfs dfs -ls /
    spark-shell
 
+Otherwise you are likely to run into permission problems.
