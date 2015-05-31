@@ -265,7 +265,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
 
         # Add environment variables to hadoop_env.sh
         hadoop_env = dict(
-            HADOOP_LOG_DIR=self.__lazy_mkdir( log_dir, "hadoop", ephemeral_dir ),
+            HADOOP_LOG_DIR=self.__lazy_mkdir( log_dir, "hadoop" ),
             JAVA_HOME='/usr/lib/jvm/java-7-oracle' )
         hadoop_env_sh_path = fmt( "{install_dir}/hadoop/etc/hadoop/hadoop-env.sh" )
         with remote_open( hadoop_env_sh_path, use_sudo=True ) as hadoop_env_sh:
@@ -280,9 +280,9 @@ class SparkBox( GenericUbuntuTrustyBox ):
              local_path=StringIO( self.__to_hadoop_xml_config( {
                  'dfs.replication': str( hdfs_replication ),
                  'dfs.permissions': 'false',
-                 'dfs.name.dir': self.__lazy_mkdir( hdfs_dir, 'name', persistent_dir ),
-                 'dfs.data.dir': self.__lazy_mkdir( hdfs_dir, 'data', persistent_dir ),
-                 'fs.checkpoint.dir': self.__lazy_mkdir( hdfs_dir, 'checkpoint', persistent_dir ),
+                 'dfs.name.dir': self.__lazy_mkdir( hdfs_dir, 'name', persistent=True ),
+                 'dfs.data.dir': self.__lazy_mkdir( hdfs_dir, 'data', persistent=True ),
+                 'fs.checkpoint.dir': self.__lazy_mkdir( hdfs_dir, 'checkpoint', persistent=True ),
                  'dfs.namenode.http-address': 'spark-master:50070',
                  'dfs.namenode.secondary.http-address': 'spark-master:50090' } ) ) )
 
@@ -306,18 +306,23 @@ class SparkBox( GenericUbuntuTrustyBox ):
         # This should trigger the launch of the Hadoop and Spark services
         self._run_init_script( 'sparkbox' )
 
-    def __lazy_mkdir( self, parent, name, location ):
+    def __lazy_mkdir( self, parent, name, persistent=False ):
         """
-        __lazy_mkdir( '/foo', 'dir', '/mnt/bar' ) creates /foo/dir now and ensures that
-        /mnt/bar/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        __lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
+        /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        Likewise, __lazy_mkdir( '/foo', 'dir', False) creates /foo/dir now and ensures that
+        /mnt/ephemeral/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        Note that at start-up time, /mnt/persistent may be reassigned  to /mnt/ephemeral if no
+        EBS volume is mounted at /mnt/persistent.
         """
         assert '/' not in name
         assert parent.startswith( '/' )
-        assert location.startswith( '/' )
-        assert not location.startswith( parent ) and not parent.startswith( location )
+        for location in ( persistent_dir, ephemeral_dir ):
+            assert location.startswith( '/' )
+            assert not location.startswith( parent ) and not parent.startswith( location )
         logical_path = parent + '/' + name
         sudo( 'mkdir -p "%s"' % logical_path )
-        self.lazy_dirs.add( ( parent, name, location ) )
+        self.lazy_dirs.add( ( parent, name, persistent ) )
         return logical_path
 
     @fabric_task
@@ -332,9 +337,9 @@ class SparkBox( GenericUbuntuTrustyBox ):
         spark_env_sh_path = fmt( "{install_dir}/spark/conf/spark-env.sh" )
         sudo( fmt( "cp {spark_env_sh_path}.template {spark_env_sh_path}" ) )
         spark_env = dict(
-            SPARK_LOG_DIR=self.__lazy_mkdir( log_dir, "spark", ephemeral_dir ),
-            SPARK_WORKER_DIR=self.__lazy_mkdir( spark_dir, "work", ephemeral_dir ),
-            SPARK_LOCAL_DIRS=self.__lazy_mkdir( spark_dir, "local", ephemeral_dir ),
+            SPARK_LOG_DIR=self.__lazy_mkdir( log_dir, "spark" ),
+            SPARK_WORKER_DIR=self.__lazy_mkdir( spark_dir, "work" ),
+            SPARK_LOCAL_DIRS=self.__lazy_mkdir( spark_dir, "local" ),
             JAVA_HOME='/usr/lib/jvm/java-7-oracle',
             SPARK_MASTER_IP='spark-master' )
         with remote_open( spark_env_sh_path, use_sudo=True ) as spark_env_sh:

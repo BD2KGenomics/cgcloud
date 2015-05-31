@@ -25,12 +25,13 @@ log = logging.getLogger( __name__ )
 
 class SparkTools( object ):
     """
-    Tools for master discovery and managing the slaves file for Hadoop and Spark.
+    Tools for master discovery and managing the slaves file for Hadoop and Spark. All of this
+    happens at boot time when a node (master or slave) starts up as part of a cluster.
 
     Master discovery works as follows: All instances in a Spark cluster are tagged with the
     instance ID of the master. Each instance will look up the private IP of 1) the master
     instance using the EC2 API (via boto) and 2) itself using the instance metadata endpoint. An
-    entry for spark-master will be added to /etc/hosts. All configuration files use these names
+    entry for "spark-master" will be added to /etc/hosts. All configuration files use these names
     instead of hard-coding the IPs. This is all that's needed to boot a working cluster.
 
     In order to facilitate the start-all.sh and stop-all.sh scripts in Hadoop and Spark,
@@ -42,6 +43,8 @@ class SparkTools( object ):
     The slaves file in spark/conf and hadoop/etc/hadoop is actually a symlink to a file in /tmp
     whose name ends in the IP of the master. This is to ensure that a fresh slaves file is used
     for every incarnation of the AMI and after each restart of the master instance.
+
+    Optionally, a persistent EBS volume is attached, formmatted (if needed) and mounted.
     """
 
     def __init__( self, user, install_dir, ephemeral_dir, persistent_dir, lazy_dirs ):
@@ -60,9 +63,7 @@ class SparkTools( object ):
 
     def start( self ):
         """
-        Start the Hadoop and Spark services on this node
-
-        :param lazy_dirs: directories to create, typically located on ephemeral volumes
+        Invoked at boot time or when the sparkbox service is started.
         """
         while not os.path.exists( '/tmp/cloud-init.done' ):
             log.info( "Waiting for cloud-init to finish ..." )
@@ -85,10 +86,24 @@ class SparkTools( object ):
         check_call( [ initctl, 'emit', 'sparkbox-start-%s' % node_type ] )
 
     def stop( self ):
+        """
+        Invoked at shutdown time or when the sparkbox service is stopped.
+        """
         log.info( "Stopping sparkbox" )
         self.__patch_etc_hosts( { 'spark-master': None } )
 
     def manage_slaves( self, slaves_to_add=None ):
+        """
+        This method is invoked when the sparkbox-manage-slaves script is run. It has two modes:
+        the first mode initializes the slaves file when the master starts up. All currently
+        running slaves will be added to the slaves file. The second mode adds specific slaves to
+        the slaves, typically just one. This happens when the sparkbox-manage-slaves script is
+        invoked from a slave on the master via ssh.
+
+        :param slaves_to_add: an iterable yielding strings containing the IP address of a slave.
+        The format is IP : SSH_KEY_ALGO : SSH_HOST_KEY without the spaces. If this parameter is
+        empty or None, all slaves belonging to this master will be listed via EC2 and then added.
+        """
         log.info( "Managing slaves file" )
         slaves_path = "/tmp/slaves-" + self.master_ip
         with open( slaves_path, 'a+' ) as f:
@@ -96,7 +111,6 @@ class SparkTools( object ):
             if slaves_to_add:
                 log.info( "Adding slaves: %r", slaves_to_add )
                 slaves = set( _.strip( ) for _ in f.readlines( ) )
-                # format is IP : SSH_KEY_ALGO : SSH_HOST_KEY without the spaces
                 slaves.update( _.split( ':' )[ 0 ] for _ in slaves_to_add )
             else:
                 log.info( "Initializing slaves file" )
@@ -194,6 +208,10 @@ class SparkTools( object ):
         return master_ip
 
     def __mount_ebs_volume( self ):
+        """
+        Attach, format (if necessary) and mount the EBS volume with the same cluster ordinal as
+        this node.
+        """
         ebs_volume_size = self.__get_instance_tag( self.instance_id, 'ebs_volume_size' ) or '0'
         ebs_volume_size = int( ebs_volume_size )
         if ebs_volume_size:
@@ -227,6 +245,8 @@ class SparkTools( object ):
                     "Can't mount device /dev/xvdf on '%s' since it is already mounted on '%s'" % (
                         self.persistent_dir, current_mount_point) )
         else:
+            # No persistent volume is attached and the root volume is off limits, so we will need
+            # to place persistent data on the ephemeral volume.
             self.persistent_dir = self.ephemeral_dir
 
     def __get_master_host_key( self ):
@@ -293,8 +313,9 @@ class SparkTools( object ):
 
     def __create_lazy_dirs( self ):
         log.info( "Bind-mounting directory structure" )
-        for (parent, name, location) in self.lazy_dirs:
+        for (parent, name, persistent) in self.lazy_dirs:
             assert parent[ 0 ] == os.path.sep
+            location = self.persistent_dir if persistent else self.ephemeral_dir
             physical_path = os.path.join( location, parent[ 1: ], name )
             mkdir_p( physical_path )
             os.chown( physical_path, self.uid, self.gid )
