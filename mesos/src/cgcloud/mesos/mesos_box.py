@@ -22,16 +22,21 @@ Service = namedtuple( 'Service', [
     'init_name',
     'description',
     'start_script',
+    'action',
     'stop_script' ] )
 
 def mesos_service( name, script_suffix=None ):
     if script_suffix is None: script_suffix = name
-    script = 'usr/sbin/mesos-{name}.sh'
+    script = 'usr/sbin/mesos-{name}'
+    flag = fmt("--log_dir=/var/log/mesos{name} ")
+    if name is 'slave': flag += '--master=\'mesos-master\':5050'
+    else: flag += '--registry=in_memory'
     return Service(
-        init_name='mesos-' + name,
+        init_name='mesosbox-' + name,
         description=fmt( "Mesos {name} service" ),
-        start_script=fmt( script, action='start' ),
-        stop_script=fmt( script, action='stop' ) )
+        start_script='',
+        action=fmt(script+" "+flag),
+        stop_script="")
 
 mesos_services = {
     'master': [ mesos_service( 'master' ) ],
@@ -44,6 +49,13 @@ class MesosBox(GenericUbuntuTrustyBox):
     """
     def __init__( self, ctx ):
         super( MesosBox, self ).__init__( ctx )
+
+    def _populate_security_group( self, group_name ):
+        return super( MesosBox, self )._populate_security_group( group_name ) + [
+            dict( ip_protocol='tcp', from_port=0, to_port=65535,
+                  src_security_group_name=group_name ),
+            dict( ip_protocol='udp', from_port=0, to_port=65535,
+                  src_security_group_name=group_name ) ]
 
     @fabric_task
     def _setup_package_repos( self ):
@@ -62,20 +74,26 @@ class MesosBox(GenericUbuntuTrustyBox):
         self.lazy_dirs = set( )
         self.__install_mesos( )
         self.__install_mesos_egg( )
-        # self.__setEnv()
-        # self.__install_mesosbox_tools()
+        self.__setEnv()
+        self.__install_mesosbox_tools()
+        self.__remove_mesos_default_upstarts()
+        self.__register_upstart_jobs(mesos_services)
 
     @fabric_task
     def __setEnv(self):
-        spark_env_sh_path = "~/.profile"
-        spark_env = dict(
+        mesos_env_sh_path = "~/.profile"
+        mesos_env = dict(
             MESOS_REGISTRY="in_memory",
-            MESOS_MASTER='spark-master' )
-        with remote_open( spark_env_sh_path, use_sudo=True ) as spark_env_sh:
-            spark_env_sh.append("\n")
-            for name, value in spark_env.iteritems( ):
-                spark_env_sh.append( fmt( 'export {name}="{value}"\n' ) )
+            MESOS_MASTER='mesos-master' )
+        with remote_open( mesos_env_sh_path, use_sudo=True ) as mesos_env_sh:
+            mesos_env_sh.write("\n")
+            for name, value in mesos_env.iteritems( ):
+                mesos_env_sh.write( fmt( 'export {name}="{value}"\n' ) )
 
+    @fabric_task
+    def __remove_mesos_default_upstarts(self):
+        sudo("rm /etc/init/mesos-slave.conf")
+        sudo("rm /etc/init/mesos-master.conf")
 
     @fabric_task
     def __install_mesosbox_tools( self ):
@@ -92,14 +110,13 @@ class MesosBox(GenericUbuntuTrustyBox):
                                     cwd=os.path.dirname( __file__ ) )
         tools_dir = install_dir + '/tools'
         sudo( fmt( 'mkdir -p {tools_dir}') )
-        sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) ) #is this necessary for mesos?
-        run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
-        run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+        sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
+        sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+
+        mesos_tools_artifacts = ' '.join( self._project_artifacts( 'mesos-tools' ) )
         with settings( forward_agent=True ):
-            run( fmt( '{tools_dir}/bin/pip install '
-                      '--process-dependency-links '  # pip 1.5.x deprecates dependency_links in setup.py
-                      'git+https://github.com/BD2KGenomics/cgcloud-mesos-tools.git@{git_ref}' ) )
-        sudo( fmt( 'chown -R root:root {tools_dir}' ) )
+            sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
+
         mesos_tools = "MesosTools(**%r)" % dict( )
         self._register_init_script(
             "mesosbox",
@@ -126,15 +143,15 @@ class MesosBox(GenericUbuntuTrustyBox):
                 mesos_tools.stop()
                 END
                 end script""" ) )
-        # script_path = "/usr/local/bin/sparkbox-manage-slaves"
+        # script_path = "/usr/local/bin/mesosbox-manage-slaves"
         # put( remote_path=script_path, use_sudo=True, local_path=StringIO( heredoc( """
         #     #!{tools_dir}/bin/python2.7
         #     import sys
         #     import logging
         #     logging.basicConfig( level=logging.INFO )
-        #     from cgcloud.spark_tools import SparkTools
-        #     spark_tools = {spark_tools}
-        #     spark_tools.manage_slaves( slaves_to_add=sys.argv[1:] )""" ) ) )
+        #     from cgcloud.mesos_tools import mesosTools
+        #     mesos_tools = {mesos_tools}
+        #     mesos_tools.manage_slaves( slaves_to_add=sys.argv[1:] )""" ) ) )
         # sudo( fmt( "chown root:root {script_path} && chmod 755 {script_path}" ) )
 
     @fabric_task
@@ -153,20 +170,28 @@ class MesosBox(GenericUbuntuTrustyBox):
     def __register_upstart_jobs( self, service_map ):
         for node_type, services in service_map.iteritems( ):
             start_on = "mesosbox-start-" + node_type
-            for service in services:
+            for service in services: # FIXME: include chdir to logging directory in this script
                 self._register_init_script(
                     service.init_name,
                     heredoc( """
                         description "{service.description}"
                         console log
+                        respawn
+                        umask 022
+                        limit nofile 8000 8192
+                        env PYTHONPATH=/home/ubuntu/
                         start on {start_on}
                         stop on runlevel [016]
-                        setuid {user}
-                        setgid {user}
-                        env USER={user}
-                        pre-start exec {service.start_script}
-                        post-stop exec {service.stop_script}""" ) )
+                        exec {service.action}""" ) )
                 start_on = "started " + service.init_name
+
+    def _image_name_prefix( self ):
+        # Make this class and its subclasses use the same image
+        return "mesos-box"
+
+    def _security_group_name( self ):
+        # Make this class and its subclasses use the same security group
+        return "mesos-box"
 
 class MesosMaster(MesosBox):
 

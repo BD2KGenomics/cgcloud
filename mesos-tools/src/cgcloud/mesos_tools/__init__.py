@@ -41,7 +41,7 @@ class MesosTools( object ):
             node_type = 'slave'
 
         log.info( "Starting %s services" % node_type )
-        check_call( [ initctl, 'emit', 'mesosbox-start-%s' % node_type ] )
+        check_call( [initctl, 'emit', 'mesosbox-start-%s' % node_type ] )
 
     def stop( self ):
         log.info( "Stopping mesosbox" )
