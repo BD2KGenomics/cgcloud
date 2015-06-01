@@ -1,11 +1,13 @@
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
 import argparse
+import base64
 import hashlib
 import logging
 import os
 import re
 import sys
+import struct
 
 log = logging.getLogger( __name__ )
 
@@ -483,3 +485,31 @@ def private_to_public_key( private_ssh_key ):
         return rsa_key.publickey( ).exportKey( format='OpenSSH' )
     else:
         raise ValueError( 'Expected private key' )
+
+
+def volume_label_hash( s ):
+    """
+    Linux volume labels are typically limited to 12 or 16 characters while the strings we want to
+    use for them are longer, usually a namespaced role name with additional data at the end. This
+    hash function returns a 12-character string that is reasonably representative of the input
+    string.
+
+    >>> volume_label_hash( 'hannes_spark-master__0' )
+    'i0u77fnocoo'
+    >>> volume_label_hash( '' )
+    'PZ2FQWP48Ho'
+    >>> volume_label_hash( ' ' )
+    'oIf03JUELnY'
+    >>> volume_label_hash( '1' )
+    'yQYSos_Mpxk'
+    """
+    h = hashlib.md5( s )
+    h = h.digest( )
+    assert len( h ) == 16
+    hi, lo = struct.unpack( '!QQ', h )
+    h = hi ^ lo
+    h = struct.pack( '!Q', h )
+    assert len( h ) == 8
+    h = base64.urlsafe_b64encode( h )
+    assert h[-1] == '='
+    return h[:-1]

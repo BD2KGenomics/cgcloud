@@ -15,6 +15,7 @@ import boto.ec2
 from bd2k.util import memoize
 
 from cgcloud.lib.ec2 import EC2VolumeHelper
+from cgcloud.lib.util import volume_label_hash
 
 initctl = '/sbin/initctl'
 
@@ -226,15 +227,17 @@ class SparkTools( object ):
             volume.attach( self.instance_id, '/dev/sdf' )
 
             # Only format empty volumes
+            volume_label = volume_label_hash( volume_name )
             if check_output( [ 'file', '-sL', '/dev/xvdf' ] ).strip( ) == '/dev/xvdf: data':
                 check_call( [ 'mkfs', '-t', 'ext4', '/dev/xvdf' ] )
-                check_call( [ 'e2label', '/dev/xvdf', volume_name ] )
+                check_call( [ 'e2label', '/dev/xvdf', volume_label ] )
             else:
                 # if the volume is not empty, verify the file system label
-                label = check_output( [ 'e2label', '/dev/xvdf' ] ).strip( )
-                if label != volume_name:
+                actual_label = check_output( [ 'e2label', '/dev/xvdf' ] ).strip( )
+                if actual_label != volume_label:
                     raise AssertionError(
-                        "Expected volume label '%s' but got '%s'" % ( volume_name, label ) )
+                        "Expected volume label '%s' (derived from '%s') but got '%s'" %
+                        ( volume_label, volume_name, actual_label ) )
             current_mount_point = self.__mount_point( '/dev/xvdf' )
             if current_mount_point is None:
                 check_call( [ 'mount', '/dev/xvdf', self.persistent_dir ] )
