@@ -183,6 +183,12 @@ class EC2VolumeHelper( object ):
                              % (self.name, self.volume.zone, expected_zone ) )
 
 
+class UnexpectedResourceState(Exception):
+    def __init__(self, resource, to_state, state):
+        super(UnexpectedResourceState, self).__init__("Expected state of %s to be '%s' but got '%s'" %
+                                                      (resource, to_state, state ) )
+
+
 def wait_transition( resource, from_states, to_state, state_getter=attrgetter( 'state' ) ):
     """
     Wait until the specified EC2 resource (instance, image, volume, ...) transitions from any
@@ -202,5 +208,4 @@ def wait_transition( resource, from_states, to_state, state_getter=attrgetter( '
                 resource.update( validate=True )
         state = state_getter( resource )
     if state != to_state:
-        raise AssertionError( "Expected state of %s to be '%s' but got '%s'"
-                              % ( resource, to_state, state ) )
+        raise UnexpectedResourceState( resource, to_state, state )
