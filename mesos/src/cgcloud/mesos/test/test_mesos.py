@@ -18,8 +18,8 @@ role = MesosBox.role( )
 
 num_slaves = 2
 
-cleanup = False
-create_image = False
+cleanup =True
+create_image = True
 
 
 class ClusterTests( unittest.TestCase ):
@@ -43,12 +43,12 @@ class ClusterTests( unittest.TestCase ):
             cls._cgcloud( 'delete-image', role )
         super( ClusterTests, cls ).tearDownClass( )
 
-    def test_wordcount( self ):
+    def test_mesos_execute( self ):
         self._create_cluster( )
         try:
             self._assert_remote_failure( )
             self._wait_for_slaves( )
-            self._word_count( )
+            self._mesos_execute( )
         finally:
             if cleanup:
                 self._terminate_cluster( )
@@ -92,11 +92,7 @@ class ClusterTests( unittest.TestCase ):
                 else:
                     break
 
-    @unittest.skip( 'Only for interactive invocation' )
-    def test_word_count_only( self ):
-        self._word_count( )
-
-    def _word_count( self ):
+    def _mesos_execute( self ):
         self._ssh( master, "mesos execute --master=mesos-master:5050 --name=Test --command='touch test.txt'>>'/home/ubuntu/taskoutput.txt'")
         self._ssh( master, "test $(less /home/ubuntu/taskoutput.txt | grep -c TASK_FINISHED)=1")
 
