@@ -1,7 +1,6 @@
 import logging
 from StringIO import StringIO
 from fabric.operations import run, put, os
-from pkginfo import Installed
 from textwrap import dedent
 from subprocess import check_output
 from collections import namedtuple
@@ -67,28 +66,14 @@ class MesosBox(GenericUbuntuTrustyBox):
         run('echo "deb http://repos.mesosphere.io/{} {} main"'
             ' | sudo tee /etc/apt/sources.list.d/mesosphere.list'.format( distro, codename ) )
 
-        sudo("apt-get -y update")
-
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
         self.lazy_dirs = set( )
         self.__install_mesos( )
         self.__install_mesos_egg( )
-        self.__setEnv()
         self.__install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
         self.__register_upstart_jobs(mesos_services)
-
-    @fabric_task
-    def __setEnv(self):
-        mesos_env_sh_path = "~/.profile"
-        mesos_env = dict(
-            MESOS_REGISTRY="in_memory",
-            MESOS_MASTER='mesos-master' )
-        with remote_open( mesos_env_sh_path, use_sudo=True ) as mesos_env_sh:
-            mesos_env_sh.write("\n")
-            for name, value in mesos_env.iteritems( ):
-                mesos_env_sh.write( fmt( 'export {name}="{value}"\n' ) )
 
     @fabric_task
     def __remove_mesos_default_upstarts(self):
@@ -102,12 +87,6 @@ class MesosBox(GenericUbuntuTrustyBox):
         is a Python package distribution that's included in cgcloud-mesos as a resource. This is
         in contrast to the cgcloud agent, which is a standalone distribution.
         """
-        version = Installed( __name__ ).version
-        if version and not parse_version( version ).is_prerelease:
-            git_ref = version
-        else:
-            git_ref = check_output( [ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' ],
-                                    cwd=os.path.dirname( __file__ ) )
         tools_dir = install_dir + '/tools'
         sudo( fmt( 'mkdir -p {tools_dir}') )
         sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
@@ -143,16 +122,6 @@ class MesosBox(GenericUbuntuTrustyBox):
                 mesos_tools.stop()
                 END
                 end script""" ) )
-        # script_path = "/usr/local/bin/mesosbox-manage-slaves"
-        # put( remote_path=script_path, use_sudo=True, local_path=StringIO( heredoc( """
-        #     #!{tools_dir}/bin/python2.7
-        #     import sys
-        #     import logging
-        #     logging.basicConfig( level=logging.INFO )
-        #     from cgcloud.mesos_tools import mesosTools
-        #     mesos_tools = {mesos_tools}
-        #     mesos_tools.manage_slaves( slaves_to_add=sys.argv[1:] )""" ) ) )
-        # sudo( fmt( "chown root:root {script_path} && chmod 755 {script_path}" ) )
 
     @fabric_task
     def __install_mesos(self):
