@@ -15,3 +15,9 @@ iam_read_only_policy = dict( Version="2012-10-17", Statement=[
 
 ec2_full_policy = dict( Version="2012-10-17", Statement=[
     dict( Effect="Allow", Resource="*", Action="ec2:*" ) ] )
+
+s3_full_policy = dict( Version="2012-10-17", Statement=[
+    dict( Effect="Allow", Resource="*", Action="s3:*" ) ] )
+
+sdb_full_policy = dict( Version="2012-10-17", Statement=[
+    dict( Effect="Allow", Resource="*", Action="sdb:*" ) ] )

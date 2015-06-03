@@ -2,6 +2,7 @@ from cgcloud.bd2k.ci.cgcloud_jenkins_slave import *
 from cgcloud.bd2k.ci.commands import *
 from cgcloud.bd2k.ci.generic_jenkins_slaves import *
 from cgcloud.bd2k.ci.jenkins_master import *
+from cgcloud.bd2k.ci.jobtree_jenkins_slave import *
 from cgcloud.bd2k.ci.rpmbuild_jenkins_slaves import *
 
 BOXES = [
@@ -18,7 +19,8 @@ BOXES = [
     Centos5RpmbuildJenkinsSlave,
     Centos6RpmbuildJenkinsSlave,
 
-    CgcloudJenkinsSlave ]
+    CgcloudJenkinsSlave,
+    JobtreeJenkinsSlave]
 
 COMMANDS = [
     RegisterSlaves ]
