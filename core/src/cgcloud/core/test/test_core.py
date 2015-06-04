@@ -32,7 +32,7 @@ class CoreTests( TestCase ):
         os.environ.setdefault( 'CGCLOUD_NAMESPACE', '/test-%s/' % random_suffix )
         if running_on_ec2( ):
             os.environ.setdefault( 'CGCLOUD_ZONE',
-                                   get_instance_metadata( )[ 'placement' ][ 'availability_zone' ] )
+                                   get_instance_metadata( )[ 'placement' ][ 'availability-zone' ] )
 
     @classmethod
     def __box_test( cls, box ):
