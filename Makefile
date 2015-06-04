@@ -8,7 +8,7 @@ all_projects=lib core agent jenkins spark spark-tools mesos mesos-tools
 all: develop sdist
 
 no_sudo:
-	@test "$$(id -u)" != "0" || ( echo "\033[0;31mDon't run me with sudo but pass sudo=sudo instead.\033[0m" && false )
+	@test "$$(id -u)" != "0" || ( echo "\033[0;31mDon't run me as 'sudo make'. Use 'make sudo=sudo' instead.\033[0m" && false )
 
 develop: no_sudo
 	$(python) each_setup.py "egg_info" $(develop_projects)
