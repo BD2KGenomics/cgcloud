@@ -1,13 +1,16 @@
+import base64
 import logging
 import os
 from unittest import TestCase
 import itertools
-
-from bd2k.util.exceptions import panic
 from subprocess import check_call
 
-import cgcloud
+from bd2k.util.exceptions import panic
+from boto.utils import get_instance_metadata
+
+from cgcloud.core import BOXES
 from cgcloud.core.ui import main
+from cgcloud.lib.ec2 import running_on_ec2
 
 log = logging.getLogger( __name__ )
 
@@ -18,15 +21,18 @@ class CoreTests( TestCase ):
     """
     _multiprocess_can_split_ = True
 
-    boxes = cgcloud.core.BOXES
+    boxes = BOXES
 
     @classmethod
     def setUpClass( cls ):
         super( CoreTests, cls ).setUpClass( )
-        # FIMXE: use a unique namespace for every run
-        os.environ.setdefault( 'CGCLOUD_NAMESPACE', '/test/' )
-        # FIXME: on EC2 detect zone automatically
-        os.environ.setdefault( 'CGCLOUD_ZONE', 'us-west-2a' )
+        while True:
+            random_suffix = base64.urlsafe_b64encode( os.urandom( 9 ) )
+            if '_' not in random_suffix: break
+        os.environ.setdefault( 'CGCLOUD_NAMESPACE', '/test-%s/' % random_suffix )
+        if running_on_ec2( ):
+            os.environ.setdefault( 'CGCLOUD_ZONE',
+                                   get_instance_metadata( )[ 'placement' ][ 'availability_zone' ] )
 
     @classmethod
     def __box_test( cls, box ):
@@ -59,14 +65,14 @@ class CoreTests( TestCase ):
     def _cgcloud( self, *args ):
         log.info( "Running %r" % (args,) )
         if os.environ.get( 'CGCLOUD_TEST_EXEC', "" ):
-            check_call( ( 'cgcloud', ) + args )
+            check_call( ('cgcloud',) + args )
         else:
             main( args )
 
     ssh_opts = [ '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no' ]
 
     def _ssh( self, role, *args ):
-        self._cgcloud( 'ssh', role, *( itertools.chain( self.ssh_opts, args ) ) )
+        self._cgcloud( 'ssh', role, *(itertools.chain( self.ssh_opts, args )) )
 
     def _rsync( self, role, *args ):
         self._cgcloud( 'rsync', '--ssh-opts=' + ' '.join( self.ssh_opts ), role, *args )

@@ -4,6 +4,7 @@ from operator import attrgetter
 import time
 
 from boto.exception import EC2ResponseError
+import errno
 
 from cgcloud.lib.util import UserError
 
@@ -209,3 +210,13 @@ def wait_transition( resource, from_states, to_state, state_getter=attrgetter( '
         state = state_getter( resource )
     if state != to_state:
         raise UnexpectedResourceState( resource, to_state, state )
+
+def running_on_ec2():
+    try:
+        with open( '/sys/hypervisor/uuid' ) as f:
+            return f.read(3) == 'ec2'
+    except IOError as e:
+        if e.errno == errno.ENOENT:
+            return False
+        else:
+            raise
