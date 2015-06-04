@@ -8,6 +8,15 @@ from cgcloud.lib.util import abreviated_snake_case_class_name
 
 
 class JobtreeJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
+    """
+    A Jenkins slave suitable for running jobTree unit tests, specifically the Mesos batch system
+    and the AWS job store. Legacy batch systems (parasol, gridengine, ...) are not yet supported.
+    """
+
+    @classmethod
+    def recommended_instance_type( cls ):
+        return "m3.large"
+
     @fabric_task
     def _setup_package_repos( self ):
         super( JobtreeJenkinsSlave, self )._setup_package_repos( )
@@ -18,9 +27,7 @@ class JobtreeJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
              '| sudo tee /etc/apt/sources.list.d/mesosphere.list'.format( distro, codename ) )
 
     def _list_packages_to_install( self ):
-        return super( JobtreeJenkinsSlave, self )._list_packages_to_install( ) + [
-            'mesos'
-        ]
+        return super( JobtreeJenkinsSlave, self )._list_packages_to_install( ) + [ 'mesos' ]
 
     def _post_install_packages( self ):
         super( JobtreeJenkinsSlave, self )._post_install_packages( )
