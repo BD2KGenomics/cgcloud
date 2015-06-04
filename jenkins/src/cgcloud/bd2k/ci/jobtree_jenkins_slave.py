@@ -27,11 +27,19 @@ class JobtreeJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
              '| sudo tee /etc/apt/sources.list.d/mesosphere.list'.format( distro, codename ) )
 
     def _list_packages_to_install( self ):
-        return super( JobtreeJenkinsSlave, self )._list_packages_to_install( ) + [ 'mesos' ]
+        return super( JobtreeJenkinsSlave, self )._list_packages_to_install( ) + [
+            'mesos'
+        ]
 
     def _post_install_packages( self ):
         super( JobtreeJenkinsSlave, self )._post_install_packages( )
+        self.__disable_mesos_daemons( )
         self.__install_mesos_egg( )
+
+    @fabric_task
+    def __disable_mesos_daemons( self ):
+        for daemon in ('master', 'slave'):
+            sudo( 'echo manual > /etc/init/mesos-%s.override' % daemon )
 
     @fabric_task
     def __install_mesos_egg( self ):
