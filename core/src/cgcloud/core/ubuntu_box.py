@@ -1,12 +1,12 @@
 from abc import abstractmethod
 import contextlib
 import csv
+import logging
 import urllib2
 
 from fabric.operations import sudo
 
 from box import fabric_task
-
 from cgcloud.core.init_box import UpstartBox, SystemdBox
 from cgcloud.core.agent_box import AgentBox
 from cgcloud.core.cloud_init_box import CloudInitBox
@@ -14,6 +14,8 @@ from cgcloud.core.package_manager_box import PackageManagerBox
 from cgcloud.core.rc_local_box import RcLocalBox
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
+
+log = logging.getLogger( __name__ )
 
 
 class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
@@ -60,7 +62,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
                                              arch='amd64',
                                              region=self.ctx.region,
                                              hypervisor=virtualization_type ),
-            url='%s/query/%s/server/released.current.txt' % ( BASE_URL, release ),
+            url='%s/query/%s/server/released.current.txt' % (BASE_URL, release),
             fields=[
                 'release', 'purpose', 'release_type', 'release_date',
                 'storage_type', 'arch', 'region', 'ami_id', 'aki_id',
@@ -72,7 +74,17 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
 
     @fabric_task
     def _sync_package_repos( self ):
-        sudo( '%s update' % self.apt_get )
+        for i in range( 5 ):
+            cmd = self.apt_get + ' update'
+            result = sudo( cmd, warn_only=True )
+            if result.succeeded: return
+            # https://bugs.launchpad.net/ubuntu/+source/apt/+bug/972077
+            # https://lists.debian.org/debian-dak/2012/05/threads.html#00006
+            if 'Hash Sum mismatch' in result:
+                log.warn( "Detected race condition during in '%s'" )
+            else:
+                raise RuntimeError( "Command '%s' failed" % cmd )
+        raise RuntimeError( "Command '%s' repeatedly failed with race condition. Giving up." )
 
     @fabric_task
     def _upgrade_installed_packages( self ):
@@ -81,7 +93,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     @fabric_task
     def _install_packages( self, packages ):
         packages = " ".join( packages )
-        sudo( '%s install %s' % (self.apt_get, packages ) )
+        sudo( '%s install %s' % (self.apt_get, packages) )
 
     def _get_package_installation_command( self, package ):
         return [ 'apt-get', 'install', '-y', '--no-install-recommends' ] + list(
@@ -104,5 +116,3 @@ class UpstartUbuntuBox( UbuntuBox, UpstartBox ):
 
 class SystemdUbuntuBox( UbuntuBox, SystemdBox ):
     pass
-
-
