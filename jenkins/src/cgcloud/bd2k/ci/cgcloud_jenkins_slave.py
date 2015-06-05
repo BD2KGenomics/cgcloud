@@ -36,7 +36,7 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         # documented but I found evidence for it here:
         # http://docs.aws.amazon.com/IAM/latest/UserGuide/PolicyVariables.html#policy-vars-specialchars
         test_namespace_suffix_pattern = "?" * test_namespace_suffix_length
-        pass_role_arn = self._role_arn( role_prefix='test-testnamespacesuffixpattern/' )
+        pass_role_arn = self._role_arn( role_prefix='test/testnamespacesuffixpattern/' )
         pass_role_arn = pass_role_arn.replace( 'testnamespacesuffixpattern',
                                                test_namespace_suffix_pattern )
         policies.update( dict(
