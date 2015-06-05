@@ -341,7 +341,8 @@ class SparkBox( GenericUbuntuTrustyBox ):
             SPARK_WORKER_DIR=self.__lazy_mkdir( spark_dir, "work" ),
             SPARK_LOCAL_DIRS=self.__lazy_mkdir( spark_dir, "local" ),
             JAVA_HOME='/usr/lib/jvm/java-7-oracle',
-            SPARK_MASTER_IP='spark-master' )
+            SPARK_MASTER_IP='spark-master',
+            HADOOP_CONF_DIR=fmt( "{install_dir}/hadoop/etc/hadoop" ) )
         with remote_open( spark_env_sh_path, use_sudo=True ) as spark_env_sh:
             spark_env_sh.write( '\n' )
             for name, value in spark_env.iteritems( ):

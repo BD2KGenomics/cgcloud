@@ -128,12 +128,12 @@ class ClusterTests( unittest.TestCase ):
                 import sys
                 from pyspark import SparkContext
                 sc = SparkContext(appName="PythonPi")
-                file = sc.textFile( "hdfs://spark-master/test.txt" )
+                file = sc.textFile( "/test.txt" )
                 counts = ( file
                     .flatMap( lambda line: line.split( " " ) )
                     .map( lambda word: (word, 1) )
                     .reduceByKey( lambda a, b: a + b ) )
-                counts.saveAsTextFile( "hdfs://spark-master/test.txt.counts" )""" ) )
+                counts.saveAsTextFile( "/test.txt.counts" )""" ) )
             script.close( )
             self._rsync( master, script_path, ':wordcount.py' )
         except:
