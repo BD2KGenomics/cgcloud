@@ -1,10 +1,12 @@
 # coding=utf-8
+from contextlib import contextmanager
 import json
 import os
 import urllib
 import re
 import socket
 import itertools
+import logging
 
 from boto import ec2, iam, sns, sqs, vpc
 from boto.s3.key import Key as S3Key
@@ -13,15 +15,23 @@ from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
+
 from boto.vpc import VPCConnection
+
 from boto.iam.connection import IAMConnection
+
 from boto.ec2.keypair import KeyPair
+
 from bd2k.util import fnmatch
+
 from bd2k.util import memoize
+
 from boto.utils import get_instance_metadata
 
 from cgcloud.lib.message import Message
 from cgcloud.lib.util import ec2_keypair_fingerprint, UserError
+
+log = logging.getLogger( __name__ )
 
 
 class Context( object ):
@@ -208,7 +218,7 @@ class Context( object ):
         conn = aws_module.connect_to_region( region, **kwargs )
         if conn is None:
             raise RuntimeError( "%s couldn't connect to region %s" % (
-                aws_module.__name__, region ) )
+                aws_module.__name__, region) )
         return conn
 
     def __enter__( self ):
@@ -458,7 +468,7 @@ class Context( object ):
                         "Key pair %s already exists in EC2, but its fingerprint %s is "
                         "different from the fingerprint %s of the key to be imported. Use "
                         "the force option to overwrite the existing key pair." %
-                        ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
+                        (ec2_keypair.name, ec2_keypair.fingerprint, fingerprint) )
 
         if ec2_keypair is None:
             ec2_keypair = self.ec2.import_key_pair( ec2_keypair_name, ssh_pubkey )
@@ -478,13 +488,14 @@ class Context( object ):
 
         :rtype: list of KeyPair
         """
+
         def iam_lookup( glob ):
-            if glob.startswith('@@'):
-                return ( _.user_name for _ in self.iam.get_group('developers').users )
-            elif glob.startswith('@'):
-                return ( self.iam.get_user( glob[1:] ).user_name, )
+            if glob.startswith( '@@' ):
+                return (_.user_name for _ in self.iam.get_group( 'developers' ).users)
+            elif glob.startswith( '@' ):
+                return (self.iam.get_user( glob[ 1: ] ).user_name,)
             else:
-                return ( glob, )
+                return (glob,)
 
         globs = itertools.chain.from_iterable( map( iam_lookup, globs ) )
 
@@ -530,7 +541,7 @@ class Context( object ):
                 raise UserError(
                     "Fingerprint mismatch for key %s! Expected %s but got %s. The EC2 keypair "
                     "doesn't match the public key stored in S3." %
-                    ( ec2_keypair.name, ec2_keypair.fingerprint, fingerprint ) )
+                    (ec2_keypair.name, ec2_keypair.fingerprint, fingerprint) )
         return ssh_pubkey
 
     @property
@@ -657,3 +668,47 @@ class Context( object ):
 
     def __publish_key_update_agent_message( self ):
         self.publish_agent_message( Message( type=Message.TYPE_UPDATE_SSH_KEYS ) )
+
+    def cleanup( self ):
+        """
+        Delete all
+
+        - IAM instance profiles,
+        - IAM roles,
+        - IAM policies and
+        - EC2 security groups
+
+        associated with this context, or rather the namespace this context represents.
+        """
+
+        @contextmanager
+        def out_exception( object_type, object_name ):
+            try:
+                try:
+                    yield
+                except ValueError as e:
+                    if e.message.startswith( 'Invalid path' ):
+                        pass
+                    else:
+                        raise
+            except:
+                log.warn( "Failed to remove %s '%s'", object_type, object_name, exc_info=True )
+
+        for p in self.iam.list_instance_profiles( ).instance_profiles:
+            with out_exception( 'instance profile', p.instance_profile_name ):
+                if self.contains_aws_name( p.instance_profile_name ):
+                    # currently EC2 allows only one role per profile
+                    if p.roles:
+                        self.iam.remove_role_from_instance_profile( p.instance_profile_name,
+                                                                    p.roles.member.role_name )
+                    self.iam.delete_instance_profile( p.instance_profile_name )
+        for r in self.iam.list_roles( ).roles:
+            with out_exception( 'role', r.role_name ):
+                if self.contains_aws_name( r.role_name ):
+                    for policy_name in self.iam.list_role_policies( r.role_name ).policy_names:
+                        self.iam.delete_role_policy( r.role_name, policy_name )
+                    self.iam.delete_role( r.role_name )
+        for sg in self.ec2.get_all_security_groups( ):
+            with out_exception( 'security group', sg.name ):
+                if self.contains_aws_name( sg.name ):
+                    sg.delete( )
