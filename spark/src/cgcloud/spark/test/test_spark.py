@@ -5,6 +5,7 @@ import unittest
 from tempfile import mkstemp
 import itertools
 
+from cgcloud.core.test import CgcloudTestCase
 from cgcloud.core.ui import main
 from cgcloud.spark.spark_box import heredoc, install_dir
 from cgcloud.spark import SparkBox, SparkMaster, SparkSlave
@@ -21,7 +22,7 @@ cleanup = True
 create_image = True
 
 
-class ClusterTests( unittest.TestCase ):
+class ClusterTests( CgcloudTestCase ):
     """
     Tests the typical life-cycle of instances and images
     """
@@ -29,10 +30,6 @@ class ClusterTests( unittest.TestCase ):
     @classmethod
     def setUpClass( cls ):
         super( ClusterTests, cls ).setUpClass( )
-        # FIMXE: use a unique namespace for every run
-        os.environ.setdefault( 'CGCLOUD_NAMESPACE', '/test/' )
-        # FIXME: on EC2 detect zone automatically
-        os.environ.setdefault( 'CGCLOUD_ZONE', 'us-west-2a' )
         if create_image:
             cls._cgcloud( 'create', role, '-I', '-T' )
 

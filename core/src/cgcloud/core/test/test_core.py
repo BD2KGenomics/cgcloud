@@ -1,38 +1,24 @@
-import base64
 import logging
 import os
-from unittest import TestCase
 import itertools
 from subprocess import check_call
 
 from bd2k.util.exceptions import panic
-from boto.utils import get_instance_metadata
 
 from cgcloud.core import BOXES
+from cgcloud.core.test import CgcloudTestCase
 from cgcloud.core.ui import main
-from cgcloud.lib.ec2 import running_on_ec2
 
 log = logging.getLogger( __name__ )
 
 
-class CoreTests( TestCase ):
+class CoreTests( CgcloudTestCase ):
     """
     Tests the typical life-cycle of instances and images
     """
     _multiprocess_can_split_ = True
 
     boxes = BOXES
-
-    @classmethod
-    def setUpClass( cls ):
-        super( CoreTests, cls ).setUpClass( )
-        while True:
-            random_suffix = base64.urlsafe_b64encode( os.urandom( 9 ) )
-            if '_' not in random_suffix: break
-        os.environ.setdefault( 'CGCLOUD_NAMESPACE', '/test-%s/' % random_suffix )
-        if running_on_ec2( ):
-            os.environ.setdefault( 'CGCLOUD_ZONE',
-                                   get_instance_metadata( )[ 'placement' ][ 'availability-zone' ] )
 
     @classmethod
     def __box_test( cls, box ):

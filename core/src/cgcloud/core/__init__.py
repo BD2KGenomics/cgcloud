@@ -30,3 +30,5 @@ COMMANDS = [
     RegisterKeyCommand,
     CleanupCommand,
     UpdateInstanceProfile ]
+
+test_namespace_suffix_length = 8
