@@ -374,6 +374,16 @@ class Context( object ):
         """
         The inverse of to_aws_name(), except that the namespace is stripped from the input if it
         is relative to this context's name space.
+
+        >>> zone = 'us-west-1b'
+        >>> Context( zone, namespace='/foo/' ).from_aws_name('bar__x')
+        '/bar_x'
+        >>> Context( zone, namespace='/foo_x/' ).from_aws_name('foo__x_bar')
+        'bar'
+        >>> Context( zone, namespace='/' ).from_aws_name('foo__x_bar__x')
+        'foo_x/bar_x'
+        >>> Context( zone, namespace='/bla/' ).from_aws_name('foo__x_bar__x')
+        '/foo_x/bar_x'
         """
         name = '_'.join( s.replace( '_', '/' ) for s in name.split( '__' ) )
         name = '/' + name
@@ -382,6 +392,12 @@ class Context( object ):
         if name.startswith( self.namespace ):
             name = name[ len( self.namespace ): ]
         return name
+
+    def contains_name( self, name ):
+        return not self.is_absolute_name( name ) or name.startswith( self.namespace )
+
+    def contains_aws_name( self, aws_name ):
+        return self.contains_name( self.from_aws_name( aws_name ) )
 
     @property
     @memoize
