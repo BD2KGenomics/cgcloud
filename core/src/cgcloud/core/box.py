@@ -394,12 +394,13 @@ class Box( object ):
         instance_type = self.instance_creation_args[ 'instance_type' ]
         log.info( 'Creating %s instance(s) ... ', instance_type )
 
-        def instance_profile_inconsistent( e ):
+        def inconsistencies_detected( e ):
+            if e.code == 'InvalidGroup.NotFound': return True
             m = e.error_message.lower( )
             return 'invalid iam instance profile' in m or 'no associated iam roles' in m
 
         for attempt in retry_ec2( retry_for=a_long_time,
-                                  retry_while=instance_profile_inconsistent ):
+                                  retry_while=inconsistencies_detected ):
             with attempt:
                 return self.ctx.ec2.run_instances( self.image_id, **self.instance_creation_args )
 
