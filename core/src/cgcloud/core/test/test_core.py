@@ -16,7 +16,7 @@ class CoreTests( CgcloudTestCase ):
     """
     Tests the typical life-cycle of instances and images
     """
-    _multiprocess_can_split_ = True
+    _multiprocess_shared_ = True
 
     boxes = BOXES
 

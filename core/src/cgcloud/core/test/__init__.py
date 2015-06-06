@@ -26,9 +26,9 @@ class CgcloudTestCase( TestCase ):
         assert len( suffix ) == test_namespace_suffix_length
         namespace = '/test/%s/' % suffix
         os.environ.setdefault( 'CGCLOUD_NAMESPACE', namespace )
-        cls.ctx = Context( os.environ[ 'CGCLOUD_ZONE' ], os.environ[ 'CGCLOUD_NAMESPACE' ] )
 
     @classmethod
     def tearDownClass( cls ):
-        if cls.cleanup: cls.ctx.cleanup()
+        ctx = Context( os.environ[ 'CGCLOUD_ZONE' ], os.environ[ 'CGCLOUD_NAMESPACE' ] )
+        if cls.cleanup: ctx.cleanup()
         super( CgcloudTestCase, cls ).tearDownClass( )
