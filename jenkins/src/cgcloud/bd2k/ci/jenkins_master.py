@@ -3,7 +3,9 @@ import logging
 from textwrap import dedent
 
 from lxml import etree
+
 from fabric.context_managers import settings
+
 from fabric.operations import run, sudo, put, get
 
 from cgcloud.lib.ec2 import EC2VolumeHelper
@@ -214,15 +216,20 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         # For some reason, simply reloading Jenkins via its WS API won't update the configuration
         # of certain plugins (s3-publisher-plugin, for example) so since we might have touched
         # plugin configuration, we need to restart Jenkins.
-        if restart_needed: self.__restart_jenkins( )
+        if restart_needed: self.__service_jenkins( 'restart' )
 
     def _ssh_args( self, user, command ):
         # Add port forwarding to Jenkins' web UI
         command = [ '-L', 'localhost:8080:localhost:8080' ] + command
         return super( JenkinsMaster, self )._ssh_args( user, command )
 
-    @fabric_task( user=Jenkins.user )
     def register_slaves( self, slave_clss, clean=False, instance_type=None ):
+        self.__service_jenkins( 'stop' )
+        self.__register_slaves( clean, instance_type, slave_clss )
+        self.__service_jenkins( 'start' )
+
+    @fabric_task( user=Jenkins.user )
+    def __register_slaves( self, clean, instance_type, slave_clss ):
         jenkins_config_file = StringIO( )
         jenkins_config_path = '~/config.xml'
         get( local_path=jenkins_config_file, remote_path=jenkins_config_path )
@@ -257,14 +264,12 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
             # newer versions of Jenkins add class="empty-list" attribute if there are no templates
             if templates.attrib.get( 'class' ) == 'empty-list':
                 templates.attrib.pop( 'class' )
-
         jenkins_config_file.truncate( 0 )
         jenkins_config.write( jenkins_config_file,
                               encoding=jenkins_config.docinfo.encoding,
                               xml_declaration=True,
                               pretty_print=True )
         put( local_path=jenkins_config_file, remote_path=jenkins_config_path )
-        self.__reload_jenkins( )
 
     def _image_block_device_mapping( self ):
         # Do not include the data volume in the snapshot
@@ -323,5 +328,5 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         run( 'curl -X POST http://localhost:8080/reload' )
 
     @fabric_task
-    def __restart_jenkins( self ):
-        sudo( 'service jenkins restart' )
+    def __service_jenkins( self, command ):
+        sudo( 'service jenkins %s' % command )
