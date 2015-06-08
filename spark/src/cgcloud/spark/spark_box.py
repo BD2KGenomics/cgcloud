@@ -351,7 +351,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
         # Configure Spark properties
         spark_defaults = {
             'spark.eventLog.enabled': 'true',
-            'spark.eventLog.dir': self.__lazy_mkdir( spark_dir, "history", ephemeral_dir ),
+            'spark.eventLog.dir': self.__lazy_mkdir( spark_dir, "history" ),
             'spark.master': 'spark://spark-master:7077'
         }
         spark_defaults_conf_path = fmt( "{install_dir}/spark/conf/spark-defaults.conf" )
