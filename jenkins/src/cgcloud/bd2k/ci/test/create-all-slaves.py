@@ -7,10 +7,9 @@ import os
 import uuid
 import sys
 
+from bd2k.util.fnmatch import fnmatch
+
 from subprocess32 import check_call, check_output
-
-from cghub.util.fnmatch import fnmatch
-
 
 
 # This is more of an experiment rather than a full-fledged test. It works on multiple EC2
@@ -98,9 +97,9 @@ class Pane( object ):
     def run( self, cmd, ignore_failure=False ):
         fail_ch, success_ch = self.channel_ids
         if ignore_failure:
-            cmd = '( %s ) ; tmux wait -S %s' % ( cmd, success_ch )
+            cmd = '( %s ) ; tmux wait -S %s' % (cmd, success_ch)
         else:
-            cmd = '( %s ) && tmux wait -S %s || tmux wait -S %s' % ( cmd, success_ch, fail_ch )
+            cmd = '( %s ) && tmux wait -S %s || tmux wait -S %s' % (cmd, success_ch, fail_ch)
         check_call( [ 'tmux', 'send-keys', '-t', self.tmux_id, cmd, 'C-m' ] )
 
     def result( self ):
@@ -139,8 +138,8 @@ class Command( object ):
         # update with overrides
         _template_args.update( template_args )
         # expand callables
-        _template_args = dict( ( k, v( role, ordinal ) if callable( v ) else v )
-            for k, v in _template_args.iteritems( ) )
+        _template_args = dict( (k, v( role, ordinal ) if callable( v ) else v)
+                                   for k, v in _template_args.iteritems( ) )
         # set role and ordinal
         _template_args.update( role=role, ordinal=ordinal )
         # finally, run the command in the pane
@@ -205,7 +204,7 @@ class BaseTest( unittest.TestCase ):
         for command in commands:
             self._execute_command( command )
 
-
+@unittest.skip
 class DevEnvTest( BaseTest ):
     """
     Tests the creation of the Jenkins master and its slaves for continuous integration.
@@ -218,7 +217,7 @@ class DevEnvTest( BaseTest ):
     def _init_panes( self ):
         slave_roles = self._list_roles( self.slave_glob )
         self.master_pane = Pane( ) if include_master else None
-        self.slave_panes = dict( (slave_role, Pane( ) ) for slave_role in slave_roles )
+        self.slave_panes = dict( (slave_role, Pane( )) for slave_role in slave_roles )
 
     def test_everything( self ):
         self._init_panes( )
@@ -248,7 +247,7 @@ class DevEnvTest( BaseTest ):
 
         for test in reversed( tests ) if command.reverse else tests: test( )
 
-
+@unittest.skip
 class LoadTest( BaseTest ):
     key_file = '~/MORDOR1.pem'  # local path, this will copied to each box
     role = 'load-test-box'  # name of the cgcloud role
@@ -303,11 +302,11 @@ class LoadTest( BaseTest ):
 
     def _execute_command( self, command ):
         for i, pane in enumerate( self.panes ):
-            command.run( pane, self.role, ordinal=(i - self.num_instances ) )
+            command.run( pane, self.role, ordinal=(i - self.num_instances) )
         for pane in self.panes:
             self.assertTrue( pane.result( ) )
 
-
+@unittest.skip
 class TrackerStressTest( BaseTest ):
     role = 'load-test-box'  # name of the cgcloud role
     stress_tracker_script = '/Users/hannes/workspace/cghub/tests/stress_tracker'
@@ -328,7 +327,7 @@ class TrackerStressTest( BaseTest ):
 
     def _execute_command( self, command ):
         for i, pane in enumerate( self.panes ):
-            command.run( pane, self.role, ordinal=(i - self.num_instances ) )
+            command.run( pane, self.role, ordinal=(i - self.num_instances) )
         for pane in self.panes:
             self.assertTrue( pane.result( ) )
 

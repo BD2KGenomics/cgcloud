@@ -29,6 +29,7 @@ class ClusterTests( CgcloudTestCase ):
 
     @classmethod
     def setUpClass( cls ):
+        os.environ[ 'CGCLOUD_PLUGINS' ] = 'cgcloud.spark'
         super( ClusterTests, cls ).setUpClass( )
         if create_image:
             cls._cgcloud( 'create', role, '-I', '-T' )
@@ -96,7 +97,7 @@ class ClusterTests( CgcloudTestCase ):
     def _wait_for_slaves( self ):
         delay = 5
         expiration = time.time( ) + 10 * 60
-        commands = [ 'test $(cat %s/spark/conf/slaves | wc -l) = %s' % ( install_dir, num_slaves ),
+        commands = [ 'test $(cat %s/spark/conf/slaves | wc -l) = %s' % (install_dir, num_slaves),
             "hdfs dfsadmin -report -live | fgrep 'Live datanodes (%s)'" % num_slaves ]
         for command in commands:
             while True:

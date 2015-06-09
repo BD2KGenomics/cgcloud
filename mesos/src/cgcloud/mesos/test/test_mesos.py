@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 import itertools
@@ -26,6 +27,7 @@ class ClusterTests( CgcloudTestCase ):
 
     @classmethod
     def setUpClass( cls ):
+        os.environ[ 'CGCLOUD_PLUGINS' ] = 'cgcloud.mesos'
         super( ClusterTests, cls ).setUpClass( )
         if create_image:
             cls._cgcloud( 'create', role, '-I', '-T' )

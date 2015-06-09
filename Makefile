@@ -31,3 +31,6 @@ clean: no_sudo
 	$(sudo) $(python) each_setup.py "develop -u" $(develop_projects)
 	$(python) each_setup.py "clean --all" $(all_projects)
 	for i in $(all_projects); do rm -rf $$i/dist $$i/src/*.egg-info; done
+
+test: no_sudo all
+	$(python) each_setup.py "@nosetests --verbose" $(all_projects)
