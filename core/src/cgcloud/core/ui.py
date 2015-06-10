@@ -9,17 +9,16 @@ import cgcloud.core
 
 log = logging.getLogger( __name__ )
 
-PACKAGES = [ cgcloud.core ] + [ import_module( package_name )
-    for package_name in os.environ.get( 'CGCLOUD_PLUGINS', "" ).split( ":" )
-    if package_name ]
-
 
 def main( args=None ):
     """
     This is the cgcloud entrypoint. It should be installed via setuptools.setup( entry_points=... )
     """
-    app = CGCloud( )
-    for package in PACKAGES:
+    packages = [ cgcloud.core ] + [ import_module( package_name )
+        for package_name in os.environ.get( 'CGCLOUD_PLUGINS', "" ).split( ":" )
+        if package_name ]
+    app = CGCloud( packages )
+    for package in packages:
         for command in package.COMMANDS:
             app.add( command )
     app.run( args )
@@ -28,13 +27,13 @@ def main( args=None ):
 class CGCloud( Application ):
     debug_log_file_name = '%s.{pid}.log' % app_name( )
 
-    def __init__( self ):
+    def __init__( self, packages ):
         super( CGCloud, self ).__init__( )
         self.option( '--debug',
                      default=False, action='store_true',
                      help='Write debug log to %s in current directory.' % self.debug_log_file_name )
         self.boxes = OrderedDict( )
-        for package in PACKAGES:
+        for package in packages:
             for box_cls in package.BOXES:
                 self.boxes[ box_cls.role( ) ] = box_cls
 
