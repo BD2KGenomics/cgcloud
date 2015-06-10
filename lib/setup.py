@@ -18,6 +18,4 @@ setup(
     namespace_packages=[ 'cgcloud' ],
     install_requires=[
         'bd2k-python-lib>=1.6.dev1',
-        'boto>=2.36.0' ],
-    setup_requires=[
-        'nose>=1.3.4' ] )
+        'boto>=2.36.0' ] )

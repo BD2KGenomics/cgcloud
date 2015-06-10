@@ -32,5 +32,9 @@ clean: no_sudo
 	$(python) each_setup.py "clean --all" $(all_projects)
 	for i in $(all_projects); do rm -rf $$i/dist $$i/src/*.egg-info; done
 
-test: no_sudo all
-	$(python) each_setup.py "@nosetests --verbose" $(all_projects)
+test:
+	@echo "\033[0;32mChecking if nose is installed. If this fails, you need to 'pip install nose'.\033[0m"
+	python -c 'import nose'
+	@echo "\033[0;32mLooks good. Running tests.\033[0m"
+	for i in $(develop_projects); do ( cd $${i} && echo $(python) -m nose --verbose ) || fail=1 ; done ; test ! "$$fail"
+	@echo "\033[0;32mTests succeeded.\033[0m"

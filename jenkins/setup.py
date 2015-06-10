@@ -17,11 +17,9 @@ setup(
 
     package_dir={ '': 'src' },
     packages=find_packages( 'src' ),
+    namespace_packages=[ 'cgcloud' ],
     install_requires=[
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core=='  + cgcloud_version,
         'Fabric>=1.7.0',
-        'lxml>=3.2.1' ],
-    tests_require=[
-        'subprocess32' ],
-    namespace_packages=[ 'cgcloud' ] )
+        'lxml>=3.2.1' ] )

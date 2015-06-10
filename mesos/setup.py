@@ -19,6 +19,4 @@ setup(
         'cgcloud-core==' + cgcloud_version,
         'bd2k-python-lib>=1.6.dev1',
         'Fabric>=1.7.0',
-        'lxml>=3.2.1' ],
-    setup_requires=[
-        'nose>=1.3.4' ] )
+        'lxml>=3.2.1' ] )

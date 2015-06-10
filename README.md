@@ -31,3 +31,5 @@ first and then run `make sudo=sudo`.
 
 To have `make` use a particular Python interpreter, pass the `python` variable
 to it, e.g. `make python=/usr/bin/python2.7`.
+
+To run the unittests, `pip install nose` and then do `make test`.
