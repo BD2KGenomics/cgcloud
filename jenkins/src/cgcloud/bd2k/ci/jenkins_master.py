@@ -225,8 +225,10 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
 
     def register_slaves( self, slave_clss, clean=False, instance_type=None ):
         self.__service_jenkins( 'stop' )
-        self.__register_slaves( clean, instance_type, slave_clss )
-        self.__service_jenkins( 'start' )
+        try:
+            self.__register_slaves( clean, instance_type, slave_clss )
+        finally:
+            self.__service_jenkins( 'start' )
 
     @fabric_task( user=Jenkins.user )
     def __register_slaves( self, clean, instance_type, slave_clss ):
