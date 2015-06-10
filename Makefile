@@ -36,5 +36,5 @@ test:
 	@echo "\033[0;32mChecking if nose is installed. If this fails, you need to 'pip install nose'.\033[0m"
 	python -c 'import nose'
 	@echo "\033[0;32mLooks good. Running tests.\033[0m"
-	for i in $(develop_projects); do ( cd $${i} && echo $(python) -m nose --verbose ) || fail=1 ; done ; test ! "$$fail"
+	for i in $(develop_projects); do ( cd $${i} && $(python) -m nose --verbose ) || fail=1 ; done ; test ! "$$fail"
 	@echo "\033[0;32mTests succeeded.\033[0m"
