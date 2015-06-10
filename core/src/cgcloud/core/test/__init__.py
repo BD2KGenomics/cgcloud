@@ -15,6 +15,7 @@ class CgcloudTestCase( TestCase ):
     """
     cleanup = True
     ctx = None
+    namespace = None
 
     @classmethod
     def setUpClass( cls ):
@@ -24,11 +25,15 @@ class CgcloudTestCase( TestCase ):
                                    get_instance_metadata( )[ 'placement' ][ 'availability-zone' ] )
         suffix = hex( int( time.time( ) ) )[ 2: ]
         assert len( suffix ) == test_namespace_suffix_length
-        namespace = '/test/%s/' % suffix
-        os.environ.setdefault( 'CGCLOUD_NAMESPACE', namespace )
+        cls.namespace = '/test/%s/' % suffix
+        os.environ.setdefault( 'CGCLOUD_NAMESPACE', cls.namespace )
 
     @classmethod
     def tearDownClass( cls ):
         ctx = Context( os.environ[ 'CGCLOUD_ZONE' ], os.environ[ 'CGCLOUD_NAMESPACE' ] )
-        if cls.cleanup: ctx.cleanup()
+        # Only cleanup if the context is using the default test namespace. If another namespace
+        # is configured, we can't assume that all resources were created by the test and that
+        # they can therefore be removed.
+        if cls.cleanup and ctx.namespace == cls.namespace:
+            ctx.cleanup()
         super( CgcloudTestCase, cls ).tearDownClass( )
