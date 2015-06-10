@@ -204,7 +204,6 @@ class BaseTest( unittest.TestCase ):
         for command in commands:
             self._execute_command( command )
 
-@unittest.skip
 class DevEnvTest( BaseTest ):
     """
     Tests the creation of the Jenkins master and its slaves for continuous integration.
@@ -247,7 +246,6 @@ class DevEnvTest( BaseTest ):
 
         for test in reversed( tests ) if command.reverse else tests: test( )
 
-@unittest.skip
 class LoadTest( BaseTest ):
     key_file = '~/MORDOR1.pem'  # local path, this will copied to each box
     role = 'load-test-box'  # name of the cgcloud role
@@ -306,7 +304,6 @@ class LoadTest( BaseTest ):
         for pane in self.panes:
             self.assertTrue( pane.result( ) )
 
-@unittest.skip
 class TrackerStressTest( BaseTest ):
     role = 'load-test-box'  # name of the cgcloud role
     stress_tracker_script = '/Users/hannes/workspace/cghub/tests/stress_tracker'
