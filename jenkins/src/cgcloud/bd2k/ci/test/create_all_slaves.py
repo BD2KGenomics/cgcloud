@@ -9,7 +9,12 @@ import sys
 
 from bd2k.util.fnmatch import fnmatch
 
-from subprocess32 import check_call, check_output
+try:
+    # Note that subprocess isn't thread-safe so subprocess is actually required. I'm just putting
+    # this in a try-except to make the test loader happy.
+    from subprocess32 import check_call, check_output
+except ImportError:
+    from subprocess import check_call, check_output
 
 
 # This is more of an experiment rather than a full-fledged test. It works on multiple EC2
