@@ -25,8 +25,11 @@ log = logging.getLogger( __name__ )
 
 class MesosTools( object ):
 
-    def __init__( self):
+    def __init__( self, user):
         super( MesosTools, self ).__init__( )
+        self.user=user
+        self.uid = getpwnam( self.user ).pw_uid
+        self.gid = getgrnam( self.user ).gr_gid
 
     def start(self):
         while not os.path.exists( '/tmp/cloud-init.done' ):
@@ -39,6 +42,10 @@ class MesosTools( object ):
             node_type = 'master'
         else:
             node_type = 'slave'
+
+        log_path='/var/log/mesosbox/mesos{}'.format(node_type)
+        mkdir_p(log_path)
+        os.chown( log_path, self.uid, self.gid )
 
         log.info( "Starting %s services" % node_type )
         check_call( [initctl, 'emit', 'mesosbox-start-%s' % node_type ] )

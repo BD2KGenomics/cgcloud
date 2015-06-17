@@ -15,7 +15,15 @@ log = logging.getLogger( __name__ )
 
 mesos_version = '0.22'
 
+user = 'mesosbox'
+
 install_dir = '/opt/mesosbox'
+
+log_dir = '/var/log/mesosbox/'
+
+ephemeral_dir = '/mnt/ephemeral'
+
+persistent_dir = '/mnt/persistent'
 
 Service = namedtuple( 'Service', [
     'init_name',
@@ -27,7 +35,7 @@ Service = namedtuple( 'Service', [
 def mesos_service( name, script_suffix=None ):
     if script_suffix is None: script_suffix = name
     script = 'usr/sbin/mesos-{name}'
-    flag = fmt("--log_dir=/var/log/mesos{name} ")
+    flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
     if name is 'slave': flag += '--master=\'mesos-master\':5050'
     else: flag += '--registry=in_memory'
     return Service(
@@ -46,6 +54,9 @@ class MesosBox(GenericUbuntuTrustyBox):
     Node in a mesos cluster. Both workers and masters are based on this initial setup. Those specific roles
     are determined at boot time. Worker nodes need to be passed the master's ip and port before starting up.
     """
+    def other_accounts( self ):
+        return super( MesosBox, self ).other_accounts( ) + [ user ]
+
     def __init__( self, ctx ):
         super( MesosBox, self ).__init__( ctx )
 
@@ -55,6 +66,25 @@ class MesosBox(GenericUbuntuTrustyBox):
                   src_security_group_name=group_name ),
             dict( ip_protocol='udp', from_port=0, to_port=65535,
                   src_security_group_name=group_name ) ]
+    @fabric_task
+    def __lazy_mkdir( self, parent, name, persistent=False ):
+        """
+        __lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
+        /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        Likewise, __lazy_mkdir( '/foo', 'dir', False) creates /foo/dir now and ensures that
+        /mnt/ephemeral/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        Note that at start-up time, /mnt/persistent may be reassigned  to /mnt/ephemeral if no
+        EBS volume is mounted at /mnt/persistent.
+        """
+        assert '/' not in name
+        assert parent.startswith( '/' )
+        for location in ( persistent_dir, ephemeral_dir ):
+            assert location.startswith( '/' )
+            assert not location.startswith( parent ) and not parent.startswith( location )
+        logical_path = parent + '/' + name
+        sudo( 'mkdir -p "%s"' % logical_path )
+        self.lazy_dirs.add( ( parent, name, persistent ) )
+        return logical_path
 
     @fabric_task
     def _setup_package_repos( self ):
@@ -66,14 +96,41 @@ class MesosBox(GenericUbuntuTrustyBox):
         run('echo "deb http://repos.mesosphere.io/{} {} main"'
             ' | sudo tee /etc/apt/sources.list.d/mesosphere.list'.format( distro, codename ) )
 
+    def _pre_install_packages( self ):
+        super( MesosBox, self )._pre_install_packages( )
+        self.__setup_application_user( )
+
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
+        self._propagate_authorized_keys( user, user )
         self.lazy_dirs = set( )
         self.__install_mesos( )
         self.__install_mesos_egg( )
         self.__install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
         self.__register_upstart_jobs(mesos_services)
+
+    @fabric_task
+    def __setup_application_user( self ):
+        sudo( fmt( 'useradd '
+                   '--home /home/{user} '
+                   '--create-home '
+                   '--user-group '
+                   '--shell /bin/bash {user}' ) )
+
+    @fabric_task( user=user )
+    def __create_mesos_keypair( self ):
+        self._provide_imported_keypair( ec2_keypair_name=self.__ec2_keypair_name( self.ctx ),
+                                        private_key_path=fmt( "/home/{user}/.ssh/id_rsa" ),
+                                        overwrite_ec2=True )
+        # This trick allows us to roam freely within the cluster as the app user while still
+        # being able to have keypairs in authorized_keys managed by cgcloudagent such that
+        # external users can login as the app user, too. The trick depends on AuthorizedKeysFile
+        # defaulting to or being set to .ssh/autorized_keys and .ssh/autorized_keys2 in sshd_config
+        run( "cd .ssh && cat id_rsa.pub >> authorized_keys2" )
+
+    def __ec2_keypair_name( self, ctx ):
+        return user + '@' + ctx.to_aws_name( self.role( ) )
 
     @fabric_task
     def __remove_mesos_default_upstarts(self):
@@ -96,7 +153,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         with settings( forward_agent=True ):
             sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
 
-        mesos_tools = "MesosTools(**%r)" % dict( )
+        mesos_tools = "MesosTools(**%r)" % dict(user=user )
         self._register_init_script(
             "mesosbox",
             heredoc( """
@@ -148,6 +205,9 @@ class MesosBox(GenericUbuntuTrustyBox):
                         respawn
                         umask 022
                         limit nofile 8000 8192
+                        setuid {user}
+                        setgid {user}
+                        env USER={user}
                         env PYTHONPATH=/home/ubuntu/
                         start on {start_on}
                         stop on runlevel [016]
