@@ -28,7 +28,8 @@ class JobtreeJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
 
     def _list_packages_to_install( self ):
         return super( JobtreeJenkinsSlave, self )._list_packages_to_install( ) + [
-            'mesos'
+            'mesos',
+            'python-dev'
         ]
 
     def _post_install_packages( self ):
