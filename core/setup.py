@@ -4,7 +4,7 @@ from subprocess import check_output
 from pkg_resources import parse_version
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev7'
+cgcloud_version = '1.0.dev8'
 
 setup(
     name='cgcloud-core',
