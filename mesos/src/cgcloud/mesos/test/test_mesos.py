@@ -75,7 +75,7 @@ class ClusterTests( CgcloudTestCase ):
     def _wait_for_slaves( self ):
         delay = 5
         expiration = time.time( ) + 10 * 60
-        commands = ["test $(less /var/log/mesosmaster/mesos-master.INFO | grep -c 'Registering slave at') = %s" % num_slaves]
+        commands = ["test $(less /var/log/mesosbox/mesosmaster/mesos-master.INFO | grep -c 'Registering slave at') = %s" % num_slaves]
         for command in commands:
             while True:
                 try:
