@@ -274,9 +274,11 @@ class Box( object ):
         return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
 
     def __get_virtualization_type( self, instance_type, virtualization_type ):
-        instance_vtypes = set( ec2_instance_types[ instance_type ].virtualization_types )
+        instance_vtypes = ec2_instance_types[ instance_type ].virtualization_types
         role_vtypes = self.supported_virtualization_types( )
-        vtypes = instance_vtypes.intersection( role_vtypes )
+        vtypes = [type for type in instance_vtypes if type in role_vtypes ] # vtypes allowed by both role and instance
+        image_vtypes = [image.virtualization_type for image in [self._base_image(type) for type in vtypes]]
+        vtypes = [type for type in image_vtypes if type in vtypes] # restrict vytpes to types also allowed by image
         if virtualization_type is None:
             if vtypes:
                 # find the preferred vtype, i.e. the one listed first in instance_vtypes
