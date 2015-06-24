@@ -374,6 +374,12 @@ class CreationCommand( RoleCommand ):
                           "on the instance type, but generally speaking, 'hvm' will be used for "
                           "newer instance types." )
 
+        self.option( '--spot-bid',
+                     default=None,
+                     help="The price you are willing to pay for your instance per hour, in dollars. "
+                          "The default is none, we use on demand instances unless directed otherwise. "
+                          "Warning: some instances are not available on the spot market!")
+
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -555,7 +561,8 @@ class RecreateCommand( ImageCommandMixin, CreationCommand ):
         super( RecreateCommand, self ).__init__( application, '--boot-image', '-i' )
 
     def instance_options( self, options ):
-        return dict( image_ref=options.boot_image )
+        return dict( image_ref=options.boot_image,
+                     price=options.spot_bid)
 
     def run_on_creation( self, box, options ):
         pass
@@ -587,10 +594,10 @@ class CreateCommand( CreationCommand ):
                      help="Bring the package repository as well as any installed packages up to "
                           "date, i.e. do what on Ubuntu is achieved by doing "
                           "'sudo apt-get update ; sudo apt-get upgrade'." )
-
     def instance_options( self, options ):
         return dict( image_ref=options.boot_image,
-                     enable_agent=not options.no_agent )
+                     enable_agent=not options.no_agent,
+                     price=options.spot_bid)
 
     def run_on_creation( self, box, options ):
         box.setup( upgrade_installed_packages=options.upgrade )
