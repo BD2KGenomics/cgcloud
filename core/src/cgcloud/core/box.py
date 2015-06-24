@@ -8,6 +8,8 @@ import socket
 import subprocess
 import time
 import itertools
+import datetime
+import os
 
 from bd2k.util.collections import OrderedSet
 from boto import logging
@@ -348,6 +350,7 @@ class Box( object ):
             instance_type = self.recommended_instance_type( )
 
         virtualization_types = self.__get_virtualization_types( instance_type, virtualization_type )
+        spot_support = ec2_instance_types[instance_type].spot_availability
         image = self.__get_image( virtualization_types, image_ref )
         security_groups = self.__setup_security_groups( )
 
@@ -365,14 +368,39 @@ class Box( object ):
             raise UserError( "The first key pair name can't be a glob." )
         self.ec2_keypairs = ec2_keypairs
         self.ec2_keypair_globs = ec2_keypair_globs
-
         kwargs = dict( instance_type=instance_type,
                        key_name=ec2_keypairs[ 0 ].name,
                        placement=self.ctx.availability_zone,
                        security_groups=security_groups,
-                       instance_profile_arn=self._get_instance_profile_arn( ) )
+                       instance_profile_arn=self._get_instance_profile_arn( ))
+
         self._populate_instance_creation_args( image, kwargs )
+        if options['price'] != None:
+            assert spot_support is True
+            # this means we are using a spot bid. We need a couple additional kwargs
+            self._check_bid(instance_type, options)
+            kwargs['price']=options['price']
+            kwargs['launch_group']='cgcloud_spot_group' # FIXME: ADD IN NAMESPACE
+            try: # There is no min/max count parameter for request_spot_instances, just count
+                kwargs['count']=kwargs['max_count']
+                del kwargs['max_count']
+                del kwargs['min_count']
+            except KeyError:
+                pass
         self.instance_creation_args = kwargs
+
+    def _check_bid(self, instance_type, options):
+        # Don't allow crazy bids.
+        try:
+            current_time = datetime.datetime.now().isoformat()
+            one_week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+            listOfTuple = self.ctx.ec2.get_spot_price_history(start_time=one_week_ago, end_time=current_time, instance_type=instance_type)
+            average = sum([x.price for x in listOfTuple]) / len(listOfTuple)
+            assert (float(options['price']) < (average * 2))
+        except AssertionError as e:
+            log.critical("Your bid $ %f is more than double this instance type's average spot price ($ %f) over the last week"
+                         % (float(options['price']), average))
+            raise e
 
     def create( self, wait_ready=True, cluster_ordinal=0 ):
         """
@@ -386,7 +414,11 @@ class Box( object ):
         :return: the list of clones of this box, if any
         """
         # FIXME: we should be waiting for all instances in parallel, via threads
-        reservation = self._create( )
+        try: #without the price kwarg, _spot_create will fail.
+            reservation = self._create( )
+        except TypeError:
+            reservation = self._spot_create()
+
         instances = iter( sorted( reservation.instances, key=attrgetter( 'id' ) ) )
         cluster_ordinal = itertools.count( start=cluster_ordinal )
         self._bind( next( instances ), next( cluster_ordinal ), wait_ready )
@@ -399,6 +431,22 @@ class Box( object ):
         except StopIteration:
             pass
         return result
+
+    def _spot_create(self):
+        print self.instance_creation_args
+        request = self.ctx.ec2.request_spot_instances(image_id=self.image_id, **self.instance_creation_args)[0]
+        try:
+            while True:
+                request = self.ctx.ec2.get_all_spot_instance_requests(request_ids=[request.id])[0]  # update the one request
+                print request.status.code
+                if request.status.code == 'fulfilled':
+                    reservation = self.ctx.ec2.get_all_instances(request.instance_id)[0]  # just get the one reservation
+                    break
+                log.info("spot instances not up yet. Waiting for 60sec")  # dont hardcode
+                time.sleep(60)
+        finally: # We want to cancel the request if we give up. If the request is fulfilled it doesn't hurt to cancel it either
+            self.ctx.ec2.cancel_spot_instance_requests(request_ids=[request.id])
+        return reservation
 
     def _create( self ):
         """
