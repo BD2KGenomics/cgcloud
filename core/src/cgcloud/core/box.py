@@ -422,10 +422,10 @@ class Box( object ):
         :return: the list of clones of this box, if any
         """
         # FIXME: we should be waiting for all instances in parallel, via threads
-        try: #without the price kwarg, _spot_create will fail.
+        if 'price' in self.instance_creation_args:
+            reservation = self._spot_create( )
+        else:
             reservation = self._create( )
-        except TypeError:
-            reservation = self._spot_create()
 
         instances = iter( sorted( reservation.instances, key=attrgetter( 'id' ) ) )
         cluster_ordinal = itertools.count( start=cluster_ordinal )
@@ -441,16 +441,17 @@ class Box( object ):
         return result
 
     def _spot_create(self):
-        print self.instance_creation_args
+        # Many of the spot_instance methods return lists. The launch_group kwarg insures one request is
+        # returned request_spot_instances, so there is only one object in that and each subsequent list.
         request = self.ctx.ec2.request_spot_instances(image_id=self.image_id, **self.instance_creation_args)[0]
         try:
             while True:
-                request = self.ctx.ec2.get_all_spot_instance_requests(request_ids=[request.id])[0]  # update the one request
-                print request.status.code
+                request = self.ctx.ec2.get_all_spot_instance_requests(request_ids=[request.id])[0]
                 if request.status.code == 'fulfilled':
-                    reservation = self.ctx.ec2.get_all_instances(request.instance_id)[0]  # just get the one reservation
+                    reservation = self.ctx.ec2.get_all_instances(request.instance_id)[0]
                     break
-                log.info("spot instances not up yet. Waiting for 60sec")  # dont hardcode
+                # FIXME: REMOVE HARDCODING
+                log.info("Spot request in status %s. Waiting for 60sec" % (request.status.code, ))
                 time.sleep(60)
         finally: # We want to cancel the request if we give up. If the request is fulfilled it doesn't hurt to cancel it either
             self.ctx.ec2.cancel_spot_instance_requests(request_ids=[request.id])
