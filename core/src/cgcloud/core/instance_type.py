@@ -9,7 +9,7 @@ InstanceType = namedtuple( 'InstanceType', [
     'disks', # the number of ephemeral (aka 'instance store') volumes
     'disk_type', # the type of ephemeral volume
     'disk_capacity', # the capacity of each ephemeral volume in GB
-    'spot_availability' # can this instance be used on the spot market?
+    'spot_availability' # can this instance type be used on the spot market?
 ] )
 
 hvm = 'hvm' # hardware virtualization

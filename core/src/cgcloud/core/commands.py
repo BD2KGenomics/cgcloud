@@ -353,9 +353,11 @@ class CreationCommand( RoleCommand ):
 
         self.option( '--spot-bid',
                      default=None,
-                     help="The price you are willing to pay for your instance per hour, in dollars. "
-                          "The default is none, we use on demand instances unless directed otherwise. "
-                          "Warning: some instances are not available on the spot market!")
+                     help="The maximum price to pay for the specified instance type, in dollars "
+                          "per hour. Only bids under 2X the instance type's average price for "
+                          "the past week will be accepted. The default is none, and on demand "
+                          "instances are used unless directed otherwise. Warning: some instance "
+                          "types are not available on the spot market!")
 
         self.begin_mutex( )
 
