@@ -274,6 +274,8 @@ class Box( object ):
         return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
 
     def __get_virtualization_types( self, instance_type, virtualization_type ):
+        # Use lists and list comprehensions instead of sets. Results should be sorted by order of preference, sets
+        #   lose this order. OrderedSet in bd2k.util.collections does not have an intersection method, which we want.
         instance_vtypes = ec2_instance_types[ instance_type ].virtualization_types
         role_vtypes = self.supported_virtualization_types( )
         vtypes = [type for type in instance_vtypes if type in role_vtypes ] # vtypes allowed by both role and instance
