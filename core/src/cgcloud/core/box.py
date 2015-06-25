@@ -273,16 +273,13 @@ class Box( object ):
         """
         return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
 
-    def __get_virtualization_type( self, instance_type, virtualization_type ):
+    def __get_virtualization_types( self, instance_type, virtualization_type ):
         instance_vtypes = ec2_instance_types[ instance_type ].virtualization_types
         role_vtypes = self.supported_virtualization_types( )
         vtypes = [type for type in instance_vtypes if type in role_vtypes ] # vtypes allowed by both role and instance
-        image_vtypes = [image.virtualization_type for image in [self._base_image(type) for type in vtypes]]
-        vtypes = [type for type in image_vtypes if type in vtypes] # restrict vytpes to types also allowed by image
         if virtualization_type is None:
             if vtypes:
-                # find the preferred vtype, i.e. the one listed first in instance_vtypes
-                virtualization_type = next( vtype for vtype in instance_vtypes if vtype in vtypes )
+                virtualization_type = vtypes
             else:
                 raise RuntimeError(
                     'Cannot find a virtualization type that is supported by both role %s and '
@@ -292,6 +289,7 @@ class Box( object ):
                 raise RuntimeError(
                     'Virtualization type %s not supported by role %s and instance type %s' % (
                         virtualization_type, self.role( ), instance_type ) )
+            instance_type=list(instance_type)
         return virtualization_type
 
     def prepare( self, ec2_keypair_globs,
@@ -321,18 +319,21 @@ class Box( object ):
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
 
-        virtualization_type = self.__get_virtualization_type( instance_type, virtualization_type )
+        virtualization_types = self.__get_virtualization_types( instance_type, virtualization_type )
 
         if image_ref is not None:
             image = self.__select_image( image_ref )
         else:
-            log.info( "Looking up default image for role %s, ... ", self.role( ) )
-            image = self._base_image( virtualization_type )
-            log.info( "... found %s.", image.id )
+            for type in virtualization_types:
+                log.info( "Looking up default image for role %s and type %s, ... " % (self.role( ), type) )
+                image = self._base_image( type )
+                log.info( "... found %s.", image.id )
+                if image.virtualization_type in virtualization_types:
+                    break
 
-        if image.virtualization_type != virtualization_type:
+        if image.virtualization_type not in virtualization_types:
             raise RuntimeError( "Expected virtualization type %s but image only supports %s" % (
-                virtualization_type,
+                virtualization_types,
                 image.virtualization_type ) )
 
         security_groups = self.__setup_security_groups( )
