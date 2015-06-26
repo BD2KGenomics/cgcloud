@@ -4,12 +4,7 @@ CGCloud. While Apache Spark already comes with a script called ``spark-ec2``
 that lets you build a cluster in EC2, CGCloud Spark differs from ``spark-ec2``
 in the following ways (bad news first):
 
-* CGCloud Spark does not yet support persistent HDFS, i.e. HDFS backed by EBS
-  volumes.
-
 * Tachyon and Yarn are not yet supported.
-
-* Instance types with more than one ephemeral store are not yet supported.
 
 * Setup time does not scale linearly with the number of nodes. Setting up a 100
   node cluster takes just as long as setting up a 10 node cluster (2-3 min, as
