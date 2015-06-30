@@ -2,7 +2,7 @@ import sys
 
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev8'
+cgcloud_version = '1.0.dev9'
 
 setup(
     name='cgcloud-agent',
