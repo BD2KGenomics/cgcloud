@@ -70,7 +70,14 @@ class CloudInitBox( Box ):
         mounts.append(
             [ 'ephemeral0', self._ephemeral_mount_point( 0 ), 'auto', 'defaults,noauto' ] )
 
+        bootcmd = user_data.setdefault( 'bootcmd', [ ] )
         commands = [ ]
+        # On instances booted from a stock images we will likely need to install mdadm.
+        # Furthermore, we need to install it on every instance type since an image taken from an
+        # instance with one instance store volume may be used to spawn an instance with multiple
+        # instance store volumes.
+        if self.generation == 0:
+            commands.append( self._get_package_installation_command( 'mdadm' ) )
         num_disks = instance_type.disks
         device_prefix = self._get_virtual_block_device_prefix( )
         if num_disks == 0:
@@ -91,24 +98,29 @@ class CloudInitBox( Box ):
             if instance_type.disk_type == 'SSD':
                 commands.append( [ 'mkfs.ext4', '-E', 'nodiscard', device_prefix + 'b' ] )
             commands.append( [ 'mount', self._ephemeral_mount_point( 0 ) ] )
-        elif instance_type > 1:
-            # RAID multiple SSDs into one then format and mount it
-            devices = [ device_prefix + ( chr( ord( 'b' ) + i ) ) for i in range( num_disks ) ]
-            # On instance booted from stock images we will likely need to install mdadm
-            if self.generation == 0:
-                commands.append( self._get_package_installation_command( 'mdadm' ) )
-            commands.append( [ 'mdadm', '--create', '/dev/md0',
-                                 '--level', '0',
-                                 '--raid-devices', str( num_disks ),
-                                 '--run' ] +  # don't prompt for confirmation
-                             devices )
-            commands.append( [ 'mkfs.ext4', '-E', 'nodiscard', '/dev/md0' ] )
-            commands.append( [ 'mount', '/dev/md0', self._ephemeral_mount_point( 0 ) ] )
+        elif num_disks > 1:
+            # RAID multiple SSDs into one, then format and mount it.
+            devices = [ device_prefix + (chr( ord( 'b' ) + i )) for i in range( num_disks ) ]
+            commands.extend( [
+                [ 'mdadm',
+                    '--create', '/dev/md0',
+                    '--run', # do not prompt for confirmation
+                    '--level', '0', # RAID 0, i.e. striped
+                    '--raid-devices', str( num_disks ) ] + devices,
+                # Disable auto scan at boot time, which would otherwise mount device on reboot
+                # as md127 before these commands are run.
+                'echo "AUTO -all" > /etc/mdadm/mdadm.conf',
+                # Copy mdadm.conf into init ramdisk
+                [ 'update-initramfs', '-u' ],
+                [ 'mkfs.ext4', '-E', 'nodiscard', '/dev/md0' ],
+                [ 'mount', '/dev/md0', self._ephemeral_mount_point( 0 ) ] ] )
         else:
             assert False
 
-        # prepend commands as best effort to getting this done early in the boot sequence
-        runcmd[ 0:0 ] = commands
+        # Prepend commands as a best effort to getting volume preparation done as early as
+        # possible in the boot sequence. Note that CloudInit's 'bootcmd' is run on every boot,
+        # 'runcmd' only once after instance creation.
+        bootcmd[ 0:0 ] = commands
 
     def _populate_instance_creation_args( self, image, kwargs ):
         super( CloudInitBox, self )._populate_instance_creation_args( image, kwargs )
