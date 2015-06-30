@@ -10,6 +10,7 @@ import time
 import itertools
 import os
 
+from bd2k.util.collections import OrderedSet
 from boto import logging
 from boto.exception import BotoServerError, EC2ResponseError
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
@@ -274,14 +275,12 @@ class Box( object ):
         return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
 
     def __get_virtualization_types( self, instance_type, virtualization_type ):
-        # Use lists and list comprehensions instead of sets. Results should be sorted by order of preference, sets
-        #   lose this order. OrderedSet in bd2k.util.collections does not have an intersection method, which we want.
-        instance_vtypes = ec2_instance_types[ instance_type ].virtualization_types
-        role_vtypes = self.supported_virtualization_types( )
-        vtypes = [type for type in instance_vtypes if type in role_vtypes ] # vtypes allowed by both role and instance
+        instance_vtypes = OrderedSet(ec2_instance_types[ instance_type ].virtualization_types)
+        role_vtypes = OrderedSet(self.supported_virtualization_types( ))
+        vtypes = instance_vtypes & role_vtypes
         if virtualization_type is None:
             if vtypes:
-                virtualization_type = vtypes
+                virtualization_types = list(vtypes)
             else:
                 raise RuntimeError(
                     'Cannot find a virtualization type that is supported by both role %s and '
@@ -291,8 +290,8 @@ class Box( object ):
                 raise RuntimeError(
                     'Virtualization type %s not supported by role %s and instance type %s' % (
                         virtualization_type, self.role( ), instance_type ) )
-            instance_type=list(instance_type)
-        return virtualization_type
+            virtualization_types=list([virtualization_type])
+        return virtualization_types
 
     def prepare( self, ec2_keypair_globs,
                  instance_type=None,
@@ -323,15 +322,23 @@ class Box( object ):
 
         virtualization_types = self.__get_virtualization_types( instance_type, virtualization_type )
 
+        image = None
         if image_ref is not None:
             image = self.__select_image( image_ref )
         else:
             for type in virtualization_types:
-                log.info( "Looking up default image for role %s and type %s, ... " % (self.role( ), type) )
-                image = self._base_image( type )
-                log.info( "... found %s.", image.id )
-                if image.virtualization_type in virtualization_types:
+                log.info( "Looking up default image for role %s and type %s, ... ", self.role( ), type )
+                try:
+                    image = self._base_image( type )
+                except RuntimeError:
+                    log.warning("... did not find a suitable image.")
+                else:
+                    log.info( "... found %s.", image.id )
+                if image is not None and image.virtualization_type in virtualization_types:
                     break
+
+        if image is None:
+            raise RuntimeError("Could not find suitable image for role %s", type)
 
         if image.virtualization_type not in virtualization_types:
             raise RuntimeError( "Expected virtualization type %s but image only supports %s" % (
@@ -602,8 +609,7 @@ class Box( object ):
             if image_id in (_.id for _ in self.list_images( )):
                 log.info( '... image now discoverable.' )
                 break
-            log.info( '... image %s not yet discoverable, trying again in %is ...' % (
-                image_id, a_short_time ) )
+            log.info( '... image %s not yet discoverable, trying again in %is ...',image_id, a_short_time)
             time.sleep( a_short_time )
         return image_id
 
