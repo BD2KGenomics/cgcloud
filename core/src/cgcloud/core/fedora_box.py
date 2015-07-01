@@ -32,7 +32,7 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
         images = self.ctx.ec2.get_all_images(
             owners=[ '125523088429' ],
             filters={
-                'name': 'Fedora-x86_64-%i-*' % release,
+                'name': ( 'Fedora-x86_64-%i-*' if release < 21 else 'Fedora-Cloud-Base-%s-*.x86_64-*') % release,
                 'root-device-type': 'ebs',
                 'virtualization-type': virtualization_type } )
         images = [ i for i in images if not re.search( 'Alpha|Beta', i.name ) ]

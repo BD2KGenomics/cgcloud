@@ -281,3 +281,11 @@ class GenericFedora20Box( FedoraBox ):
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
+
+class GenericFedora21Box( FedoraBox ):
+    def release( self ):
+        return 21
+
+class GenericFedora22Box( FedoraBox ):
+    def release( self ):
+        return 22

@@ -10,7 +10,9 @@ BOXES = [
     GenericUbuntuUtopicBox,
     GenericUbuntuVividBox,
     GenericFedora19Box,
-    GenericFedora20Box ]
+    GenericFedora20Box,
+    GenericFedora21Box,
+    GenericFedora22Box ]
 
 COMMANDS = [
     ListRolesCommand,
