@@ -13,7 +13,7 @@ class CloudInitBox( Box ):
     """
 
     def _ephemeral_mount_point( self, i ):
-        return '/mnt/ephemeral' + ( '' if i == 0 else str( i ) )
+        return '/mnt/ephemeral' + ('' if i == 0 else str( i ))
 
     @abstractmethod
     def _get_package_installation_command( self, package ):
@@ -66,12 +66,11 @@ class CloudInitBox( Box ):
         # [1]: https://bugs.launchpad.net/cloud-init/+bug/1291820
         #
         mounts = user_data.setdefault( 'mounts', [ ] )
-
         mounts.append(
             [ 'ephemeral0', self._ephemeral_mount_point( 0 ), 'auto', 'defaults,noauto' ] )
 
-        bootcmd = user_data.setdefault( 'bootcmd', [ ] )
         commands = [ ]
+
         # On instances booted from a stock images we will likely need to install mdadm.
         # Furthermore, we need to install it on every instance type since an image taken from an
         # instance with one instance store volume may be used to spawn an instance with multiple
@@ -80,6 +79,10 @@ class CloudInitBox( Box ):
             commands.append( self._get_package_installation_command( 'mdadm' ) )
         num_disks = instance_type.disks
         device_prefix = self._get_virtual_block_device_prefix( )
+
+        def device_name( i ):
+            return device_prefix + (chr( ord( 'b' ) + i ))
+
         if num_disks == 0:
             pass
         elif instance_type.disk_type == 'HDD':
@@ -88,7 +91,7 @@ class CloudInitBox( Box ):
                 mount = self._ephemeral_mount_point( i )
                 if mount is not None:
                     commands.append( [ 'mkdir', '-p', mount ] )
-                    commands.append( [ 'mount', mount ] )
+                    commands.append( [ 'mount', device_name( i ), mount ] )
         elif num_disks == 1:
             # The r3 family does not format the ephemeral SSD volume so will have to do it
             # manually. Other families may also exhibit that behavior so we will format every SSD
@@ -96,16 +99,16 @@ class CloudInitBox( Box ):
             # filesystem, i.e. ext4. We don't know what the device will be (cloud-init determines
             # this at runtime) named so we simply try all possible names.
             if instance_type.disk_type == 'SSD':
-                commands.append( [ 'mkfs.ext4', '-E', 'nodiscard', device_prefix + 'b' ] )
-            commands.append( [ 'mount', self._ephemeral_mount_point( 0 ) ] )
+                commands.append( [ 'mkfs.ext4', '-E', 'nodiscard', device_name( 0 ) ] )
+            commands.append( [ 'mount', device_name( 0 ), self._ephemeral_mount_point( 0 ) ] )
         elif num_disks > 1:
             # RAID multiple SSDs into one, then format and mount it.
-            devices = [ device_prefix + (chr( ord( 'b' ) + i )) for i in range( num_disks ) ]
+            devices = [ device_name( i ) for i in range( num_disks ) ]
             commands.extend( [
                 [ 'mdadm',
                     '--create', '/dev/md0',
-                    '--run', # do not prompt for confirmation
-                    '--level', '0', # RAID 0, i.e. striped
+                    '--run',  # do not prompt for confirmation
+                    '--level', '0',  # RAID 0, i.e. striped
                     '--raid-devices', str( num_disks ) ] + devices,
                 # Disable auto scan at boot time, which would otherwise mount device on reboot
                 # as md127 before these commands are run.
@@ -120,6 +123,7 @@ class CloudInitBox( Box ):
         # Prepend commands as a best effort to getting volume preparation done as early as
         # possible in the boot sequence. Note that CloudInit's 'bootcmd' is run on every boot,
         # 'runcmd' only once after instance creation.
+        bootcmd = user_data.setdefault( 'bootcmd', [ ] )
         bootcmd[ 0:0 ] = commands
 
     def _populate_instance_creation_args( self, image, kwargs ):
