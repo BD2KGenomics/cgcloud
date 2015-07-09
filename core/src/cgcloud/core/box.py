@@ -290,7 +290,7 @@ class Box( object ):
                 raise RuntimeError(
                     'Virtualization type %s not supported by role %s and instance type %s' % (
                         virtualization_type, self.role( ), instance_type ) )
-            virtualization_types=list([virtualization_type])
+            virtualization_types=list(virtualization_type)
         return virtualization_types
 
     def prepare( self, ec2_keypair_globs,
@@ -331,7 +331,7 @@ class Box( object ):
                 try:
                     image = self._base_image( type )
                 except RuntimeError:
-                    log.warning("... did not find a suitable image.")
+                    log.info("... did not find a suitable image.")
                 else:
                     log.info( "... found %s.", image.id )
                 if image is not None and image.virtualization_type in virtualization_types:
@@ -341,7 +341,7 @@ class Box( object ):
             raise RuntimeError("Could not find suitable image for role %s", type)
 
         if image.virtualization_type not in virtualization_types:
-            raise RuntimeError( "Expected virtualization type %s but image only supports %s" % (
+            raise RuntimeError( "Role and type support virtualization types %s but image only supports %s" % (
                 virtualization_types,
                 image.virtualization_type ) )
 
