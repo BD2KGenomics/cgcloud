@@ -36,7 +36,7 @@ def mesos_service( name, script_suffix=None ):
     if script_suffix is None: script_suffix = name
     script = 'usr/sbin/mesos-{name}'
     flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
-    if name is 'slave': flag += '--master=\'mesos-master\':5050'
+    if name is 'slave': flag += '--master=\'mesos-master\':5050 --no-switch_user'
     else: flag += '--registry=in_memory'
     return Service(
         init_name='mesosbox-' + name,
