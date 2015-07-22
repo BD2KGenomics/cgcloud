@@ -1,9 +1,12 @@
 import logging
 from cgcloud.core import fabric_task
-from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave, Service, mesos_services, mesos_service
+from cgcloud.mesos.mesos_box import MesosBox, MesosMaster
 from cgcloud.fabric.operations import sudo
+from bd2k.util.strings import interpolate as fmt
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
+from fabric.context_managers import settings
+from textwrap import dedent
 
 log = logging.getLogger( __name__ )
 
@@ -23,11 +26,16 @@ class JobTreeBox(MesosBox):
     def __init__( self, ctx ):
         super( JobTreeBox, self ).__init__( ctx )
 
+    def _pre_install_packages( self ):
+        super( JobTreeBox, self)._pre_install_packages()
+
     def _post_install_packages( self ):
         super( JobTreeBox, self )._post_install_packages( )
         self._install_git( )
         self._install_boto( )
         self.__install_jobtree( )
+        self._install_docker( )
+        self._docker_group( )
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( JobTreeBox, self )._get_iam_ec2_role( )
@@ -43,6 +51,29 @@ class JobTreeBox(MesosBox):
         return role_name, policies
 
     @fabric_task
+    def _setup_application_user( self ):
+        # changed from __ to _ to prevent name mangling.
+        # overridden so that the method will access our module level 'user' variable.
+        sudo( fmt( 'useradd '
+                   '--home /home/{user} '
+                   '--create-home '
+                   '--user-group '
+                   '--shell /bin/bash {user}' ) )
+    @fabric_task
+    def _propagate_authorized_keys( self, user_discarded, group=None ):
+        # overridden, throw away passed in user so that we get jobtreebox user
+        super(JobTreeBox, self)._propagate_authorized_keys(user, user)
+
+    @fabric_task
+    def _docker_group(self):
+        sudo("gpasswd -a {} docker".format(user))
+        sudo("sudo service docker.io restart")
+
+    @fabric_task
+    def _install_docker(self):
+        sudo("apt-get -y install docker.io")
+
+    @fabric_task
     def _install_git(self):
         sudo("apt-get -y install git") # downloading from git requires git tools.
 
@@ -54,8 +85,71 @@ class JobTreeBox(MesosBox):
     def __install_jobtree(self):
         sudo("apt-get -y install python-dev")
         sudo("pip install git+https://github.com/BD2KGenomics/jobTree.git@dag-rebased")
-        sudo("chmod +x /usr/local/lib/python2.7/dist-packages/jobTree/batchSystems/mesos/executor.*")
-        #sudo("chmod +x /usr/local/lib/python2.7/dist-packages/jobTree/*.py")
+        sudo("chmod +x /usr/local/lib/python2.7/dist-packages/jobTree/batchSystems/mesos/executor.py")
+
+    @fabric_task
+    def _install_mesosbox_tools( self ):
+        """
+        Installs the mesos-master-discovery init script and its companion mesos-tools. The latter
+        is a Python package distribution that's included in cgcloud-mesos as a resource. This is
+        in contrast to the cgcloud agent, which is a standalone distribution.
+        """
+        tools_dir = install_dir + '/tools'
+        sudo( fmt( 'mkdir -p {tools_dir}') )
+        sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
+        sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+
+        mesos_tools_artifacts = ' '.join( self._project_artifacts( 'mesos-tools' ) )
+        with settings( forward_agent=True ):
+            sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
+
+        mesos_tools = "MesosTools(**%r)" % dict(user=user )
+        self._register_init_script(
+            "mesosbox",
+            heredoc( """
+                description "Mesos master discovery"
+                console log
+                start on runlevel [2345]
+                stop on runlevel [016]
+                pre-start script
+                {tools_dir}/bin/python2.7 - <<END
+                import logging
+                logging.basicConfig( level=logging.INFO )
+                from cgcloud.mesos_tools import MesosTools
+                mesos_tools = {mesos_tools}
+                mesos_tools.start()
+                END
+                end script
+                post-stop script
+                {tools_dir}/bin/python2.7 - <<END
+                import logging
+                logging.basicConfig( level=logging.INFO )
+                from cgcloud.mesos_tools import MesosTools
+                mesos_tools = {mesos_tools}
+                mesos_tools.stop()
+                END
+                end script""" ) )
+
+    def _register_upstart_jobs( self, service_map ):
+        for node_type, services in service_map.iteritems( ):
+            start_on = "mesosbox-start-" + node_type
+            for service in services: # FIXME: include chdir to logging directory in this script
+                self._register_init_script(
+                    service.init_name,
+                    heredoc( """
+                        description "{service.description}"
+                        console log
+                        respawn
+                        umask 022
+                        limit nofile 8000 8192
+                        setuid {user}
+                        setgid {user}
+                        env USER={user}
+                        env PYTHONPATH=/home/ubuntu/
+                        start on {start_on}
+                        stop on runlevel [016]
+                        exec {service.action}""" ) )
+                start_on = "started " + service.init_name
 
 class JobTreeLeader(JobTreeBox, MesosMaster):
     def __init__( self, ctx ):
@@ -94,3 +188,8 @@ class JobTreeWorker(JobTreeBox):
         super( JobTreeWorker, self )._populate_instance_tags( tags_dict )
         if self.mesos_master_id:
             tags_dict[ 'mesos_master' ] = self.mesos_master_id
+
+def heredoc( s ):
+    if s[ 0 ] == '\n': s = s[ 1: ]
+    if s[ -1 ] != '\n': s += '\n'
+    return fmt( dedent( s ), skip_frames=1 )

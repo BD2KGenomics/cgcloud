@@ -46,6 +46,9 @@ class MesosTools( object ):
         log_path='/var/log/mesosbox/mesos{}'.format(node_type)
         mkdir_p(log_path)
         os.chown( log_path, self.uid, self.gid )
+        if(os.path.exists("/mnt/")):
+            os.chown( "/mnt/", self.uid, self.gid)
+        # chown mnt here, only if it exists. 
 
         log.info( "Starting %s services" % node_type )
         check_call( [initctl, 'emit', 'mesosbox-start-%s' % node_type ] )

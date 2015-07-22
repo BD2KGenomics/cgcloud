@@ -34,7 +34,7 @@ Service = namedtuple( 'Service', [
 
 def mesos_service( name, script_suffix=None ):
     if script_suffix is None: script_suffix = name
-    script = 'usr/sbin/mesos-{name}'
+    script = '/usr/sbin/mesos-{name}'
     flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
     if name is 'slave': flag += '--master=\'mesos-master\':5050 --no-switch_user'
     else: flag += '--registry=in_memory'
@@ -98,7 +98,7 @@ class MesosBox(GenericUbuntuTrustyBox):
 
     def _pre_install_packages( self ):
         super( MesosBox, self )._pre_install_packages( )
-        self.__setup_application_user( )
+        self._setup_application_user( )
 
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
@@ -106,12 +106,12 @@ class MesosBox(GenericUbuntuTrustyBox):
         self.lazy_dirs = set( )
         self.__install_mesos( )
         self.__install_mesos_egg( )
-        self.__install_mesosbox_tools()
+        self._install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
-        self.__register_upstart_jobs(mesos_services)
+        self._register_upstart_jobs(mesos_services)
 
     @fabric_task
-    def __setup_application_user( self ):
+    def _setup_application_user( self ):
         sudo( fmt( 'useradd '
                    '--home /home/{user} '
                    '--create-home '
@@ -138,7 +138,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         sudo("rm /etc/init/mesos-master.conf")
 
     @fabric_task
-    def __install_mesosbox_tools( self ):
+    def _install_mesosbox_tools( self ):
         """
         Installs the mesos-master-discovery init script and its companion mesos-tools. The latter
         is a Python package distribution that's included in cgcloud-mesos as a resource. This is
@@ -193,7 +193,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         sudo("pip install --upgrade protobuf")
         sudo("easy_install mesos-0.22.0-py2.7-linux-x86_64.egg")
 
-    def __register_upstart_jobs( self, service_map ):
+    def _register_upstart_jobs( self, service_map ):
         for node_type, services in service_map.iteritems( ):
             start_on = "mesosbox-start-" + node_type
             for service in services: # FIXME: include chdir to logging directory in this script
