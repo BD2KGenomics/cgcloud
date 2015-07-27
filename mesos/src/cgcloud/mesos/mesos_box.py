@@ -207,7 +207,7 @@ class MesosBox(GenericUbuntuTrustyBox):
 
     @fabric_task
     def __install_mesos(self):
-        sudo("apt-get -y install mesos")
+        sudo("apt-get -y install mesos=0.21.1-1.1.ubuntu1404")
 
     @fabric_task
     def __install_mesos_egg(self):

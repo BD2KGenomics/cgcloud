@@ -25,6 +25,7 @@ persistent_dir = '/mnt/persistent'
 class JobTreeBox(MesosBox):
     def __init__( self, ctx ):
         super( JobTreeBox, self ).__init__( ctx )
+        self.lazy_dirs=set()
 
     def _pre_install_packages( self ):
         super( JobTreeBox, self)._pre_install_packages()
@@ -103,7 +104,8 @@ class JobTreeBox(MesosBox):
         with settings( forward_agent=True ):
             sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
 
-        mesos_tools = "MesosTools(**%r)" % dict(user=user, persistent_dir=persistent_dir, ephemeral_dir=ephemeral_dir )
+        mesos_tools = "MesosTools(**%r)" % dict(user=user, persistent_dir=persistent_dir, ephemeral_dir=ephemeral_dir,
+                                                lazy_dirs=self.lazy_dirs)
         self._register_init_script(
             "mesosbox",
             heredoc( """
@@ -188,6 +190,7 @@ class JobTreeWorker(JobTreeBox):
         super( JobTreeWorker, self )._populate_instance_tags( tags_dict )
         if self.mesos_master_id:
             tags_dict[ 'mesos_master' ] = self.mesos_master_id
+            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
 def heredoc( s ):
     if s[ 0 ] == '\n': s = s[ 1: ]
