@@ -84,7 +84,7 @@ class JobTreeBox(MesosBox):
     @fabric_task
     def __install_jobtree(self):
         sudo("apt-get -y install python-dev")
-        sudo("pip install git+https://github.com/BD2KGenomics/jobTree.git@dag-rebased")
+        sudo("pip install git+https://github.com/BD2KGenomics/jobTree.git@master")
         sudo("chmod +x /usr/local/lib/python2.7/dist-packages/jobTree/batchSystems/mesos/executor.py")
 
     @fabric_task
@@ -103,7 +103,7 @@ class JobTreeBox(MesosBox):
         with settings( forward_agent=True ):
             sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
 
-        mesos_tools = "MesosTools(**%r)" % dict(user=user )
+        mesos_tools = "MesosTools(**%r)" % dict(user=user, persistent_dir=persistent_dir, ephemeral_dir=ephemeral_dir )
         self._register_init_script(
             "mesosbox",
             heredoc( """

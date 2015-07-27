@@ -9,7 +9,9 @@ from pkg_resources import parse_version
 from bd2k.util.strings import interpolate as fmt
 from cgcloud.fabric.operations import sudo, remote_open
 from fabric.context_managers import settings
+from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
+from cgcloud.lib.util import abreviated_snake_case_class_name
 
 log = logging.getLogger( __name__ )
 
@@ -35,8 +37,11 @@ Service = namedtuple( 'Service', [
 def mesos_service( name, script_suffix=None ):
     if script_suffix is None: script_suffix = name
     script = '/usr/sbin/mesos-{name}'
+    if 'slave' in name:
+        script = '/usr/sbin/mesos-slave'
     flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
-    if name is 'slave': flag += '--master=\'mesos-master\':5050 --no-switch_user'
+    if 'slave' in name: flag += '--master=\'mesos-master\':5050 --no-switch_user '
+    if 'ebs' in name: flag += '--work_dir=mnt/persistent/mesos/workspace '
     else: flag += '--registry=in_memory'
     return Service(
         init_name='mesosbox-' + name,
@@ -47,7 +52,8 @@ def mesos_service( name, script_suffix=None ):
 
 mesos_services = {
     'master': [ mesos_service( 'master' ) ],
-    'slave': [ mesos_service( 'slave') ] }
+    'slave': [ mesos_service( 'slave') ],
+    'slave-ebs': [ mesos_service( 'slave-ebs') ]}
 
 class MesosBox(GenericUbuntuTrustyBox):
     """
@@ -66,6 +72,10 @@ class MesosBox(GenericUbuntuTrustyBox):
                   src_security_group_name=group_name ),
             dict( ip_protocol='udp', from_port=0, to_port=65535,
                   src_security_group_name=group_name ) ]
+
+    def _mount_mesos_workdir(self):
+        self.__lazy_mkdir('/mesos','workspace')
+
     @fabric_task
     def __lazy_mkdir( self, parent, name, persistent=False ):
         """
@@ -96,6 +106,17 @@ class MesosBox(GenericUbuntuTrustyBox):
         run('echo "deb http://repos.mesosphere.io/{} {} main"'
             ' | sudo tee /etc/apt/sources.list.d/mesosphere.list'.format( distro, codename ) )
 
+    def _get_iam_ec2_role( self ):
+        role_name, policies = super( MesosBox, self )._get_iam_ec2_role( )
+        role_name += '--' + abreviated_snake_case_class_name( MesosBox )
+        policies.update( dict(
+            ec2_read_only=ec2_read_only_policy,
+            ec2_spark_box=dict( Version="2012-10-17", Statement=[
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
+        return role_name, policies
+
     def _pre_install_packages( self ):
         super( MesosBox, self )._pre_install_packages( )
         self._setup_application_user( )
@@ -106,6 +127,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         self.lazy_dirs = set( )
         self.__install_mesos( )
         self.__install_mesos_egg( )
+        self._mount_mesos_workdir()
         self._install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
         self._register_upstart_jobs(mesos_services)
@@ -153,7 +175,10 @@ class MesosBox(GenericUbuntuTrustyBox):
         with settings( forward_agent=True ):
             sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
 
-        mesos_tools = "MesosTools(**%r)" % dict(user=user )
+        mesos_tools = "MesosTools(**%r)" % dict( user=user,
+                                                 ephemeral_dir=ephemeral_dir,
+                                                 persistent_dir=persistent_dir,
+                                                 lazy_dirs=self.lazy_dirs )
         self._register_init_script(
             "mesosbox",
             heredoc( """
@@ -233,6 +258,7 @@ class MesosMaster(MesosBox):
     def _populate_instance_tags( self, tags_dict ):
         super( MesosMaster, self )._populate_instance_tags( tags_dict )
         tags_dict[ 'mesos_master' ] = self.instance_id
+        tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
 
     def prepare( self, *args, **kwargs ):
@@ -243,6 +269,9 @@ class MesosMaster(MesosBox):
 
     def _post_install_packages( self ):
         super( MesosMaster, self )._post_install_packages( )
+        if(self.ebs_volume_size!=0):
+            # we assume we want to use ebs as work dir for mesos.
+            pass
 
 
     def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
@@ -256,7 +285,7 @@ class MesosMaster(MesosBox):
         kwargs[ 'instance_type' ] = slave_instance_type
         first_slave.prepare( *args, **kwargs )
         other_slaves = first_slave.create( wait_ready=False,
-                                           cluster_ordinal=master.cluster_ordinal + 1 )
+                                           cluster_ordinal=master.cluster_ordinal + 1)
         all_slaves = [ first_slave ] + other_slaves
         return all_slaves
 
@@ -281,6 +310,7 @@ class MesosSlave( MesosBox ):
         super( MesosSlave, self )._populate_instance_tags( tags_dict )
         if self.mesos_master_id:
             tags_dict[ 'mesos_master' ] = self.mesos_master_id
+            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
 def heredoc( s ):
     if s[ 0 ] == '\n': s = s[ 1: ]
