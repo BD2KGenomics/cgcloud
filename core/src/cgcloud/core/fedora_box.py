@@ -37,11 +37,15 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
                 'virtualization-type': virtualization_type } )
         images = [ i for i in images if not re.search( 'Alpha|Beta', i.name ) ]
         if not images:
-            raise RuntimeError( "Can't find any suitable AMIs for Fedora %i" % release )
+            raise self.NoSuchImageException(
+                "Can't find any AMIs for Fedora %i and virtualization type %s" % (
+                    release, virtualization_type ) )
         images.sort( key=attrgetter( 'name' ), reverse=True )
         if False:
             if len( images ) > 1:
-                raise RuntimeError( "Found more than one AMI for Fedora %i" % release )
+                raise RuntimeError(
+                    "Found more than one AMI for Fedora %i and virtualization type %s" % (
+                    release, virtualization_type ) )
         return images[ 0 ]
 
     def _list_packages_to_install( self ):
