@@ -85,8 +85,8 @@ class JobTreeBox(MesosBox):
     @fabric_task
     def __install_jobtree(self):
         sudo("apt-get -y install python-dev")
-        sudo("pip install git+https://github.com/BD2KGenomics/jobTree.git@master")
-        sudo("chmod +x /usr/local/lib/python2.7/dist-packages/jobTree/batchSystems/mesos/executor.py")
+        sudo("pip install git+https://github.com/BD2KGenomics/toil.git@master")
+        sudo("chmod +x /usr/local/lib/python2.7/dist-packages/toil/batchSystems/mesos/executor.py")
 
     @fabric_task
     def _install_mesosbox_tools( self ):
