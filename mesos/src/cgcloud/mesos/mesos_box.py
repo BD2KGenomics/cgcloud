@@ -37,12 +37,12 @@ Service = namedtuple( 'Service', [
 def mesos_service( name, script_suffix=None ):
     if script_suffix is None: script_suffix = name
     script = '/usr/sbin/mesos-{name}'
+    flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
     if 'slave' in name:
         script = '/usr/sbin/mesos-slave'
-    flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
-    if 'slave' in name: flag += '--master=\'mesos-master\':5050 --no-switch_user '
-    if 'ebs' in name: flag += '--work_dir=mnt/persistent/mesos/workspace '
-    else: flag += '--registry=in_memory'
+        flag += '--master=\'mesos-master\':5050 --no-switch_user --work_dir=/mesos/workspace'
+    elif 'master' in name:
+        flag += '--registry=in_memory '
     return Service(
         init_name='mesosbox-' + name,
         description=fmt( "Mesos {name} service" ),
@@ -52,8 +52,7 @@ def mesos_service( name, script_suffix=None ):
 
 mesos_services = {
     'master': [ mesos_service( 'master' ) ],
-    'slave': [ mesos_service( 'slave') ],
-    'slave-ebs': [ mesos_service( 'slave-ebs') ]}
+    'slave': [ mesos_service( 'slave') ]}
 
 class MesosBox(GenericUbuntuTrustyBox):
     """
@@ -74,7 +73,7 @@ class MesosBox(GenericUbuntuTrustyBox):
                   src_security_group_name=group_name ) ]
 
     def _mount_mesos_workdir(self):
-        self.__lazy_mkdir('/mesos','workspace')
+        self.__lazy_mkdir('/mesos','workspace', persistent=True)
 
     @fabric_task
     def __lazy_mkdir( self, parent, name, persistent=False ):
@@ -119,7 +118,7 @@ class MesosBox(GenericUbuntuTrustyBox):
 
     def _pre_install_packages( self ):
         super( MesosBox, self )._pre_install_packages( )
-        self._setup_application_user( )
+        self.__setup_application_user( )
 
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
@@ -131,9 +130,11 @@ class MesosBox(GenericUbuntuTrustyBox):
         self._install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
         self._register_upstart_jobs(mesos_services)
+        self._install_docker( )
+        self._docker_group( )
 
     @fabric_task
-    def _setup_application_user( self ):
+    def __setup_application_user( self ):
         sudo( fmt( 'useradd '
                    '--home /home/{user} '
                    '--create-home '
@@ -238,6 +239,15 @@ class MesosBox(GenericUbuntuTrustyBox):
                         stop on runlevel [016]
                         exec {service.action}""" ) )
                 start_on = "started " + service.init_name
+
+    @fabric_task
+    def _docker_group(self):
+        sudo("gpasswd -a {} docker".format(user))
+        sudo("sudo service docker.io restart")
+
+    @fabric_task
+    def _install_docker(self):
+        sudo("apt-get -y install docker.io")
 
     def _image_name_prefix( self ):
         # Make this class and its subclasses use the same image
