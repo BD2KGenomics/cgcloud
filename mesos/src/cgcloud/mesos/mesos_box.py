@@ -122,18 +122,20 @@ class MesosBox(GenericUbuntuTrustyBox):
         super( MesosBox, self )._pre_install_packages( )
         self.__setup_application_user( )
 
+    def _list_packages_to_install( self ):
+        return super( MesosBox, self )._list_packages_to_install( ) + [
+            'mesos=0.21.1-1.1.ubuntu1404', 'docker.io']
+
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
         self._propagate_authorized_keys( user, user )
         self.__create_mesos_keypair()
         self.lazy_dirs = set( )
-        self.__install_mesos( )
         self.__install_mesos_egg( )
         self._mount_mesos_workdir()
         self._install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
         self._register_upstart_jobs(mesos_services)
-        self._install_docker( )
         self._docker_group( )
 
     @fabric_task
@@ -214,10 +216,6 @@ class MesosBox(GenericUbuntuTrustyBox):
                 end script""" ) )
 
     @fabric_task
-    def __install_mesos(self):
-        sudo("apt-get -y install mesos=0.21.1-1.1.ubuntu1404")
-
-    @fabric_task
     def __install_mesos_egg(self):
         # FIXME: this is the ubuntu 14.04 version. Wont work with other versions.
         run("wget http://downloads.mesosphere.io/master/ubuntu/14.04/mesos-0.22.0-py2.7-linux-x86_64.egg")
@@ -251,10 +249,6 @@ class MesosBox(GenericUbuntuTrustyBox):
     def _docker_group(self):
         sudo("gpasswd -a {} docker".format(user))
         sudo("sudo service docker.io restart")
-
-    @fabric_task
-    def _install_docker(self):
-        sudo("apt-get -y install docker.io")
 
     def _image_name_prefix( self ):
         # Make this class and its subclasses use the same image

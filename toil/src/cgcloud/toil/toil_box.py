@@ -32,9 +32,13 @@ class ToilBox(MesosBox):
 
     def _post_install_packages( self ):
         super( ToilBox, self )._post_install_packages( )
-        self._install_git( )
         self._install_boto( )
         self.__install_toil( )
+
+    def _list_packages_to_install( self ):
+        # packages to apt-get
+        return super( MesosBox, self )._list_packages_to_install( ) + [
+            'git', 'python-dev']
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilBox, self )._get_iam_ec2_role( )
@@ -60,16 +64,11 @@ class ToilBox(MesosBox):
                    '--shell /bin/bash {user}' ) )
 
     @fabric_task
-    def _install_git(self):
-        sudo("apt-get -y install git") # downloading from git requires git tools.
-
-    @fabric_task
     def _install_boto(self):
         sudo("pip install boto") # downloading from git requires git tools.
 
     @fabric_task
     def __install_toil(self):
-        sudo("apt-get -y install python-dev")
         sudo("pip install git+https://github.com/BD2KGenomics/toil.git@master")
         sudo("chmod +x /usr/local/lib/python2.7/dist-packages/toil/batchSystems/mesos/executor.py")
 
