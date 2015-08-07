@@ -22,10 +22,10 @@ sudo = '/usr/bin/sudo'
 
 log = logging.getLogger( __name__ )
 
+shared_dir='/home/ubuntu/shared/'
+
 
 class MesosTools( object ):
-#TODO: edit the mesos resources file so we get proper config. Also, we can potentially remove the seperate upstart script
-# if the "bind" command actually lets us write directly to the ebs volume. Lets first get this working tho.
     def __init__( self, user, ephemeral_dir, persistent_dir, lazy_dirs):
         super( MesosTools, self ).__init__( )
         self.user=user
@@ -46,19 +46,15 @@ class MesosTools( object ):
 
         if self.master_ip == self.node_ip:
             node_type = 'master'
-        elif os.path.exists("/mnt/persistent"):
-            node_type = 'slave-ebs'
         else:
             node_type = 'slave'
+
+        self._copy_dir_from_master(shared_dir)
 
         log_path='/var/log/mesosbox/mesos{}'.format(node_type)
         mkdir_p(log_path)
         os.chown( log_path, self.uid, self.gid )
-
-        if node_type == 'slave-ebs':
-            os.chown( "/mnt/persistent/", self.uid, self.gid)
-        else:
-            os.chown( "/mesos/workspace", self.uid, self.gid)
+        os.chown( "/mesos/workspace", self.uid, self.gid)
 
         log.info( "Starting %s services" % node_type )
         check_call( [initctl, 'emit', 'mesosbox-start-%s' % node_type ] )
@@ -79,6 +75,19 @@ class MesosTools( object ):
             etc_hosts.seek( 0 )
             etc_hosts.truncate( 0 )
             etc_hosts.writelines( lines )
+
+    def _copy_dir_from_master(self, dir):
+        if dir:
+            mkdir_p(dir)
+            while True:
+                try:
+                    check_call( ['sudo','-u','mesosbox','rsync','-r','-e', 'ssh -o StrictHostKeyChecking=no', "mesos-master:"+dir, dir] )
+                except:
+                    log.warning("Failed to rsync specified directory, trying again in 10 sec")
+                    time.sleep(10)
+                else:
+                    break
+            os.chown( dir, self.uid, self.gid )
 
     def __create_lazy_dirs( self ):
         log.info( "Bind-mounting directory structure" )

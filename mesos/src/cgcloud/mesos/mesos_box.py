@@ -27,6 +27,8 @@ ephemeral_dir = '/mnt/ephemeral'
 
 persistent_dir = '/mnt/persistent'
 
+shared_dir = '/home/ubuntu/shared/'
+
 Service = namedtuple( 'Service', [
     'init_name',
     'description',
@@ -62,7 +64,7 @@ class MesosBox(GenericUbuntuTrustyBox):
     def other_accounts( self ):
         return super( MesosBox, self ).other_accounts( ) + [ user ]
 
-    def __init__( self, ctx ):
+    def __init__( self, ctx):
         super( MesosBox, self ).__init__( ctx )
 
     def _populate_security_group( self, group_name ):
@@ -123,6 +125,7 @@ class MesosBox(GenericUbuntuTrustyBox):
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
         self._propagate_authorized_keys( user, user )
+        self.__create_mesos_keypair()
         self.lazy_dirs = set( )
         self.__install_mesos( )
         self.__install_mesos_egg( )
@@ -169,17 +172,21 @@ class MesosBox(GenericUbuntuTrustyBox):
         """
         tools_dir = install_dir + '/tools'
         sudo( fmt( 'mkdir -p {tools_dir}') )
+        sudo( fmt('mkdir -p %s' % shared_dir) )
+        sudo( fmt('chmod 777 %s' % shared_dir) )
+
         sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
 
         mesos_tools_artifacts = ' '.join( self._project_artifacts( 'mesos-tools' ) )
         with settings( forward_agent=True ):
             sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
+        log.critical("Inside install mesosbox tools")
 
         mesos_tools = "MesosTools(**%r)" % dict( user=user,
                                                  ephemeral_dir=ephemeral_dir,
                                                  persistent_dir=persistent_dir,
-                                                 lazy_dirs=self.lazy_dirs )
+                                                 lazy_dirs=self.lazy_dirs)
         self._register_init_script(
             "mesosbox",
             heredoc( """
@@ -268,7 +275,8 @@ class MesosMaster(MesosBox):
     def _populate_instance_tags( self, tags_dict ):
         super( MesosMaster, self )._populate_instance_tags( tags_dict )
         tags_dict[ 'mesos_master' ] = self.instance_id
-        tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
+        if self.ebs_volume_size:
+            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
 
     def prepare( self, *args, **kwargs ):
@@ -284,7 +292,7 @@ class MesosMaster(MesosBox):
             pass
 
 
-    def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
+    def clone( self, num_slaves, slave_instance_type, ebs_volume_size):
         """
         Create a number of slave boxes that are connected to this master.
         """
@@ -306,8 +314,8 @@ class MesosSlave( MesosBox ):
     calling the MesosMaster.clone() method.
     """
 
-    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0 ):
-        super( MesosSlave, self ).__init__( ctx )
+    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0):
+        super( MesosSlave, self ).__init__( ctx)
         self.num_slaves = num_slaves
         self.mesos_master_id = mesos_master_id
         self.ebs_volume_size = ebs_volume_size
@@ -315,6 +323,9 @@ class MesosSlave( MesosBox ):
     def _populate_instance_creation_args( self, image, kwargs ):
         kwargs.update( dict( min_count=self.num_slaves, max_count=self.num_slaves ) )
         return super( MesosSlave, self )._populate_instance_creation_args( image, kwargs )
+
+    def _post_install_packages( self ):
+        super( MesosSlave, self )._post_install_packages( )
 
     def _populate_instance_tags( self, tags_dict ):
         super( MesosSlave, self )._populate_instance_tags( tags_dict )

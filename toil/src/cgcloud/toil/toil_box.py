@@ -23,8 +23,8 @@ ephemeral_dir = '/mnt/ephemeral'
 persistent_dir = '/mnt/persistent'
 
 class ToilBox(MesosBox):
-    def __init__( self, ctx ):
-        super( ToilBox, self ).__init__( ctx )
+    def __init__( self, ctx):
+        super( ToilBox, self ).__init__( ctx)
         self.lazy_dirs=set()
 
     def _pre_install_packages( self ):
@@ -74,18 +74,19 @@ class ToilBox(MesosBox):
         sudo("chmod +x /usr/local/lib/python2.7/dist-packages/toil/batchSystems/mesos/executor.py")
 
 class ToilLeader(ToilBox, MesosMaster):
-    def __init__( self, ctx ):
-        super( ToilLeader, self ).__init__( ctx )
+    def __init__( self, ctx):
+        super( ToilLeader, self ).__init__( ctx)
+        pass
 
     def _post_install_packages( self ):
         super( ToilLeader, self )._post_install_packages( )
 
-    def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
+    def clone( self, num_slaves, slave_instance_type, ebs_volume_size):
         """
         Create a number of slave boxes that are connected to this master.
         """
         master = self
-        first_slave = ToilWorker( master.ctx, num_slaves, master.instance_id, ebs_volume_size )
+        first_slave = ToilWorker( master.ctx, num_slaves, master.instance_id, ebs_volume_size)
         args = master.preparation_args
         kwargs = master.preparation_kwargs.copy( )
         kwargs[ 'instance_type' ] = slave_instance_type
@@ -96,12 +97,11 @@ class ToilLeader(ToilBox, MesosMaster):
         return all_slaves
 
 class ToilWorker(ToilBox, MesosSlave):
-    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0 ):
-        super( ToilWorker, self ).__init__( ctx )
+    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0):
+        super( ToilWorker, self ).__init__( ctx)
         self.num_slaves = num_slaves
         self.mesos_master_id = mesos_master_id
         self.ebs_volume_size = ebs_volume_size
-
 
 def heredoc( s ):
     if s[ 0 ] == '\n': s = s[ 1: ]

@@ -1,9 +1,9 @@
 python=/usr/bin/env python2.7
 sudo=
 
-develop_projects=lib core jenkins spark mesos jobtree
+develop_projects=lib core jenkins spark mesos toil
 sdist_projects=lib agent spark-tools mesos-tools
-all_projects=lib core agent jenkins spark spark-tools mesos mesos-tools jobtree
+all_projects=lib core agent jenkins spark spark-tools mesos mesos-tools toil
 
 all: develop sdist
 
