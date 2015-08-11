@@ -12,7 +12,7 @@ log = logging.getLogger( __name__ )
 
 mesos_version = '0.22'
 
-user = 'toilbox'
+user = 'mesosbox'
 
 install_dir = '/opt/mesosbox'
 
@@ -34,11 +34,13 @@ class ToilBox(MesosBox):
         super( ToilBox, self )._post_install_packages( )
         self._install_boto( )
         self.__install_toil( )
+        self._docker_group(user=user)
 
     def _list_packages_to_install( self ):
         # packages to apt-get
+        # FIXME: GIT WILL BECOME UNNECESSARY UPON COMPLETION OF https://github.com/BD2KGenomics/toil/issues/215
         return super( MesosBox, self )._list_packages_to_install( ) + [
-            'git', 'python-dev']
+            'git', 'python-dev','docker.io']
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilBox, self )._get_iam_ec2_role( )
@@ -54,17 +56,13 @@ class ToilBox(MesosBox):
         return role_name, policies
 
     @fabric_task
-    def __setup_application_user( self ):
-        # changed from __ to _ to prevent name mangling.
-        # overridden so that the method will access our module level 'user' variable.
-        sudo( fmt( 'useradd '
-                   '--home /home/{user} '
-                   '--create-home '
-                   '--user-group '
-                   '--shell /bin/bash {user}' ) )
+    def _docker_group(self, user=user):
+        sudo("gpasswd -a {} docker".format(user))
+        sudo("service docker.io restart")
 
     @fabric_task
     def _install_boto(self):
+        # FIXME: boto will be automatically installed upon the completion of https://github.com/BD2KGenomics/toil/issues/207
         sudo("pip install boto") # downloading from git requires git tools.
 
     @fabric_task

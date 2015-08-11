@@ -27,7 +27,7 @@ ephemeral_dir = '/mnt/ephemeral'
 
 persistent_dir = '/mnt/persistent'
 
-shared_dir = '/home/ubuntu/shared/'
+shared_dir = '/home/mesosbox/shared/'
 
 Service = namedtuple( 'Service', [
     'init_name',
@@ -112,7 +112,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         role_name += '--' + abreviated_snake_case_class_name( MesosBox )
         policies.update( dict(
             ec2_read_only=ec2_read_only_policy,
-            ec2_spark_box=dict( Version="2012-10-17", Statement=[
+            ec2_mesos_box=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
                 dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
                 dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
@@ -124,7 +124,7 @@ class MesosBox(GenericUbuntuTrustyBox):
 
     def _list_packages_to_install( self ):
         return super( MesosBox, self )._list_packages_to_install( ) + [
-            'mesos=0.21.1-1.1.ubuntu1404', 'docker.io']
+            'mesos=0.21.1-1.1.ubuntu1404']
 
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
@@ -136,7 +136,6 @@ class MesosBox(GenericUbuntuTrustyBox):
         self._install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
         self._register_upstart_jobs(mesos_services)
-        self._docker_group( )
 
     @fabric_task
     def __setup_application_user( self ):
@@ -244,11 +243,6 @@ class MesosBox(GenericUbuntuTrustyBox):
                         stop on runlevel [016]
                         exec {service.action}""" ) )
                 start_on = "started " + service.init_name
-
-    @fabric_task
-    def _docker_group(self):
-        sudo("gpasswd -a {} docker".format(user))
-        sudo("sudo service docker.io restart")
 
     def _image_name_prefix( self ):
         # Make this class and its subclasses use the same image

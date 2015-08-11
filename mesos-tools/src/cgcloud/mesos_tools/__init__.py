@@ -22,7 +22,7 @@ sudo = '/usr/bin/sudo'
 
 log = logging.getLogger( __name__ )
 
-shared_dir='/home/ubuntu/shared/'
+shared_dir='/home/mesosbox/shared/'
 
 
 class MesosTools( object ):
