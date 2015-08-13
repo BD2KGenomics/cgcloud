@@ -17,8 +17,9 @@ class CreateToilCluster(CreateMesosCluster):
         """
         dir = options.shared_dir
         if dir:
+            log.info("Rsyncing selected directory to master")
             master.rsync(args=[dir, ":"+shared_dir] ,user="mesosbox")
-            # check_call( ['rsync','-r','-e', 'ssh', dir, "ubuntu@"+str(master.ip_address)+":"+shared_dir] )
+            #check_call( ['rsync','-r','-e', 'ssh -o StrictHostKeyChecking=no', dir, "mesosbox@"+str(master.ip_address)+":"+shared_dir] )
         log.info( "=== Launching workers ===" )
         master.clone( num_slaves=options.num_slaves,
                       slave_instance_type=options.slave_instance_type,

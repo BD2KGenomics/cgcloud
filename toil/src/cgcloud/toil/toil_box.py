@@ -39,7 +39,7 @@ class ToilBox(MesosBox):
     def _list_packages_to_install( self ):
         # packages to apt-get
         # FIXME: GIT WILL BECOME UNNECESSARY UPON COMPLETION OF https://github.com/BD2KGenomics/toil/issues/215
-        return super( MesosBox, self )._list_packages_to_install( ) + [
+        return super( ToilBox, self )._list_packages_to_install( ) + [
             'git', 'python-dev','docker.io']
 
     def _get_iam_ec2_role( self ):

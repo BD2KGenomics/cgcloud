@@ -182,7 +182,6 @@ class MesosBox(GenericUbuntuTrustyBox):
         mesos_tools_artifacts = ' '.join( self._project_artifacts( 'mesos-tools' ) )
         with settings( forward_agent=True ):
             sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
-        log.critical("Inside install mesosbox tools")
 
         mesos_tools = "MesosTools(**%r)" % dict( user=user,
                                                  ephemeral_dir=ephemeral_dir,
