@@ -67,7 +67,7 @@ class ToilBox(MesosBox):
 
     @fabric_task
     def __install_toil(self):
-        sudo("pip install git+https://github.com/BD2KGenomics/toil.git@master")
+        sudo("pip install toil[aws,mesos]")
         sudo("chmod +x /usr/local/lib/python2.7/dist-packages/toil/batchSystems/mesos/executor.py")
 
 class ToilLeader(ToilBox, MesosMaster):
