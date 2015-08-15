@@ -8,6 +8,9 @@ import os
 import re
 import sys
 import struct
+from textwrap import dedent
+
+from bd2k.util.strings import interpolate
 
 log = logging.getLogger( __name__ )
 
@@ -513,3 +516,8 @@ def volume_label_hash( s ):
     h = base64.urlsafe_b64encode( h )
     assert h[-1] == '='
     return h[:-1]
+
+def heredoc( s ):
+    if s[ 0 ] == '\n': s = s[ 1: ]
+    if s[ -1 ] != '\n': s += '\n'
+    return interpolate( dedent( s ), skip_frames=1 )
