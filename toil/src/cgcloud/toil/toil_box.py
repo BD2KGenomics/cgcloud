@@ -33,6 +33,7 @@ class ToilBox(MesosBox):
     def _post_install_packages( self ):
         super( ToilBox, self )._post_install_packages( )
         self._install_boto( )
+        self._upgrade_pip( )
         self.__install_toil( )
         self._docker_group(user=user)
 
@@ -66,9 +67,13 @@ class ToilBox(MesosBox):
         sudo("pip install boto") # downloading from git requires git tools.
 
     @fabric_task
+    def _upgrade_pip(self):
+        # old version of pip doesn't seem to recognize toil's 'extra' syntax
+        sudo("pip install --upgrade pip")
+
+    @fabric_task
     def __install_toil(self):
         sudo("pip install toil[aws,mesos]")
-        sudo("chmod +x /usr/local/lib/python2.7/dist-packages/toil/batchSystems/mesos/executor.py")
 
 class ToilLeader(ToilBox, MesosMaster):
     def __init__( self, ctx):
