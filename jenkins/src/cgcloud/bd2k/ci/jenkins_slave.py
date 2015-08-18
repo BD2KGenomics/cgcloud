@@ -63,10 +63,10 @@ class JenkinsSlave( SourceControlClient ):
         #
         if sudo( 'test -d {ephemeral}'.format( **kwargs ), quiet=True ).failed:
             sudo( 'mkdir {ephemeral}'.format( **kwargs ) )
-        chown_cmd = "mount {ephemeral} ; chown -R {user}:{user} {ephemeral}".format( **kwargs )
+        chown_cmd = "mount {ephemeral} || true ; chown -R {user}:{user} {ephemeral}".format( **kwargs )
         # chown ephemeral storage now ...
         sudo( chown_cmd )
-        # ... and every time instance boots
+        # ... and every time instance boots. Note that command must work when set -e is in effect.
         self._register_init_command( chown_cmd )
         # link build directory as symlink to ephemeral volume
         sudo( 'ln -snf {ephemeral} {dir}'.format( **kwargs ),

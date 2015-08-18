@@ -901,7 +901,8 @@ class Box( object ):
     @abstractmethod
     def _register_init_command( self, cmd ):
         """
-        Register a shell command to be executed towards the end of system initialization
+        Register a shell command to be executed towards the end of system initialization. The
+        command should work when set -e is in effect.
         """
         raise NotImplementedError( )
 

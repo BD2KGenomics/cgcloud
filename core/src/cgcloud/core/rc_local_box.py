@@ -28,7 +28,7 @@ class RcLocalBox( Box ):
                                            remote_path=rc_local_path,
                                            use_sudo=True,
                                            mirror_local_mode=True )
-        sudo( 'chmod +x %s' % rc_local_path )
+        sudo( 'chown root:root {0} && chmod +x {0}'.format( rc_local_path ) )
 
     @fabric_task
     def _get_rc_local_path( self ):
