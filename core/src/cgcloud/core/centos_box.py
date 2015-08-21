@@ -52,7 +52,9 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
                 'root-device-type': 'ebs',
                 'virtualization-type': virtualization_type } )
         if not images:
-            raise RuntimeError( "Can't find any suitable AMIs for CentOS release %s" % release )
+            raise self.NoSuchImageException(
+                "Can't find any candidate AMIs for CentOS release %s and virtualization type %s" % (
+                    release, virtualization_type) )
         max_version = None
         base_image = None
         for image in images:
@@ -65,7 +67,9 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
                     max_version = version
                     base_image = image
         if not base_image:
-            raise RuntimeError( "Can't find AMI matching CentOS %s" % release )
+            raise self.NoSuchImageException(
+                "Can't find AMI matching CentOS release %s and virtualization type %s" % (
+                    release, virtualization_type) )
         return base_image
 
     def _on_instance_ready( self, first_boot ):
@@ -121,4 +125,4 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
     @fabric_task
     def _run_init_script( self, name, command='start' ):
         script_path = self._init_script_path( name )
-        sudo( '%s %s' % ( script_path, command ) )
+        sudo( '%s %s' % (script_path, command) )

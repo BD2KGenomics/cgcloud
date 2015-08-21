@@ -12,6 +12,7 @@ from fabric.context_managers import settings
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.lib.util import abreviated_snake_case_class_name
+from cgcloud.lib.util import heredoc
 
 log = logging.getLogger( __name__ )
 
@@ -318,9 +319,5 @@ class MesosSlave( MesosBox ):
         super( MesosSlave, self )._populate_instance_tags( tags_dict )
         if self.mesos_master_id:
             tags_dict[ 'mesos_master' ] = self.mesos_master_id
-            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
-
-def heredoc( s ):
-    if s[ 0 ] == '\n': s = s[ 1: ]
-    if s[ -1 ] != '\n': s += '\n'
-    return fmt( dedent( s ), skip_frames=1 )
+            if self.ebs_volume_size:
+                tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size

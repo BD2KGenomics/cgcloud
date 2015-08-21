@@ -8,15 +8,19 @@ import socket
 import subprocess
 import time
 import itertools
-import os
 
+from bd2k.util.collections import OrderedSet
 from boto import logging
 from boto.exception import BotoServerError, EC2ResponseError
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from fabric.context_managers import settings
+
 from fabric.operations import sudo, run, get, put
+
 from fabric.api import execute
+
 from paramiko import SSHClient
+
 from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.instance_type import ec2_instance_types
@@ -92,13 +96,19 @@ class Box( object ):
         """
         return self.role( )
 
+    class NoSuchImageException( RuntimeError ):
+        pass
+
     @abstractmethod
     def _base_image( self, virtualization_type ):
         """
         Returns the default base image that boxes performing this role should be booted from
         before they are being setup
 
-        :rtype boto.ec2.image.Image
+        :rtype: boto.ec2.image.Image
+
+        :raises Box.NoSuchImageException: if no image exists for this role and the given
+                                          virtualization type
         """
         raise NotImplementedError( )
 
@@ -189,7 +199,7 @@ class Box( object ):
         # into the instance'
         self.ec2_keypair_globs = None
 
-    possible_root_devices = ( '/dev/sda1', '/dev/sda', '/dev/xvda' )
+    possible_root_devices = ('/dev/sda1', '/dev/sda', '/dev/xvda')
 
     # FIXME: this can probably be rolled into prepare()
 
@@ -223,7 +233,7 @@ class Box( object ):
                 return images[ image_ref ]
             except IndexError:
                 raise UserError( "No image with ordinal %i for role %s"
-                                 % ( image_ref, self.role( ) ) )
+                                 % (image_ref, self.role( )) )
         else:
             return self.ctx.ec2.get_image( image_ref )
 
@@ -239,7 +249,7 @@ class Box( object ):
             sg = self.ctx.ec2.create_security_group(
                 name=name,
                 description="Security group for box of role %s in namespace %s" % (
-                    self.role( ), self.ctx.namespace ) )
+                    self.role( ), self.ctx.namespace) )
         except EC2ResponseError as e:
             if e.error_code == 'InvalidGroup.Duplicate':
                 sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
@@ -273,30 +283,49 @@ class Box( object ):
         """
         return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
 
-    def __get_virtualization_type( self, instance_type, virtualization_type ):
-        instance_vtypes = set( ec2_instance_types[ instance_type ].virtualization_types )
-        role_vtypes = self.supported_virtualization_types( )
-        vtypes = instance_vtypes.intersection( role_vtypes )
-        if virtualization_type is None:
-            if vtypes:
-                # find the preferred vtype, i.e. the one listed first in instance_vtypes
-                virtualization_type = next( vtype for vtype in instance_vtypes if vtype in vtypes )
+    def __get_virtualization_types( self, instance_type, requested_vtype=None ):
+        instance_vtypes = OrderedSet( ec2_instance_types[ instance_type ].virtualization_types )
+        role_vtypes = OrderedSet( self.supported_virtualization_types( ) )
+        supported_vtypes = instance_vtypes & role_vtypes
+        if supported_vtypes:
+            if requested_vtype is None:
+                virtualization_types = list( supported_vtypes )
             else:
-                raise RuntimeError(
-                    'Cannot find a virtualization type that is supported by both role %s and '
-                    'instance type %s' % ( self.role( ), instance_type ) )
+                if requested_vtype in supported_vtypes:
+                    virtualization_types = [ requested_vtype ]
+                else:
+                    raise UserError( 'Virtualization type %s not supported by role %s and instance '
+                                     'type %s' % (requested_vtype, self.role( ), instance_type) )
         else:
-            if not virtualization_type in vtypes:
-                raise RuntimeError(
-                    'Virtualization type %s not supported by role %s and instance type %s' % (
-                        virtualization_type, self.role( ), instance_type ) )
-        return virtualization_type
+            raise RuntimeError( 'Cannot find any virtualization types supported by both role '
+                                '%s and instance type %s' % (self.role( ), instance_type) )
 
-    def prepare( self, ec2_keypair_globs,
-                 instance_type=None,
-                 image_ref=None,
-                 virtualization_type=None,
-                 **options ):
+        return virtualization_types
+
+    def __get_image( self, virtualization_types, image_ref=None ):
+        if image_ref is None:
+            for virtualization_type in virtualization_types:
+                log.info( "Looking up default image for role %s and virtualization type %s, ... ",
+                          self.role( ), virtualization_type )
+                try:
+                    image = self._base_image( virtualization_type )
+                except self.NoSuchImageException as e:
+                    log.info( "... %s", e.message )
+                else:
+                    log.info( "... found %s.", image.id )
+                    assert( image.virtualization_type in virtualization_types )
+                    return image
+            raise RuntimeError( "Could not find suitable image for role %s", self.role( ) )
+        else:
+            image = self.__select_image( image_ref )
+            if image.virtualization_type not in virtualization_types:
+                raise RuntimeError(
+                    "Role and type support virtualization types %s but image only supports %s" % (
+                        virtualization_types, image.virtualization_type) )
+            return image
+
+    def prepare( self, ec2_keypair_globs, instance_type=None, image_ref=None,
+                 virtualization_type=None, **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
@@ -319,20 +348,8 @@ class Box( object ):
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
 
-        virtualization_type = self.__get_virtualization_type( instance_type, virtualization_type )
-
-        if image_ref is not None:
-            image = self.__select_image( image_ref )
-        else:
-            log.info( "Looking up default image for role %s, ... ", self.role( ) )
-            image = self._base_image( virtualization_type )
-            log.info( "... found %s.", image.id )
-
-        if image.virtualization_type != virtualization_type:
-            raise RuntimeError( "Expected virtualization type %s but image only supports %s" % (
-                virtualization_type,
-                image.virtualization_type ) )
-
+        virtualization_types = self.__get_virtualization_types( instance_type, virtualization_type )
+        image = self.__get_image( virtualization_types, image_ref )
         security_groups = self.__setup_security_groups( )
 
         str_options = dict( image.tags )
@@ -597,8 +614,8 @@ class Box( object ):
             if image_id in (_.id for _ in self.list_images( )):
                 log.info( '... image now discoverable.' )
                 break
-            log.info( '... image %s not yet discoverable, trying again in %is ...' % (
-                image_id, a_short_time ) )
+            log.info( '... image %s not yet discoverable, trying again in %is ...', image_id,
+                      a_short_time )
             time.sleep( a_short_time )
         return image_id
 
@@ -811,7 +828,7 @@ class Box( object ):
         if user is None: user = self.admin_account( )
         # Using host name instead of IP allows for more descriptive known_hosts entries and
         # enables using wildcards like *.compute.amazonaws.com Host entries in ~/.ssh/config.
-        return [ 'ssh', '%s@%s' % ( user, self.host_name ), '-A' ] + command
+        return [ 'ssh', '%s@%s' % (user, self.host_name), '-A' ] + command
 
     @fabric_task
     def __inject_authorized_keys( self, ec2_keypairs ):
@@ -884,7 +901,8 @@ class Box( object ):
     @abstractmethod
     def _register_init_command( self, cmd ):
         """
-        Register a shell command to be executed towards the end of system initialization
+        Register a shell command to be executed towards the end of system initialization. The
+        command should work when set -e is in effect.
         """
         raise NotImplementedError( )
 
@@ -932,7 +950,7 @@ class Box( object ):
         Returns the ARN for roles with the given prefix in the current AWS account
         """
         aws_role_prefix = self.ctx.to_aws_name( role_prefix + Box.role_prefix )
-        return "arn:aws:iam::%s:role/%s*" % ( self.ctx.account, aws_role_prefix )
+        return "arn:aws:iam::%s:role/%s*" % (self.ctx.account, aws_role_prefix)
 
     def _get_iam_ec2_role( self ):
         """
@@ -1119,7 +1137,7 @@ class Box( object ):
         """
         key_file_exists = run( 'test -f %s' % private_key_path, quiet=True ).succeeded
         if not key_file_exists:
-            run( "ssh-keygen -N '' -C '%s' -f '%s'" % ( ec2_keypair_name, private_key_path ) )
+            run( "ssh-keygen -N '' -C '%s' -f '%s'" % (ec2_keypair_name, private_key_path) )
         ssh_privkey = StringIO( )
         get( remote_path=private_key_path, local_path=ssh_privkey )
         ssh_privkey = ssh_privkey.getvalue( )
@@ -1140,7 +1158,7 @@ class Box( object ):
 
         def upload_artifact( artifact ):
             if artifact.startswith( '/' ):
-                return put( local_path=artifact )[0]
+                return put( local_path=artifact )[ 0 ]
             else:
                 return artifact
 

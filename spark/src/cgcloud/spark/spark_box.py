@@ -15,7 +15,7 @@ from cgcloud.core import fabric_task
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.fabric.operations import sudo, remote_open
-from cgcloud.lib.util import abreviated_snake_case_class_name
+from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 log = logging.getLogger( __name__ )
 
@@ -536,7 +536,3 @@ class SparkSlave( SparkBox ):
             tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
 
-def heredoc( s ):
-    if s[ 0 ] == '\n': s = s[ 1: ]
-    if s[ -1 ] != '\n': s += '\n'
-    return fmt( dedent( s ), skip_frames=1 )
