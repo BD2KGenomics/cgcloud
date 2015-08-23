@@ -38,7 +38,7 @@ class GenericCentos5Box( CentosBox ):
         This method should to be invoked early on during setup.
         """
         self._yum_local( is_update=True, rpm_urls=[
-            'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.13-1.el5.x86_64.rpm' ] )
+            'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.14-4.el5.x86_64.rpm' ] )
 
     def _on_instance_ready( self, first_boot ):
         super( GenericCentos5Box, self )._on_instance_ready( first_boot )
