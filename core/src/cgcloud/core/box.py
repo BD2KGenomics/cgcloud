@@ -361,7 +361,7 @@ class Box( object ):
         ec2_keypair_globs = self._populate_ec2_keypair_globs( ec2_keypair_globs )
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
         if not ec2_keypairs:
-            raise UserError( 'No matching key pairs found' )
+            raise UserError( "No key pairs matching '%s' found." % ' '.join( ec2_keypair_globs ) )
         if ec2_keypairs[ 0 ].name != ec2_keypair_globs[ 0 ]:
             raise UserError( "The first key pair name can't be a glob." )
         self.ec2_keypairs = ec2_keypairs
