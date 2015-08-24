@@ -24,6 +24,7 @@ log = logging.getLogger( __name__ )
 
 shared_dir='/home/mesosbox/shared/'
 
+work_dirs = ['/var/lib/mesos', '/var/lib/toil']
 
 class MesosTools( object ):
     def __init__( self, user, ephemeral_dir, persistent_dir, lazy_dirs):
@@ -54,7 +55,9 @@ class MesosTools( object ):
         log_path='/var/log/mesosbox/mesos{}'.format(node_type)
         mkdir_p(log_path)
         os.chown( log_path, self.uid, self.gid )
-        os.chown( "/mesos/workspace", self.uid, self.gid)
+
+        for work_dir in work_dirs:
+            os.chown( work_dir, self.uid, self.gid )
 
         log.info( "Starting %s services" % node_type )
         check_call( [initctl, 'emit', 'mesosbox-start-%s' % node_type ] )

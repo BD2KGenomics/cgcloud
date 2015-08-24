@@ -56,6 +56,10 @@ class ToilBox(MesosBox):
                 dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
         return role_name, policies
 
+    def _mount_mesos_workdir(self):
+        super(ToilBox, self)._mount_mesos_workdir()
+        self._lazy_mkdir('/var/lib','toil', persistent=True)
+
     @fabric_task
     def _docker_group(self, user=user):
         sudo("gpasswd -a {} docker".format(user))

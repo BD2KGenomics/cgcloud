@@ -30,6 +30,8 @@ persistent_dir = '/mnt/persistent'
 
 shared_dir = '/home/mesosbox/shared/'
 
+work_dir = '/var/lib/mesos'
+
 Service = namedtuple( 'Service', [
     'init_name',
     'description',
@@ -43,7 +45,7 @@ def mesos_service( name, script_suffix=None ):
     flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
     if 'slave' in name:
         script = '/usr/sbin/mesos-slave'
-        flag += '--master=\'mesos-master\':5050 --no-switch_user --work_dir=/mesos/workspace'
+        flag += '--master=\'mesos-master\':5050 --no-switch_user --work_dir='+work_dir+' '
     elif 'master' in name:
         flag += '--registry=in_memory '
     return Service(
@@ -76,10 +78,10 @@ class MesosBox(GenericUbuntuTrustyBox):
                   src_security_group_name=group_name ) ]
 
     def _mount_mesos_workdir(self):
-        self.__lazy_mkdir('/mesos','workspace', persistent=True)
+        self._lazy_mkdir('/var/lib','mesos', persistent=True)
 
     @fabric_task
-    def __lazy_mkdir( self, parent, name, persistent=False ):
+    def _lazy_mkdir( self, parent, name, persistent=False ):
         """
         __lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
         /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
