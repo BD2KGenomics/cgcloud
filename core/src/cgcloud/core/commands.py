@@ -9,9 +9,13 @@ import re
 import sys
 
 from bd2k.util.exceptions import panic
+
 from boto.ec2.connection import EC2Connection
+
 from boto.ec2.blockdevicemapping import BlockDeviceType
+
 from boto.ec2.group import Group
+
 from fabric.operations import prompt
 
 from cgcloud.lib.util import Application
@@ -589,41 +593,37 @@ class CleanupCommand( ContextCommand ):
 
     @staticmethod
     def cleanup_ssh_pubkeys( ctx ):
-        keypairs = ctx.expand_keypair_globs( '*' )
-        ec2_fingerprints = set( keypair.fingerprint for keypair in keypairs )
-        bucket = ctx.s3.get_bucket( ctx.s3_bucket_name )
-        prefix = ctx.ssh_pubkey_s3_key_prefix
-        s3_fingerprints = set( key.name[ len( prefix ): ] for key in bucket.list( prefix=prefix ) )
-        unused_fingerprints = s3_fingerprints - ec2_fingerprints
+        unused_fingerprints = ctx.unused_fingerprints( )
         if unused_fingerprints:
             print( 'The following public keys in S3 are not referenced by any EC2 keypairs:' )
             for fingerprint in unused_fingerprints:
                 print( fingerprint )
             if 'yes' == prompt( 'Delete these public keys from S3? (yes/no)', default='no' ):
-                bucket.delete_keys( ctx.ssh_pubkey_s3_key_prefix + fingerprint
-                    for fingerprint in unused_fingerprints )
+                ctx.delete_fingerprints( unused_fingerprints )
         else:
             print( 'No orphaned public keys in S3.' )
 
     @staticmethod
     def cleanup_image_snapshots( ctx ):
-        all_snapshots = set( snapshot.id for snapshot in ctx.ec2.get_all_snapshots(
-            owner='self', filters=dict( description='Created by CreateImage*' ) ) )
-        used_snapshots = set( bdt.snapshot_id
-            for image in ctx.ec2.get_all_images( owners=[ 'self' ] )
-            for bdt in image.block_device_mapping.itervalues( )
-            if bdt.snapshot_id is not None )
-        unused_snapshots = all_snapshots - used_snapshots
+        unused_snapshots = ctx.unused_snapshots( )
         if unused_snapshots:
             print( 'The following snapshots are not referenced by any images:' )
             for snapshot_id in unused_snapshots:
                 print( snapshot_id )
             if 'yes' == prompt( 'Delete these snapshots? (yes/no)', default='no' ):
-                for snapshot_id in unused_snapshots:
-                    print( 'Deleting snapshot %s' % snapshot_id )
-                    ctx.ec2.delete_snapshot( snapshot_id )
+                ctx.delete_snapshots( unused_snapshots )
         else:
             print( 'No unused EBS volume snapshots in EC2.' )
+
+
+class ResetSecurityCommand( ContextCommand ):
+    def run_in_ctx( self, options, ctx ):
+        message = ( 'Do you really want to delete all IAM instance profiles, IAM roles and EC2 '
+                    'security groups in namespace %s and its children? Although these resources '
+                    'will be created on-the-fly for newly created boxes, existing boxes will '
+                    'likely be impacted negatively.' % ctx.namespace )
+        if 'yes' == prompt( message + ' (yes/no)', default='no' ):
+            ctx.reset_namespace_security( )
 
 
 class UpdateInstanceProfile( BoxCommand ):

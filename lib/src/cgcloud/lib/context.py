@@ -15,11 +15,8 @@ from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
 from boto.ec2.connection import EC2Connection
-
 from boto.vpc import VPCConnection
-
 from boto.iam.connection import IAMConnection
-
 from boto.ec2.keypair import KeyPair
 
 from bd2k.util import fnmatch
@@ -241,6 +238,10 @@ class Context( object ):
         """
         return name[ 0:1 ] == '/'
 
+    class InvalidPathError( ValueError ):
+        def __init__( self, invalid_path ):
+            super( Context.InvalidPathError, self ).__init__( "Invalid path '%s'" % invalid_path )
+
     def absolute_name( self, name ):
         """
         Returns the absolute form of the specified resource name. If the specified name is
@@ -261,11 +262,11 @@ class Context( object ):
         >>> ctx.absolute_name('_bar')
         Traceback (most recent call last):
         ....
-        ValueError: Invalid path '/_bar'
+        InvalidPathError: Invalid path '/_bar'
         >>> ctx.absolute_name('/_bar')
         Traceback (most recent call last):
         ....
-        ValueError: Invalid path '/_bar'
+        InvalidPathError: Invalid path '/_bar'
 
         >>> ctx = Context( 'us-west-1b', namespace='/foo/' )
         >>> ctx.absolute_name('bar')
@@ -283,18 +284,18 @@ class Context( object ):
         >>> ctx.absolute_name('_bar')
         Traceback (most recent call last):
         ....
-        ValueError: Invalid path '/foo/_bar'
+        InvalidPathError: Invalid path '/foo/_bar'
         >>> ctx.absolute_name('/_bar')
         Traceback (most recent call last):
         ....
-        ValueError: Invalid path '/_bar'
+        InvalidPathError: Invalid path '/_bar'
         """
         if self.is_absolute_name( name ):
             result = name
         else:
             result = self.namespace + name
         if not self.name_re.match( result ):
-            raise ValueError( "Invalid path '%s'" % result )
+            raise self.InvalidPathError( result )
         return result
 
     def to_aws_name( self, name ):
@@ -322,15 +323,15 @@ class Context( object ):
         >>> ctx.to_aws_name('/_')
         Traceback (most recent call last):
         ....
-        ValueError: Invalid path '/_'
+        InvalidPathError: Invalid path '/_'
         >>> ctx.to_aws_name('/_/')
         Traceback (most recent call last):
         ....
-        ValueError: Invalid path '/_/'
+        InvalidPathError: Invalid path '/_/'
         >>> ctx.from_aws_name('___')
         Traceback (most recent call last):
         ....
-        ValueError: Invalid path '/_/'
+        InvalidPathError: Invalid path '/_/'
 
         >>> ctx.to_aws_name( 'foo_bar')
         'foo__bar'
@@ -398,7 +399,7 @@ class Context( object ):
         name = '_'.join( s.replace( '_', '/' ) for s in name.split( '__' ) )
         name = '/' + name
         if not self.name_re.match( name ):
-            raise ValueError( "Invalid path '%s'" % name )
+            raise self.InvalidPathError( name )
         if name.startswith( self.namespace ):
             name = name[ len( self.namespace ): ]
         return name
@@ -408,6 +409,12 @@ class Context( object ):
 
     def contains_aws_name( self, aws_name ):
         return self.contains_name( self.from_aws_name( aws_name ) )
+
+    def try_contains_aws_name( self, aws_name ):
+        try:
+            return self.contains_aws_name( aws_name )
+        except self.InvalidPathError:
+            return False
 
     @property
     @memoize
@@ -669,7 +676,7 @@ class Context( object ):
     def __publish_key_update_agent_message( self ):
         self.publish_agent_message( Message( type=Message.TYPE_UPDATE_SSH_KEYS ) )
 
-    def cleanup( self ):
+    def reset_namespace_security( self ):
         """
         Delete all
 
@@ -680,35 +687,102 @@ class Context( object ):
 
         associated with this context, or rather the namespace this context represents.
         """
+        self.delete_instance_profiles( self.local_instance_profiles( ) )
+        self.delete_roles( self.local_roles( ) )
+        self.delete_security_groups( self.local_security_groups( ) )
 
-        @contextmanager
-        def out_exception( object_type, object_name ):
-            try:
-                try:
-                    yield
-                except ValueError as e:
-                    if e.message.startswith( 'Invalid path' ):
-                        pass
-                    else:
-                        raise
-            except:
-                log.warn( "Failed to remove %s '%s'", object_type, object_name, exc_info=True )
+    def local_instance_profiles( self ):
+        return [ p
+            for p in self.iam.list_instance_profiles( ).instance_profiles
+            if self.try_contains_aws_name( p.instance_profile_name ) ]
 
-        for p in self.iam.list_instance_profiles( ).instance_profiles:
+    def delete_instance_profiles( self, instance_profiles ):
+        for p in instance_profiles:
             with out_exception( 'instance profile', p.instance_profile_name ):
-                if self.contains_aws_name( p.instance_profile_name ):
-                    # currently EC2 allows only one role per profile
-                    if p.roles:
-                        self.iam.remove_role_from_instance_profile( p.instance_profile_name,
-                                                                    p.roles.member.role_name )
-                    self.iam.delete_instance_profile( p.instance_profile_name )
-        for r in self.iam.list_roles( ).roles:
+                # currently EC2 allows only one role per profile
+                if p.roles:
+                    self.iam.remove_role_from_instance_profile( p.instance_profile_name,
+                                                                p.roles.member.role_name )
+                self.iam.delete_instance_profile( p.instance_profile_name )
+
+    def local_roles( self ):
+        return [ r
+            for r in self.iam.list_roles( ).roles
+            if self.try_contains_aws_name( r.role_name ) ]
+
+    def delete_roles( self, local_roles ):
+        for r in local_roles:
             with out_exception( 'role', r.role_name ):
-                if self.contains_aws_name( r.role_name ):
-                    for policy_name in self.iam.list_role_policies( r.role_name ).policy_names:
-                        self.iam.delete_role_policy( r.role_name, policy_name )
-                    self.iam.delete_role( r.role_name )
-        for sg in self.ec2.get_all_security_groups( ):
+                for policy_name in self.iam.list_role_policies( r.role_name ).policy_names:
+                    self.iam.delete_role_policy( r.role_name, policy_name )
+                self.iam.delete_role( r.role_name )
+
+    def local_security_groups( self ):
+        return [ sg for sg in self.ec2.get_all_security_groups( )
+            if self.try_contains_aws_name( sg.name ) ]
+
+    def delete_security_groups( self, security_groups ):
+        for sg in security_groups:
             with out_exception( 'security group', sg.name ):
-                if self.contains_aws_name( sg.name ):
-                    sg.delete( )
+                sg.delete( )
+
+    def unused_fingerprints( self ):
+        """
+        Find all unused fingerprints. This method works globally and does not consider the
+        namespace represented by this context.
+
+        :rtype: set[str]
+        """
+        keypairs = self.expand_keypair_globs( '*' )
+        ec2_fingerprints = set( keypair.fingerprint for keypair in keypairs )
+        bucket = self.s3.get_bucket( self.s3_bucket_name, validate=False )
+        prefix = self.ssh_pubkey_s3_key_prefix
+        s3_fingerprints = set( key.name[ len( prefix ): ] for key in bucket.list( prefix=prefix ) )
+        unused_fingerprints = s3_fingerprints - ec2_fingerprints
+        return unused_fingerprints
+
+    def delete_fingerprints( self, fingerprints ):
+        """
+        Delete the given fingerprints.
+
+        :type fingerprints: Iterable(str)
+        """
+        bucket = self.s3.get_bucket( self.s3_bucket_name, validate=False )
+        key_names = [ self.ssh_pubkey_s3_key_prefix + fingerprint for fingerprint in fingerprints ]
+        bucket.delete_keys( key_names )
+
+    def unused_snapshots( self ):
+        """
+        Find all snapshots created for AMIs owned by the current AWS account for which the AMI
+        has since been unregistered. This method works globally and does not consider the
+        namespace represented by this context.
+
+        :rtype: set[str]
+        """
+        all_snapshots = self.ec2.get_all_snapshots(
+            owner='self',
+            filters=dict( description='Created by CreateImage*' ) )
+        all_snapshots = set( snapshot.id for snapshot in all_snapshots )
+        used_snapshots = set( bdt.snapshot_id
+                                  for image in self.ec2.get_all_images( owners=[ 'self' ] )
+                                  for bdt in image.block_device_mapping.itervalues( )
+                                  if bdt.snapshot_id is not None )
+        return all_snapshots - used_snapshots
+
+    def delete_snapshots( self, unused_snapshots ):
+        """
+        Delete the snapshots with the given IDs.
+
+        :type unused_snapshots: collections.Iterable[str]
+        """
+        for snapshot_id in unused_snapshots:
+            log.info( 'Deleting snapshot %s', snapshot_id )
+            self.ec2.delete_snapshot( snapshot_id )
+
+
+@contextmanager
+def out_exception( object_type, object_name ):
+    try:
+        yield
+    except:
+        log.warn( "Failed to remove %s '%s'", object_type, object_name, exc_info=True )
