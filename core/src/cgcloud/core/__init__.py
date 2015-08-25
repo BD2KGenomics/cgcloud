@@ -31,6 +31,7 @@ COMMANDS = [
     DeleteImageCommand,
     RegisterKeyCommand,
     CleanupCommand,
-    UpdateInstanceProfile ]
+    UpdateInstanceProfile,
+    ResetSecurityCommand ]
 
 test_namespace_suffix_length = 8
