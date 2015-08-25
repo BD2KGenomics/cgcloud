@@ -54,8 +54,8 @@ class GenericCentos5Box( CentosBox ):
 
     def _get_package_substitutions( self ):
         return super( GenericCentos5Box, self )._get_package_substitutions( ) + [
-            ( 'python', 'python26' ),
-            ( 'python-devel', 'python26-devel' )
+            ('python', 'python26'),
+            ('python-devel', 'python26-devel')
         ]
 
     @fabric_task
@@ -228,6 +228,7 @@ class GenericUbuntuUtopicBox( UpstartUbuntuBox ):
     def release( self ):
         return 'utopic'
 
+
 class GenericUbuntuVividBox( SystemdUbuntuBox ):
     """
     15.04
@@ -235,6 +236,7 @@ class GenericUbuntuVividBox( SystemdUbuntuBox ):
 
     def release( self ):
         return 'vivid'
+
 
 class GenericFedora17Box( FedoraBox ):
     """
@@ -281,10 +283,19 @@ class GenericFedora20Box( FedoraBox ):
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
+    # FIXME: Consider pulling this up
+
+    def _populate_cloud_config( self, instance_type, user_data ):
+        super( GenericFedora20Box, self )._populate_cloud_config( instance_type, user_data )
+        user_data[ 'bootcmd' ][ 0:0 ] = [
+            self._get_package_installation_command( 'yum-plugin-fastestmirror' ),
+            [ 'yum', 'clean', 'all' ] ]
+
 
 class GenericFedora21Box( FedoraBox ):
     def release( self ):
         return 21
+
 
 class GenericFedora22Box( FedoraBox ):
     def release( self ):
