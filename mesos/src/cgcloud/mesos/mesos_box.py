@@ -97,6 +97,7 @@ class MesosBox(GenericUbuntuTrustyBox):
             assert not location.startswith( parent ) and not parent.startswith( location )
         logical_path = parent + '/' + name
         sudo( 'mkdir -p "%s"' % logical_path )
+        sudo( 'chown %s %s' % (user, logical_path))
         self.lazy_dirs.add( ( parent, name, persistent ) )
         return logical_path
 
