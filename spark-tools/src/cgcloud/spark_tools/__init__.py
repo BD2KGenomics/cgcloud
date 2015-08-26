@@ -257,6 +257,7 @@ class SparkTools( object ):
                         (volume_label, volume_name, actual_label) )
             current_mount_point = self.__mount_point( device )
             if current_mount_point is None:
+                mkdir_p( self.persistent_dir )
                 check_call( [ 'mount', device, self.persistent_dir ] )
             elif current_mount_point == self.persistent_dir:
                 pass
