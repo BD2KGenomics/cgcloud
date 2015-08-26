@@ -124,7 +124,7 @@ class EC2VolumeHelper( object ):
     A helper for creating, looking up and attaching an EBS volume in EC2
     """
 
-    def __init__( self, ec2, name, size, availability_zone ):
+    def __init__( self, ec2, name, size, availability_zone, volume_type="standard" ):
         """
         :param ec2: the Boto EC2 connection object
         :type ec2: boto.ec2.connection.EC2Connection
@@ -133,10 +133,11 @@ class EC2VolumeHelper( object ):
         self.availability_zone = availability_zone
         self.ec2 = ec2
         self.name = name
+        self.volume_type = volume_type
         volume = self.__lookup( )
         if volume is None:
             log.info( "Creating volume %s, ...", self.name )
-            volume = self.ec2.create_volume( size, availability_zone )
+            volume = self.ec2.create_volume( size, availability_zone, volume_type=self.volume_type )
             self.__wait_transition( volume, { 'creating' }, 'available' )
             volume.add_tag( 'Name', self.name )
             log.info( '... created %s.', volume.id )

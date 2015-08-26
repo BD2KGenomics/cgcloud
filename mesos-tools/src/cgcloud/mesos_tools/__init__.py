@@ -173,8 +173,8 @@ class MesosTools( object ):
             volume = EC2VolumeHelper( ec2=self.ec2,
                                       availability_zone=self.availability_zone,
                                       name=volume_name,
-                                      size=ebs_volume_size )
-
+                                      size=ebs_volume_size,
+                                      volume_type="gp2" )
             # TODO: handle case where volume is already attached
             device_ext = '/dev/sdf'
             device = '/dev/xvdf'
