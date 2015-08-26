@@ -9,7 +9,9 @@ from pkg_resources import parse_version
 from bd2k.util.strings import interpolate as fmt
 from cgcloud.fabric.operations import sudo, remote_open
 from fabric.context_managers import settings
+from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
+from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.lib.util import heredoc
 
 log = logging.getLogger( __name__ )
@@ -26,6 +28,10 @@ ephemeral_dir = '/mnt/ephemeral'
 
 persistent_dir = '/mnt/persistent'
 
+shared_dir = '/home/mesosbox/shared/'
+
+work_dir = '/var/lib/mesos'
+
 Service = namedtuple( 'Service', [
     'init_name',
     'description',
@@ -35,10 +41,13 @@ Service = namedtuple( 'Service', [
 
 def mesos_service( name, script_suffix=None ):
     if script_suffix is None: script_suffix = name
-    script = 'usr/sbin/mesos-{name}'
+    script = '/usr/sbin/mesos-{name}'
     flag = fmt("--log_dir=/var/log/mesosbox/mesos{name} ")
-    if name is 'slave': flag += '--master=\'mesos-master\':5050 --no-switch_user'
-    else: flag += '--registry=in_memory'
+    if 'slave' in name:
+        script = '/usr/sbin/mesos-slave'
+        flag += '--master=\'mesos-master\':5050 --no-switch_user --work_dir='+work_dir+' '
+    elif 'master' in name:
+        flag += '--registry=in_memory '
     return Service(
         init_name='mesosbox-' + name,
         description=fmt( "Mesos {name} service" ),
@@ -48,7 +57,7 @@ def mesos_service( name, script_suffix=None ):
 
 mesos_services = {
     'master': [ mesos_service( 'master' ) ],
-    'slave': [ mesos_service( 'slave') ] }
+    'slave': [ mesos_service( 'slave') ]}
 
 class MesosBox(GenericUbuntuTrustyBox):
     """
@@ -58,7 +67,7 @@ class MesosBox(GenericUbuntuTrustyBox):
     def other_accounts( self ):
         return super( MesosBox, self ).other_accounts( ) + [ user ]
 
-    def __init__( self, ctx ):
+    def __init__( self, ctx):
         super( MesosBox, self ).__init__( ctx )
 
     def _populate_security_group( self, group_name ):
@@ -67,8 +76,12 @@ class MesosBox(GenericUbuntuTrustyBox):
                   src_security_group_name=group_name ),
             dict( ip_protocol='udp', from_port=0, to_port=65535,
                   src_security_group_name=group_name ) ]
+
+    def _mount_mesos_workdir(self):
+        self._lazy_mkdir('/var/lib','mesos', persistent=True)
+
     @fabric_task
-    def __lazy_mkdir( self, parent, name, persistent=False ):
+    def _lazy_mkdir( self, parent, name, persistent=False ):
         """
         __lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
         /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
@@ -84,6 +97,7 @@ class MesosBox(GenericUbuntuTrustyBox):
             assert not location.startswith( parent ) and not parent.startswith( location )
         logical_path = parent + '/' + name
         sudo( 'mkdir -p "%s"' % logical_path )
+        sudo( 'chown %s %s' % (user, logical_path))
         self.lazy_dirs.add( ( parent, name, persistent ) )
         return logical_path
 
@@ -97,19 +111,35 @@ class MesosBox(GenericUbuntuTrustyBox):
         run('echo "deb http://repos.mesosphere.io/{} {} main"'
             ' | sudo tee /etc/apt/sources.list.d/mesosphere.list'.format( distro, codename ) )
 
+    def _get_iam_ec2_role( self ):
+        role_name, policies = super( MesosBox, self )._get_iam_ec2_role( )
+        role_name += '--' + abreviated_snake_case_class_name( MesosBox )
+        policies.update( dict(
+            ec2_read_only=ec2_read_only_policy,
+            ec2_mesos_box=dict( Version="2012-10-17", Statement=[
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
+        return role_name, policies
+
     def _pre_install_packages( self ):
         super( MesosBox, self )._pre_install_packages( )
         self.__setup_application_user( )
 
+    def _list_packages_to_install( self ):
+        return super( MesosBox, self )._list_packages_to_install( ) + [
+            'mesos=0.21.1-1.1.ubuntu1404']
+
     def _post_install_packages( self ):
         super( MesosBox, self )._post_install_packages( )
         self._propagate_authorized_keys( user, user )
+        self.__create_mesos_keypair()
         self.lazy_dirs = set( )
-        self.__install_mesos( )
         self.__install_mesos_egg( )
-        self.__install_mesosbox_tools()
+        self._mount_mesos_workdir()
+        self._install_mesosbox_tools()
         self.__remove_mesos_default_upstarts()
-        self.__register_upstart_jobs(mesos_services)
+        self._register_upstart_jobs(mesos_services)
 
     @fabric_task
     def __setup_application_user( self ):
@@ -139,7 +169,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         sudo("rm /etc/init/mesos-master.conf")
 
     @fabric_task
-    def __install_mesosbox_tools( self ):
+    def _install_mesosbox_tools( self ):
         """
         Installs the mesos-master-discovery init script and its companion mesos-tools. The latter
         is a Python package distribution that's included in cgcloud-mesos as a resource. This is
@@ -147,6 +177,9 @@ class MesosBox(GenericUbuntuTrustyBox):
         """
         tools_dir = install_dir + '/tools'
         sudo( fmt( 'mkdir -p {tools_dir}') )
+        sudo( fmt('mkdir -p %s' % shared_dir) )
+        sudo( fmt('chmod 777 %s' % shared_dir) )
+
         sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
 
@@ -154,7 +187,10 @@ class MesosBox(GenericUbuntuTrustyBox):
         with settings( forward_agent=True ):
             sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
 
-        mesos_tools = "MesosTools(**%r)" % dict(user=user )
+        mesos_tools = "MesosTools(**%r)" % dict( user=user,
+                                                 ephemeral_dir=ephemeral_dir,
+                                                 persistent_dir=persistent_dir,
+                                                 lazy_dirs=self.lazy_dirs)
         self._register_init_script(
             "mesosbox",
             heredoc( """
@@ -182,10 +218,6 @@ class MesosBox(GenericUbuntuTrustyBox):
                 end script""" ) )
 
     @fabric_task
-    def __install_mesos(self):
-        sudo("apt-get -y install mesos")
-
-    @fabric_task
     def __install_mesos_egg(self):
         # FIXME: this is the ubuntu 14.04 version. Wont work with other versions.
         run("wget http://downloads.mesosphere.io/master/ubuntu/14.04/mesos-0.22.0-py2.7-linux-x86_64.egg")
@@ -194,7 +226,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         sudo("pip install --upgrade protobuf")
         sudo("easy_install mesos-0.22.0-py2.7-linux-x86_64.egg")
 
-    def __register_upstart_jobs( self, service_map ):
+    def _register_upstart_jobs( self, service_map ):
         for node_type, services in service_map.iteritems( ):
             start_on = "mesosbox-start-" + node_type
             for service in services: # FIXME: include chdir to logging directory in this script
@@ -234,6 +266,8 @@ class MesosMaster(MesosBox):
     def _populate_instance_tags( self, tags_dict ):
         super( MesosMaster, self )._populate_instance_tags( tags_dict )
         tags_dict[ 'mesos_master' ] = self.instance_id
+        if self.ebs_volume_size:
+            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
 
 
     def prepare( self, *args, **kwargs ):
@@ -244,9 +278,12 @@ class MesosMaster(MesosBox):
 
     def _post_install_packages( self ):
         super( MesosMaster, self )._post_install_packages( )
+        if(self.ebs_volume_size!=0):
+            # we assume we want to use ebs as work dir for mesos.
+            pass
 
 
-    def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
+    def clone( self, num_slaves, slave_instance_type, ebs_volume_size):
         """
         Create a number of slave boxes that are connected to this master.
         """
@@ -257,7 +294,7 @@ class MesosMaster(MesosBox):
         kwargs[ 'instance_type' ] = slave_instance_type
         first_slave.prepare( *args, **kwargs )
         other_slaves = first_slave.create( wait_ready=False,
-                                           cluster_ordinal=master.cluster_ordinal + 1 )
+                                           cluster_ordinal=master.cluster_ordinal + 1)
         all_slaves = [ first_slave ] + other_slaves
         return all_slaves
 
@@ -268,8 +305,8 @@ class MesosSlave( MesosBox ):
     calling the MesosMaster.clone() method.
     """
 
-    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0 ):
-        super( MesosSlave, self ).__init__( ctx )
+    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0):
+        super( MesosSlave, self ).__init__( ctx)
         self.num_slaves = num_slaves
         self.mesos_master_id = mesos_master_id
         self.ebs_volume_size = ebs_volume_size
@@ -278,7 +315,12 @@ class MesosSlave( MesosBox ):
         kwargs.update( dict( min_count=self.num_slaves, max_count=self.num_slaves ) )
         return super( MesosSlave, self )._populate_instance_creation_args( image, kwargs )
 
+    def _post_install_packages( self ):
+        super( MesosSlave, self )._post_install_packages( )
+
     def _populate_instance_tags( self, tags_dict ):
         super( MesosSlave, self )._populate_instance_tags( tags_dict )
         if self.mesos_master_id:
             tags_dict[ 'mesos_master' ] = self.mesos_master_id
+            if self.ebs_volume_size:
+                tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
