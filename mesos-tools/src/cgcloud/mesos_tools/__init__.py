@@ -9,10 +9,11 @@ from subprocess import check_call, check_output
 import time
 import errno
 
-from bd2k.util.files import mkdir_p
 import boto.ec2
 
 from bd2k.util import memoize
+
+from bd2k.util.files import mkdir_p
 
 from cgcloud.lib.util import volume_label_hash
 from cgcloud.lib.ec2 import EC2VolumeHelper
@@ -27,20 +28,39 @@ shared_dir = '/home/mesosbox/shared/'
 
 
 class MesosTools( object ):
+    """
+    Tools for master discovery and managing the slaves file for Mesos. All of this happens at
+    boot time when a node (master or slave) starts up as part of a cluster.
+
+    Master discovery works as follows: All instances in a Mesos cluster are tagged with the
+    instance ID of the master. Each instance will look up the private IP of 1) the master
+    instance using the EC2 API (via boto) and 2) itself using the instance metadata endpoint. An
+    entry for "mesos-master" will be added to /etc/hosts. All configuration files use these names
+    instead of hard-coding the IPs. This is all that's needed to boot a working cluster.
+
+    Optionally, a persistent EBS volume is attached, formmatted (if needed) and mounted.
+    """
+
     def __init__( self, user, ephemeral_dir, persistent_dir, lazy_dirs ):
+        """
+        :param user: the user the services run as
+        """
         super( MesosTools, self ).__init__( )
         self.user = user
-        self.uid = getpwnam( self.user ).pw_uid
-        self.gid = getgrnam( self.user ).gr_gid
         self.ephemeral_dir = ephemeral_dir
         self.persistent_dir = persistent_dir
+        self.uid = getpwnam( self.user ).pw_uid
+        self.gid = getgrnam( self.user ).gr_gid
         self.lazy_dirs = lazy_dirs
 
     def start( self ):
+        """
+        Invoked at boot time or when the mesosbox service is started.
+        """
         while not os.path.exists( '/tmp/cloud-init.done' ):
             log.info( "Waiting for cloud-init to finish ..." )
             time.sleep( 1 )
-
+        log.info( "Starting mesosbox" )
         self.__patch_etc_hosts( { 'mesos-master': self.master_ip } )
         self.__mount_ebs_volume( )
         self.__create_lazy_dirs( )
@@ -63,44 +83,81 @@ class MesosTools( object ):
         log.info( "Stopping mesosbox" )
         self.__patch_etc_hosts( { 'mesos-master': None } )
 
-    def __patch_etc_hosts( self, hosts ):
-        log.info( "Patching /etc/host" )
-        # FIXME: The handling of /etc/hosts isn't atomic
-        with open( '/etc/hosts', 'r+' ) as etc_hosts:
-            lines = [ line
-                for line in etc_hosts.readlines( )
-                if not any( host in line for host in hosts.iterkeys( ) ) ]
-            for host, ip in hosts.iteritems( ):
-                if ip: lines.append( "%s %s\n" % (ip, host) )
-            etc_hosts.seek( 0 )
-            etc_hosts.truncate( 0 )
-            etc_hosts.writelines( lines )
+    @classmethod
+    def instance_data( cls, path ):
+        return urlopen( 'http://169.254.169.254/latest/' + path ).read( )
 
-    def _copy_dir_from_master( self, dir ):
-        if dir:
-            mkdir_p( dir )
-            while True:
-                try:
-                    check_call( [ 'sudo', '-u', 'mesosbox', 'rsync', '-r', '-e',
-                                    'ssh -o StrictHostKeyChecking=no', "mesos-master:" + dir,
-                                    dir ] )
-                except:
-                    log.warning( "Failed to rsync specified directory, trying again in 10 sec" )
-                    time.sleep( 10 )
-                else:
-                    break
-            os.chown( dir, self.uid, self.gid )
+    @classmethod
+    def meta_data( cls, path ):
+        return cls.instance_data( 'meta-data/' + path )
 
-    def __create_lazy_dirs( self ):
-        log.info( "Bind-mounting directory structure" )
-        for (parent, name, persistent) in self.lazy_dirs:
-            assert parent[ 0 ] == os.path.sep
-            location = self.persistent_dir if persistent else self.ephemeral_dir
-            physical_path = os.path.join( location, parent[ 1: ], name )
-            mkdir_p( physical_path )
-            os.chown( physical_path, self.uid, self.gid )
-            logical_path = os.path.join( parent, name )
-            check_call( [ 'mount', '--bind', physical_path, logical_path ] )
+    @classmethod
+    def user_data( cls ):
+        user_data = cls.instance_data( 'user-data' )
+        log.info( "User data is '%s'", user_data )
+        return user_data
+
+    @property
+    @memoize
+    def node_ip( self ):
+        ip = self.meta_data( 'local-ipv4' )
+        log.info( "Local IP is '%s'", ip )
+        return ip
+
+    @property
+    @memoize
+    def instance_id( self ):
+        instance_id = self.meta_data( 'instance-id' )
+        log.info( "Instance ID is '%s'", instance_id )
+        return instance_id
+
+    @property
+    @memoize
+    def availability_zone( self ):
+        zone = self.meta_data( 'placement/availability-zone' )
+        log.info( "Availability zone is '%s'", zone )
+        return zone
+
+    @property
+    @memoize
+    def region( self ):
+        m = re.match( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$', self.availability_zone )
+        assert m
+        region = m.group( 1 )
+        log.info( "Region is '%s'", region )
+        return region
+
+    @property
+    @memoize
+    def ec2( self ):
+        return boto.ec2.connect_to_region( self.region )
+
+    @property
+    @memoize
+    def master_id( self ):
+        while True:
+            master_id = self.__get_instance_tag( self.instance_id, 'mesos_master' )
+            if master_id:
+                log.info( "Master's instance ID is '%s'", master_id )
+                return master_id
+            log.warn( "Instance not tagged with master's instance ID, retrying" )
+            time.sleep( 5 )
+
+    @property
+    @memoize
+    def master_ip( self ):
+        if self.master_id == self.instance_id:
+            master_ip = self.node_ip
+            log.info( "I am the master" )
+        else:
+            log.info( "I am a slave" )
+            reservations = self.ec2.get_all_reservations( instance_ids=[ self.master_id ] )
+            instances = (i for r in reservations for i in r.instances if i.id == self.master_id)
+            master_instance = next( instances )
+            assert next( instances, None ) is None
+            master_ip = master_instance.private_ip_address
+        log.info( "Master IP is '%s'", master_ip )
+        return master_ip
 
     def __mount_ebs_volume( self ):
         """
@@ -161,13 +218,44 @@ class MesosTools( object ):
             # to place persistent data on the ephemeral volume.
             self.persistent_dir = self.ephemeral_dir
 
-    def __mount_point( self, device ):
-        with open( '/proc/mounts' ) as f:
-            for line in f:
-                line = line.split( )
-                if line[ 0 ] == device:
-                    return line[ 1 ]
-        return None
+    def _copy_dir_from_master( self, dir ):
+        if dir:
+            mkdir_p( dir )
+            while True:
+                try:
+                    check_call( [ 'sudo', '-u', 'mesosbox', 'rsync', '-r', '-e',
+                                    'ssh -o StrictHostKeyChecking=no', "mesos-master:" + dir,
+                                    dir ] )
+                except:
+                    log.warning( "Failed to rsync specified directory, trying again in 10 sec" )
+                    time.sleep( 10 )
+                else:
+                    break
+            os.chown( dir, self.uid, self.gid )
+
+    def __create_lazy_dirs( self ):
+        log.info( "Bind-mounting directory structure" )
+        for (parent, name, persistent) in self.lazy_dirs:
+            assert parent[ 0 ] == os.path.sep
+            location = self.persistent_dir if persistent else self.ephemeral_dir
+            physical_path = os.path.join( location, parent[ 1: ], name )
+            mkdir_p( physical_path )
+            os.chown( physical_path, self.uid, self.gid )
+            logical_path = os.path.join( parent, name )
+            check_call( [ 'mount', '--bind', physical_path, logical_path ] )
+
+    def __patch_etc_hosts( self, hosts ):
+        log.info( "Patching /etc/host" )
+        # FIXME: The handling of /etc/hosts isn't atomic
+        with open( '/etc/hosts', 'r+' ) as etc_hosts:
+            lines = [ line
+                for line in etc_hosts.readlines( )
+                if not any( host in line for host in hosts.iterkeys( ) ) ]
+            for host, ip in hosts.iteritems( ):
+                if ip: lines.append( "%s %s\n" % (ip, host) )
+            etc_hosts.seek( 0 )
+            etc_hosts.truncate( 0 )
+            etc_hosts.writelines( lines )
 
     def __get_instance_tag( self, instance_id, key ):
         """
@@ -176,72 +264,10 @@ class MesosTools( object ):
         tags = self.ec2.get_all_tags( filters={ 'resource-id': instance_id, 'key': key } )
         return tags[ 0 ].value if tags else None
 
-    @classmethod
-    def meta_data( cls, path ):
-        return cls.instance_data( 'meta-data/' + path )
-
-    @classmethod
-    def instance_data( cls, path ):
-        return urlopen( 'http://169.254.169.254/latest/' + path ).read( )
-
-    @property
-    @memoize
-    def ec2( self ):
-        return boto.ec2.connect_to_region( self.region )
-
-    @property
-    @memoize
-    def master_ip( self ):
-        if self.master_id == self.instance_id:
-            master_ip = self.node_ip
-            log.info( "I am the master" )
-        else:
-            log.info( "I am a slave" )
-            reservations = self.ec2.get_all_reservations( instance_ids=[ self.master_id ] )
-            instances = (i for r in reservations for i in r.instances if i.id == self.master_id)
-            master_instance = next( instances )
-            assert next( instances, None ) is None
-            master_ip = master_instance.private_ip_address
-        log.info( "Master IP is '%s'", master_ip )
-        return master_ip
-
-    @property
-    @memoize
-    def instance_id( self ):
-        instance_id = self.meta_data( 'instance-id' )
-        log.info( "Instance ID is '%s'", instance_id )
-        return instance_id
-
-    @property
-    @memoize
-    def node_ip( self ):
-        ip = self.meta_data( 'local-ipv4' )
-        log.info( "Local IP is '%s'", ip )
-        return ip
-
-    @property
-    @memoize
-    def master_id( self ):
-        while True:
-            master_id = self.__get_instance_tag( self.instance_id, 'mesos_master' )
-            if master_id:
-                log.info( "Master's instance ID is '%s'", master_id )
-                return master_id
-            log.warn( "Instance not tagged with master's instance ID, retrying" )
-            time.sleep( 5 )
-
-    @property
-    @memoize
-    def region( self ):
-        m = re.match( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$', self.availability_zone )
-        assert m
-        region = m.group( 1 )
-        log.info( "Region is '%s'", region )
-        return region
-
-    @property
-    @memoize
-    def availability_zone( self ):
-        zone = self.meta_data( 'placement/availability-zone' )
-        log.info( "Availability zone is '%s'", zone )
-        return zone
+    def __mount_point( self, device ):
+        with open( '/proc/mounts' ) as f:
+            for line in f:
+                line = line.split( )
+                if line[ 0 ] == device:
+                    return line[ 1 ]
+        return None

@@ -12,13 +12,14 @@ import time
 import itertools
 import errno
 
-from bd2k.util.files import mkdir_p
 import boto.ec2
 
 from bd2k.util import memoize
 
-from cgcloud.lib.ec2 import EC2VolumeHelper
+from bd2k.util.files import mkdir_p
+
 from cgcloud.lib.util import volume_label_hash
+from cgcloud.lib.ec2 import EC2VolumeHelper
 
 initctl = '/sbin/initctl'
 
@@ -76,6 +77,7 @@ class SparkTools( object ):
         self.__patch_etc_hosts( { 'spark-master': self.master_ip } )
         self.__mount_ebs_volume( )
         self.__create_lazy_dirs( )
+
         if self.master_ip == self.node_ip:
             node_type = 'master'
             self.__publish_host_key( )
@@ -86,6 +88,7 @@ class SparkTools( object ):
             self.__get_master_host_key( )
             self.__wait_for_master_ssh( )
             self.__register_with_master( )
+
         log.info( "Starting %s services" % node_type )
         check_call( [ initctl, 'emit', 'sparkbox-start-%s' % node_type ] )
 
