@@ -66,15 +66,17 @@ class ClusterTests( CgcloudTestCase ):
                                '| hdfs dfs -put -f - /test.bin' % test_file_size_mb )
             self._ssh( master, 'hdfs dfs -put -f test.bin.md5 /' )
         finally:
-            self._terminate_cluster( )
-        self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
-        try:
-            self._wait_for_slaves( )
-            self._ssh( master, 'test "$(hdfs dfs -cat /test.bin.md5)" '
-                               '== "$(hdfs dfs -cat /test.bin | md5sum)"' )
-        finally:
-            if cleanup:
+            if False:
                 self._terminate_cluster( )
+        if False:
+            self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
+            try:
+                self._wait_for_slaves( )
+                self._ssh( master, 'test "$(hdfs dfs -cat /test.bin.md5)" '
+                                   '== "$(hdfs dfs -cat /test.bin | md5sum)"' )
+            finally:
+                if cleanup:
+                    self._terminate_cluster( )
 
     def _create_cluster( self, *args ):
         self._cgcloud( 'create-spark-cluster', '-s', str( num_slaves ), *args )
