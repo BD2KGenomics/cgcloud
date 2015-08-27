@@ -44,8 +44,7 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
             iam_cgcloud_jenkins_slave_pass_role=dict( Version="2012-10-17", Statement=[
                 # This assumes that if instance lives in /, then tests running on the instance
                 # will run in /test-5571439d. If the instance lives in /foo, then tests running
-                # on the instance will run in /foo/test-5571439d. The suffix 5571439d is just an
-                # example.
+                # on the instance will run in /foo/test-5571439d.
                 dict( Effect="Allow",
                       Resource=pass_role_arn,
                       Action="iam:PassRole" ) ] ),
@@ -60,12 +59,15 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
             iam_cgcloud_jenkins_slave=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="*", Action=[
                     "iam:CreateRole",
+                    "iam:DeleteRole",
                     "iam:ListRolePolicies",
                     "iam:DeleteRolePolicy",
                     "iam:GetRolePolicy",
                     "iam:PutRolePolicy",
                     "iam:GetInstanceProfile",
                     "iam:CreateInstanceProfile",
+                    "iam:DeleteInstanceProfile",
                     "iam:RemoveRoleFromInstanceProfile",
-                    "iam:AddRoleToInstanceProfile" ] ) ] ) ) )
+                    "iam:AddRoleToInstanceProfile",
+                    "iam:DeleteInstanceProfile" ] ) ] ) ) )
         return role_name, policies
