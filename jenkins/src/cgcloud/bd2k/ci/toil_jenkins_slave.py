@@ -38,12 +38,17 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         super( ToilJenkinsSlave, self )._post_install_packages( )
         self.__disable_mesos_daemons( )
         self.__install_mesos_egg( )
+        self.__install_parasol( )
         self.__patch_distutils( )
 
     @fabric_task
     def __disable_mesos_daemons( self ):
         for daemon in ('master', 'slave'):
             sudo( 'echo manual > /etc/init/mesos-%s.override' % daemon )
+    @fabric_task
+    def __install_parasol( self ):
+        run("git clone http://github.com/adderan/parasol-binaries")
+        sudo("cp ./parasol-binaries/* /usr/local/bin")
 
     @fabric_task
     def __install_mesos_egg( self ):
