@@ -668,7 +668,7 @@ class Box( object ):
                     wait_transition( instance,
                                      from_states={ 'running', 'shutting-down', 'stopped' },
                                      to_state='terminated' )
-                log.info( '... instance terminated.' )
+                    log.info( '... instance terminated.' )
 
     def _attach_volume( self, volume_helper, device ):
         volume_helper.attach( self.instance_id, device )
