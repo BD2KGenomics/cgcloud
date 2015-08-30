@@ -97,7 +97,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     @fabric_task
     def _install_packages( self, packages ):
         packages = " ".join( packages )
-        sudo( '%s install %s' % (self.apt_get, packages) )
+        sudo( '%s --no-install-recommends install %s' % (self.apt_get, packages) )
 
     def _get_package_installation_command( self, package ):
         return [ 'apt-get', 'install', '-y', '--no-install-recommends' ] + list(
