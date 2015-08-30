@@ -103,14 +103,15 @@ class SparkBox( GenericUbuntuTrustyBox ):
     def _setup_package_repos( self ):
         super( SparkBox, self )._setup_package_repos( )
         sudo( 'add-apt-repository -y ppa:webupd8team/java' )
-        sudo( 'echo debconf shared/accepted-oracle-license-v1-1 select true '
-              '| sudo debconf-set-selections' )
-        sudo( 'echo debconf shared/accepted-oracle-license-v1-1 seen true '
-              '| sudo debconf-set-selections' )
 
     def _list_packages_to_install( self ):
         return super( SparkBox, self )._list_packages_to_install( ) + [
             'oracle-java7-set-default' ]
+
+    def _get_debconf_selections( self ):
+        return super( SparkBox, self )._get_debconf_selections( ) + [
+            'debconf shared/accepted-oracle-license-v1-1 select true',
+            'debconf shared/accepted-oracle-license-v1-1 seen true' ]
 
     def _pre_install_packages( self ):
         super( SparkBox, self )._pre_install_packages( )

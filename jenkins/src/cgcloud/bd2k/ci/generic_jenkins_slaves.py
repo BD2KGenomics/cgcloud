@@ -70,6 +70,13 @@ class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
         for prog in ( 'apt-get', 'dpkg', 'gdebi' ):
             sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/%s' >> /etc/sudoers" % prog )
 
+    def _get_debconf_selections( self ):
+        # On Lucid, somehow postfix gets pulled in as a dependency kicking the frontend into
+        # interactive mode. The same happens when installing GridEngine.
+        return super( UbuntuGenericJenkinsSlave, self )._get_debconf_selections( ) + [
+            "postfix postfix/main_mailer_type string 'No configuration'",
+            "postfix postfix/mailname string %s" % self.host_name
+        ]
 
 class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLucidBox ):
     """
@@ -99,14 +106,6 @@ class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLu
         return super( UbuntuLucidGenericJenkinsSlave, self )._get_package_substitutions( ) + [
             ('openjdk-7-jre-headless', 'openjdk-6-jre') ]
 
-    def _pre_install_packages( self ):
-        super( UbuntuLucidGenericJenkinsSlave, self )._pre_install_packages( )
-        # On Lucid, somehow postfix gets pulled in as a dependency kicking the frontend into
-        # interactive mode.
-        self._debconf_set_selection(
-            "postfix postfix/main_mailer_type string 'No configuration'",
-            "postfix postfix/mailname string %s" % self.host_name
-        )
 
 
 class UbuntuPreciseGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuPreciseBox ):
