@@ -1,7 +1,6 @@
 from collections import namedtuple
 import json
 import re
-from textwrap import dedent
 from StringIO import StringIO
 import logging
 
@@ -9,6 +8,7 @@ from fabric.context_managers import settings
 from lxml import etree
 from lxml.builder import ElementMaker
 from fabric.operations import run, put, os
+
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core import fabric_task
@@ -224,7 +224,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
                     for package in ('spark', 'hadoop') ]
                 self.__patch_etc_environment( f, new_path )
         else:
-            for _user in ( user, self.admin_account( ) ):
+            for _user in (user, self.admin_account( )):
                 with settings( user=_user ):
                     with remote_open( '~/.profile' ) as f:
                         f.write( '\n' )
@@ -318,12 +318,12 @@ class SparkBox( GenericUbuntuTrustyBox ):
         """
         assert '/' not in name
         assert parent.startswith( '/' )
-        for location in ( persistent_dir, ephemeral_dir ):
+        for location in (persistent_dir, ephemeral_dir):
             assert location.startswith( '/' )
             assert not location.startswith( parent ) and not parent.startswith( location )
         logical_path = parent + '/' + name
         sudo( 'mkdir -p "%s"' % logical_path )
-        self.lazy_dirs.add( ( parent, name, persistent ) )
+        self.lazy_dirs.add( (parent, name, persistent) )
         return logical_path
 
     @fabric_task
@@ -535,5 +535,3 @@ class SparkSlave( SparkBox ):
         if self.spark_master_id:
             tags_dict[ 'spark_master' ] = self.spark_master_id
             tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
-
-
