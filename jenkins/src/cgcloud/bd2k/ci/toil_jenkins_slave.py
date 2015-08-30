@@ -66,7 +66,8 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         https://hg.python.org/cpython/rev/cf70f030a744/
         https://bitbucket.org/pypa/setuptools/issues/248/exit-code-is-zero-when-upload-fails
         """
-        put( local_path=StringIO( heredoc( """
+        # FIXME: use remote popen()
+        put( remote_path='distutils.patch', local_path=StringIO( heredoc( """
             --- a/Lib/distutils/command/upload.py
             +++ b/Lib/distutils/command/upload.py
             @@ -10,7 +10,7 @@ import urlparse
@@ -95,7 +96,6 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
             -                          log.ERROR)
             +            msg = 'Upload failed (%s): %s' % (status, reason)
             +            self.announce(msg, log.ERROR)
-            +            raise DistutilsError(msg)
-        """ ) ), remote_path='distutils.patch' )
+            +            raise DistutilsError(msg)""" ) ) )
         sudo( "sudo patch -d /usr/lib/python2.7 -p2 < distutils.patch" )
         run( 'rm distutils.patch' )
