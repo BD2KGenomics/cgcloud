@@ -1,7 +1,6 @@
 from collections import namedtuple
 import json
 import re
-from textwrap import dedent
 from StringIO import StringIO
 import logging
 
@@ -9,6 +8,7 @@ from fabric.context_managers import settings
 from lxml import etree
 from lxml.builder import ElementMaker
 from fabric.operations import run, put, os
+
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core import fabric_task
@@ -103,14 +103,15 @@ class SparkBox( GenericUbuntuTrustyBox ):
     def _setup_package_repos( self ):
         super( SparkBox, self )._setup_package_repos( )
         sudo( 'add-apt-repository -y ppa:webupd8team/java' )
-        sudo( 'echo debconf shared/accepted-oracle-license-v1-1 select true '
-              '| sudo debconf-set-selections' )
-        sudo( 'echo debconf shared/accepted-oracle-license-v1-1 seen true '
-              '| sudo debconf-set-selections' )
 
     def _list_packages_to_install( self ):
         return super( SparkBox, self )._list_packages_to_install( ) + [
             'oracle-java7-set-default' ]
+
+    def _get_debconf_selections( self ):
+        return super( SparkBox, self )._get_debconf_selections( ) + [
+            'debconf shared/accepted-oracle-license-v1-1 select true',
+            'debconf shared/accepted-oracle-license-v1-1 seen true' ]
 
     def _pre_install_packages( self ):
         super( SparkBox, self )._pre_install_packages( )
@@ -223,7 +224,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
                     for package in ('spark', 'hadoop') ]
                 self.__patch_etc_environment( f, new_path )
         else:
-            for _user in ( user, self.admin_account( ) ):
+            for _user in (user, self.admin_account( )):
                 with settings( user=_user ):
                     with remote_open( '~/.profile' ) as f:
                         f.write( '\n' )
@@ -317,12 +318,12 @@ class SparkBox( GenericUbuntuTrustyBox ):
         """
         assert '/' not in name
         assert parent.startswith( '/' )
-        for location in ( persistent_dir, ephemeral_dir ):
+        for location in (persistent_dir, ephemeral_dir):
             assert location.startswith( '/' )
             assert not location.startswith( parent ) and not parent.startswith( location )
         logical_path = parent + '/' + name
         sudo( 'mkdir -p "%s"' % logical_path )
-        self.lazy_dirs.add( ( parent, name, persistent ) )
+        self.lazy_dirs.add( (parent, name, persistent) )
         return logical_path
 
     @fabric_task
@@ -534,5 +535,3 @@ class SparkSlave( SparkBox ):
         if self.spark_master_id:
             tags_dict[ 'spark_master' ] = self.spark_master_id
             tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
-
-

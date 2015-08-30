@@ -1,10 +1,12 @@
 from abc import abstractmethod
+from StringIO import StringIO
 
-from fabric.operations import run
+from fabric.operations import run, put
 import yaml
 
 from cgcloud.core.box import Box, fabric_task
 from cgcloud.core.instance_type import ec2_instance_types
+from cgcloud.lib.util import heredoc
 
 
 class CloudInitBox( Box ):
@@ -139,10 +141,22 @@ class CloudInitBox( Box ):
 
     def _on_instance_ready( self, first_boot ):
         super( CloudInitBox, self )._on_instance_ready( first_boot )
+        self.__wait_for_cloud_init_completion( )
         if first_boot:
-            # cloud-init is run on every boot, but only on the first boot will it invoke the user
-            # script that signals completion
-            self.__wait_for_cloud_init_completion( )
+            self.__add_per_boot_script( )
+
+    @fabric_task
+    def __add_per_boot_script( self ):
+        """
+        Ensure that the cloud-init.done file is always created, even on 2nd boot and there-after.
+        On the first boot of an instance, the .done file creation is preformed by the runcmd
+        stanza in cloud-config. On subsequent boots this per-boot script takes over (runcmd is
+        skipped on those boots).
+        """
+        put( remote_path='/var/lib/cloud/scripts/per-boot/cgcloud', mode=0755, use_sudo=True,
+             local_path=StringIO( heredoc( """
+                    #!/bin/sh
+                    touch /tmp/cloud-init.done""" ) ) )
 
     @fabric_task
     def __wait_for_cloud_init_completion( self ):

@@ -35,5 +35,5 @@ class CgcloudTestCase( TestCase ):
         # is configured, we can't assume that all resources were created by the test and that
         # they can therefore be removed.
         if cls.cleanup and ctx.namespace == cls.namespace:
-            ctx.cleanup()
+            ctx.reset_namespace_security()
         super( CgcloudTestCase, cls ).tearDownClass( )

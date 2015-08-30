@@ -518,6 +518,20 @@ def volume_label_hash( s ):
     return h[:-1]
 
 def heredoc( s ):
+    """
+    Here-documents [1] for Python. Unindents the given string and interpolates format()-like
+    placeholders with local variables from the calling method's stack frame. The interpolation
+    part is a bit like black magic but it tremendously useful.
+
+    [1]: https://en.wikipedia.org/wiki/Here_document
+
+    >>> x, y = 42, 7
+    >>> heredoc( '''
+    ...     x is {x}
+    ...     y is {y}
+    ... ''' )
+    'x is 42\\ny is 7\\n'
+    """
     if s[ 0 ] == '\n': s = s[ 1: ]
     if s[ -1 ] != '\n': s += '\n'
     return interpolate( dedent( s ), skip_frames=1 )

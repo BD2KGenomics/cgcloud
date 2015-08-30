@@ -12,6 +12,7 @@ from cgcloud.core.agent_box import AgentBox
 from cgcloud.core.cloud_init_box import CloudInitBox
 from cgcloud.core.package_manager_box import PackageManagerBox
 from cgcloud.core.rc_local_box import RcLocalBox
+from cgcloud.fabric.operations import remote_sudo_popen
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 
@@ -29,6 +30,15 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
         :return: the code name of the Ubuntu release, e.g. "precise"
         """
         raise NotImplementedError( )
+
+    def _get_debconf_selections( self ):
+        """
+        Override in concrete a subclass to add custom debconf selections.
+
+        :return: A list of lines to be piped to debconf-set-selections (no newline at the end)
+        :rtype: list[str]
+        """
+        return [ ]
 
     def admin_account( self ):
         return 'ubuntu'
@@ -87,18 +97,22 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     @fabric_task
     def _install_packages( self, packages ):
         packages = " ".join( packages )
-        sudo( '%s install %s' % (self.apt_get, packages) )
+        sudo( '%s --no-install-recommends install %s' % (self.apt_get, packages) )
 
     def _get_package_installation_command( self, package ):
         return [ 'apt-get', 'install', '-y', '--no-install-recommends' ] + list(
             self._substitute_package( package ) )
 
+    def _pre_install_packages( self ):
+        super( UbuntuBox, self )._pre_install_packages( )
+        debconf_selections = self._get_debconf_selections( )
+        if debconf_selections:
+            self.__debconf_set_selections( debconf_selections )
+
     @fabric_task
-    def _debconf_set_selection( self, *debconf_selections, **sudo_kwargs ):
-        for debconf_selection in debconf_selections:
-            if '"' in debconf_selection:
-                raise RuntimeError( 'Double quotes in debconf selections are not supported yet' )
-        sudo( 'debconf-set-selections <<< "%s"' % '\n'.join( debconf_selections ), **sudo_kwargs )
+    def __debconf_set_selections( self, debconf_selections ):
+        with remote_sudo_popen( 'debconf-set-selections' ) as f:
+            f.write( '\n'.join( debconf_selections ) )
 
     def _ssh_service_name( self ):
         return 'ssh'

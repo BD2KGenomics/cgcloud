@@ -1,20 +1,25 @@
 from cgcloud.core.commands import *
+from cgcloud.core.deprecated import is_deprecated
 from cgcloud.core.generic_boxes import *
 
-BOXES = [
+
+def __fail_deprecated( artifacts ):
+    for artifact in artifacts:
+        if is_deprecated( artifact ):
+            raise DeprecationWarning( artifact )
+    return artifacts
+
+
+BOXES = __fail_deprecated( [
     GenericCentos6Box,
-    GenericCentos5Box,
-    GenericUbuntuLucidBox,
     GenericUbuntuPreciseBox,
     GenericUbuntuTrustyBox,
     GenericUbuntuUtopicBox,
     GenericUbuntuVividBox,
-    GenericFedora19Box,
-    GenericFedora20Box,
     GenericFedora21Box,
-    GenericFedora22Box ]
+    GenericFedora22Box ] )
 
-COMMANDS = [
+COMMANDS = __fail_deprecated( [
     ListRolesCommand,
     CreateCommand,
     RecreateCommand,
@@ -31,6 +36,7 @@ COMMANDS = [
     DeleteImageCommand,
     RegisterKeyCommand,
     CleanupCommand,
-    UpdateInstanceProfile ]
+    UpdateInstanceProfile,
+    ResetSecurityCommand ] )
 
 test_namespace_suffix_length = 8

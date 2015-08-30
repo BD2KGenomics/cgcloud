@@ -1,8 +1,15 @@
 from StringIO import StringIO
 from contextlib import contextmanager
+from fcntl import fcntl, F_GETFL, F_SETFL
+import sys
+import os
+from threading import Thread
+import time
 
-from fabric.operations import sudo as real_sudo, get, put
+from fabric.operations import sudo as real_sudo, get, put, run
 from fabric.state import env
+import fabric.io
+import fabric.operations
 
 
 def sudo( command, sudo_args=None, **kwargs ):
@@ -11,7 +18,7 @@ def sudo( command, sudo_args=None, **kwargs ):
     """
     if sudo_args is not None:
         old_prefix = env.sudo_prefix
-        env.sudo_prefix = '%s %s' % ( old_prefix, sudo_args )
+        env.sudo_prefix = '%s %s' % (old_prefix, sudo_args)
     try:
         return real_sudo( command, **kwargs )
     finally:
@@ -29,3 +36,116 @@ def remote_open( remote_path, use_sudo=False ):
     yield buf
     buf.seek( 0 )
     put( local_path=buf, remote_path=remote_path, use_sudo=use_sudo )
+
+
+# noinspection PyPep8Naming
+class remote_popen( object ):
+    """
+    A context manager that yields a file handle and a
+
+    >>> from fabric.context_managers import hide, settings
+    >>> with settings(host_string='localhost'):
+    ...     with hide( 'output' ):
+    ...          with remote_popen( 'sort -n', shell=False ) as f:
+    ...              f.write( '\\n'.join( map( str, [ 3, 2, 1] ) ) )
+    [localhost] run: sort -n
+    3
+    2
+    1
+
+    Above is the echoed input, below the sorted output.
+
+    >>> print f.result
+    1
+    2
+    3
+    """
+
+    def __init__( self, *args, **kwargs ):
+        try:
+            if kwargs[ 'pty' ]:
+                raise RuntimeError( "The 'pty' keyword argument must be omitted or set to False" )
+        except KeyError:
+            kwargs[ 'pty' ] = False
+        self.args = args
+        self.kwargs = kwargs
+        # FIXME: Eliminate this buffer and have caller write directly into the pipe
+        self.stdin = StringIO( )
+        self.stdin.result = None
+
+    def __enter__( self ):
+        return self.stdin
+
+    def __exit__( self, exc_type, exc_val, exc_tb ):
+        if exc_type is None:
+            _r, _w = os.pipe( )
+
+            def copy( ):
+                with os.fdopen( _w, 'w' ) as w:
+                    w.write( self.stdin.getvalue( ) )
+
+            t = Thread( target=copy )
+            t.start( )
+            try:
+                _stdin = sys.stdin.fileno( )
+                _old_stdin = os.dup( _stdin )
+                os.close( _stdin )
+                assert _stdin == os.dup( _r )
+                # monkey-patch Fabric
+                _input_loop = fabric.operations.input_loop
+                fabric.operations.input_loop = input_loop
+                try:
+                    self.stdin.result = self._run( )
+                finally:
+                    fabric.operations.input_loop = _input_loop
+                    os.close( _stdin )
+                    os.dup( _old_stdin )
+            finally:
+                t.join( )
+        return False
+
+    def _run( self ):
+        return run( *self.args, **self.kwargs )
+
+
+# noinspection PyPep8Naming
+class remote_sudo_popen( remote_popen ):
+    def _run( self ):
+        sudo( *self.args, **self.kwargs )
+
+
+# Version of Fabric's input_loop that handles EOF on stdin and reads more greedily with
+# non-blocking mode.
+
+# TODO: We should open a ticket for this.
+
+from select import select
+from fabric.network import ssh
+
+
+def input_loop( chan, using_pty ):
+    opts = fcntl( sys.stdin.fileno( ), F_GETFL )
+    fcntl( sys.stdin.fileno( ), F_SETFL, opts | os.O_NONBLOCK )
+    try:
+        while not chan.exit_status_ready( ):
+            r, w, x = select( [ sys.stdin ], [ ], [ ], 0.0 )
+            have_char = (r and r[ 0 ] == sys.stdin)
+            if have_char and chan.input_enabled:
+                # Send all local stdin to remote end's stdin
+                bytes = sys.stdin.read( )
+                if bytes is None:
+                    pass
+                elif not bytes:
+                    chan.shutdown_write( )
+                    break
+                else:
+                    chan.sendall( bytes )
+                    # Optionally echo locally, if needed.
+                    if not using_pty and env.echo_stdin:
+                        # Not using fastprint() here -- it prints as 'user'
+                        # output level, don't want it to be accidentally hidden
+                        sys.stdout.write( bytes )
+                        sys.stdout.flush( )
+            time.sleep( ssh.io_sleep )
+    finally:
+        fcntl( sys.stdin.fileno( ), F_SETFL, opts )

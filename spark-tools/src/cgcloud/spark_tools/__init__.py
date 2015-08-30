@@ -5,17 +5,21 @@ import fcntl
 from grp import getgrnam
 from pwd import getpwnam
 import socket
+import stat
 from urllib2 import urlopen
 from subprocess import check_call, call, check_output
 import time
 import itertools
+import errno
 
-from bd2k.util.files import mkdir_p
 import boto.ec2
+
 from bd2k.util import memoize
 
-from cgcloud.lib.ec2 import EC2VolumeHelper
+from bd2k.util.files import mkdir_p
+
 from cgcloud.lib.util import volume_label_hash
+from cgcloud.lib.ec2 import EC2VolumeHelper
 
 initctl = '/sbin/initctl'
 
@@ -73,6 +77,7 @@ class SparkTools( object ):
         self.__patch_etc_hosts( { 'spark-master': self.master_ip } )
         self.__mount_ebs_volume( )
         self.__create_lazy_dirs( )
+
         if self.master_ip == self.node_ip:
             node_type = 'master'
             self.__publish_host_key( )
@@ -83,6 +88,7 @@ class SparkTools( object ):
             self.__get_master_host_key( )
             self.__wait_for_master_ssh( )
             self.__register_with_master( )
+
         log.info( "Starting %s services" % node_type )
         check_call( [ initctl, 'emit', 'sparkbox-start-%s' % node_type ] )
 
@@ -118,8 +124,8 @@ class SparkTools( object ):
                 reservations = self.ec2.get_all_reservations(
                     filters={ 'tag:spark_master': self.master_id } )
                 slaves = set( i.private_ip_address
-                    for r in reservations
-                    for i in r.instances if i.id != self.master_id )
+                                  for r in reservations
+                                  for i in r.instances if i.id != self.master_id )
                 log.info( "Found %i slave.", len( slaves ) )
             if '' in slaves: slaves.remove( '' )
             slaves = list( slaves )
@@ -218,35 +224,50 @@ class SparkTools( object ):
         if ebs_volume_size:
             instance_name = self.__get_instance_tag( self.instance_id, 'Name' )
             cluster_ordinal = int( self.__get_instance_tag( self.instance_id, 'cluster_ordinal' ) )
-            volume_name = '%s__%d' % ( instance_name, cluster_ordinal )
+            volume_name = '%s__%d' % (instance_name, cluster_ordinal)
             volume = EC2VolumeHelper( ec2=self.ec2,
                                       availability_zone=self.availability_zone,
                                       name=volume_name,
                                       size=ebs_volume_size )
+
             # TODO: handle case where volume is already attached
-            volume.attach( self.instance_id, '/dev/sdf' )
+            device_ext = '/dev/sdf'
+            device = '/dev/xvdf'
+            volume.attach( self.instance_id, device_ext )
+
+            # Wait for inode to appear and make sure its a block device
+            while True:
+                try:
+                    assert stat.S_ISBLK( os.stat( device ).st_mode )
+                    break
+                except OSError as e:
+                    if e.errno == errno.ENOENT:
+                        time.sleep( 1 )
+                    else:
+                        raise
 
             # Only format empty volumes
             volume_label = volume_label_hash( volume_name )
-            if check_output( [ 'file', '-sL', '/dev/xvdf' ] ).strip( ) == '/dev/xvdf: data':
-                check_call( [ 'mkfs', '-t', 'ext4', '/dev/xvdf' ] )
-                check_call( [ 'e2label', '/dev/xvdf', volume_label ] )
+            if check_output( [ 'file', '-sL', device ] ).strip( ) == device + ': data':
+                check_call( [ 'mkfs', '-t', 'ext4', device ] )
+                check_call( [ 'e2label', device, volume_label ] )
             else:
                 # if the volume is not empty, verify the file system label
-                actual_label = check_output( [ 'e2label', '/dev/xvdf' ] ).strip( )
+                actual_label = check_output( [ 'e2label', device ] ).strip( )
                 if actual_label != volume_label:
                     raise AssertionError(
                         "Expected volume label '%s' (derived from '%s') but got '%s'" %
-                        ( volume_label, volume_name, actual_label ) )
-            current_mount_point = self.__mount_point( '/dev/xvdf' )
+                        (volume_label, volume_name, actual_label) )
+            current_mount_point = self.__mount_point( device )
             if current_mount_point is None:
-                check_call( [ 'mount', '/dev/xvdf', self.persistent_dir ] )
+                mkdir_p( self.persistent_dir )
+                check_call( [ 'mount', device, self.persistent_dir ] )
             elif current_mount_point == self.persistent_dir:
                 pass
             else:
                 raise RuntimeError(
-                    "Can't mount device /dev/xvdf on '%s' since it is already mounted on '%s'" % (
-                        self.persistent_dir, current_mount_point) )
+                    "Can't mount device %s on '%s' since it is already mounted on '%s'" % (
+                        device, self.persistent_dir, current_mount_point) )
         else:
             # No persistent volume is attached and the root volume is off limits, so we will need
             # to place persistent data on the ephemeral volume.
@@ -312,7 +333,7 @@ class SparkTools( object ):
 
     def __publish_host_key( self ):
         master_host_key = self.__get_host_key( )
-        self.ec2.create_tags( self.master_id, dict( ssh_host_key=master_host_key ) )
+        self.ec2.create_tags( [ self.master_id ], dict( ssh_host_key=master_host_key ) )
 
     def __create_lazy_dirs( self ):
         log.info( "Bind-mounting directory structure" )
@@ -335,8 +356,8 @@ class SparkTools( object ):
 
     def __format_namenode( self ):
         log.info( "Formatting namenode" )
-        call( [ 'sudo', '-u', self.user,
-            self.install_dir + '/hadoop/bin/hdfs', 'namenode', '-format', '-nonInteractive' ] )
+        call( [ 'sudo', '-u', self.user, self.install_dir + '/hadoop/bin/hdfs',
+                  'namenode', '-format', '-nonInteractive' ] )
 
     def __patch_etc_hosts( self, hosts ):
         log.info( "Patching /etc/host" )
@@ -346,7 +367,7 @@ class SparkTools( object ):
                 for line in etc_hosts.readlines( )
                 if not any( host in line for host in hosts.iterkeys( ) ) ]
             for host, ip in hosts.iteritems( ):
-                if ip: lines.append( "%s %s\n" % ( ip, host ) )
+                if ip: lines.append( "%s %s\n" % (ip, host) )
             etc_hosts.seek( 0 )
             etc_hosts.truncate( 0 )
             etc_hosts.writelines( lines )

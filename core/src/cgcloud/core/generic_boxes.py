@@ -2,12 +2,14 @@ from urlparse import urlparse
 
 from fabric.operations import run, sudo, os
 
+from cgcloud.core.deprecated import deprecated
 from cgcloud.core.box import fabric_task
 from cgcloud.core.centos_box import CentosBox
 from cgcloud.core.fedora_box import FedoraBox
 from cgcloud.core.ubuntu_box import UpstartUbuntuBox, SystemdUbuntuBox
 
 
+@deprecated
 class GenericCentos5Box( CentosBox ):
     """
     Good ole CentOS 5 from 1995, more or less
@@ -38,7 +40,7 @@ class GenericCentos5Box( CentosBox ):
         This method should to be invoked early on during setup.
         """
         self._yum_local( is_update=True, rpm_urls=[
-            'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.13-1.el5.x86_64.rpm' ] )
+            'ftp://ftp.sudo.ws/pub/sudo/packages/Centos/5/sudo-1.8.14-4.el5.x86_64.rpm' ] )
 
     def _on_instance_ready( self, first_boot ):
         super( GenericCentos5Box, self )._on_instance_ready( first_boot )
@@ -54,8 +56,8 @@ class GenericCentos5Box( CentosBox ):
 
     def _get_package_substitutions( self ):
         return super( GenericCentos5Box, self )._get_package_substitutions( ) + [
-            ( 'python', 'python26' ),
-            ( 'python-devel', 'python26-devel' )
+            ('python', 'python26'),
+            ('python-devel', 'python26-devel')
         ]
 
     @fabric_task
@@ -97,7 +99,7 @@ class GenericCentos6Box( CentosBox ):
             if False:
                 self._update_openssh( )
 
-
+@deprecated
 class GenericUbuntuLucidBox( UpstartUbuntuBox ):
     """
     10.04 LTS
@@ -118,7 +120,7 @@ class GenericUbuntuLucidBox( UpstartUbuntuBox ):
         """
         See GenericCentos5Box
         """
-        url = 'ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.13-1_amd64.deb'
+        url = 'ftp://ftp.sudo.ws/pub/sudo/packages/Ubuntu/10.04/sudo_1.8.14-4_amd64.deb'
         package = os.path.basename( urlparse( url ).path )
         run( 'wget ' + url )
         sudo( 'sudo dpkg --force-confold -i ' + package )
@@ -134,44 +136,44 @@ class GenericUbuntuLucidBox( UpstartUbuntuBox ):
             ('git', 'git-core') ]
 
 
-if False:  # out of suppport
-    class GenericUbuntuMaverickBox( UpstartUbuntuBox ):
-        """
-        10.10
-        """
+@deprecated
+class GenericUbuntuMaverickBox( UpstartUbuntuBox ):
+    """
+    10.10
+    """
 
-        def release( self ):
-            return 'maverick'
+    def release( self ):
+        return 'maverick'
 
-        @classmethod
-        def supported_virtualization_types( cls ):
-            return [ 'paravirtual' ]
+    @classmethod
+    def supported_virtualization_types( cls ):
+        return [ 'paravirtual' ]
 
-if False:  # out of suppport
-    class GenericUbuntuNattyBox( UpstartUbuntuBox ):
-        """
-        11.04
-        """
+@deprecated
+class GenericUbuntuNattyBox( UpstartUbuntuBox ):
+    """
+    11.04
+    """
 
-        def release( self ):
-            return 'natty'
+    def release( self ):
+        return 'natty'
 
-        @classmethod
-        def supported_virtualization_types( cls ):
-            return [ 'paravirtual' ]
+    @classmethod
+    def supported_virtualization_types( cls ):
+        return [ 'paravirtual' ]
 
-if False:  # out of suppport
-    class GenericUbuntuOneiricBox( UpstartUbuntuBox ):
-        """
-        11.10
-        """
+@deprecated
+class GenericUbuntuOneiricBox( UpstartUbuntuBox ):
+    """
+    11.10
+    """
 
-        def release( self ):
-            return 'oneiric'
+    def release( self ):
+        return 'oneiric'
 
-        @classmethod
-        def supported_virtualization_types( cls ):
-            return [ 'paravirtual' ]
+    @classmethod
+    def supported_virtualization_types( cls ):
+        return [ 'paravirtual' ]
 
 
 class GenericUbuntuPreciseBox( UpstartUbuntuBox ):
@@ -183,32 +185,32 @@ class GenericUbuntuPreciseBox( UpstartUbuntuBox ):
         return 'precise'
 
 
-if False:  # out of suppport
-    class GenericUbuntuQuantalBox( UpstartUbuntuBox ):
-        """
-        12.10
-        """
+@deprecated
+class GenericUbuntuQuantalBox( UpstartUbuntuBox ):
+    """
+    12.10
+    """
 
-        def release( self ):
-            return 'quantal'
+    def release( self ):
+        return 'quantal'
 
-if False:  # out of suppport
-    class GenericUbuntuRaringBox( UpstartUbuntuBox ):
-        """
-        13.04
-        """
+@deprecated
+class GenericUbuntuRaringBox( UpstartUbuntuBox ):
+    """
+    13.04
+    """
 
-        def release( self ):
-            return 'raring'
+    def release( self ):
+        return 'raring'
 
-if False:
-    class GenericUbuntuSaucyBox( UpstartUbuntuBox ):
-        """
-        13.10
-        """
+@deprecated
+class GenericUbuntuSaucyBox( UpstartUbuntuBox ):
+    """
+    13.10
+    """
 
-        def release( self ):
-            return 'saucy'
+    def release( self ):
+        return 'saucy'
 
 
 class GenericUbuntuTrustyBox( UpstartUbuntuBox ):
@@ -228,6 +230,7 @@ class GenericUbuntuUtopicBox( UpstartUbuntuBox ):
     def release( self ):
         return 'utopic'
 
+
 class GenericUbuntuVividBox( SystemdUbuntuBox ):
     """
     15.04
@@ -236,6 +239,8 @@ class GenericUbuntuVividBox( SystemdUbuntuBox ):
     def release( self ):
         return 'vivid'
 
+
+@deprecated
 class GenericFedora17Box( FedoraBox ):
     """
     This one doesn't work since the AMI was deleted by the Fedora guys
@@ -245,6 +250,7 @@ class GenericFedora17Box( FedoraBox ):
         return 17
 
 
+@deprecated
 class GenericFedora18Box( FedoraBox ):
     """
     This one doesn't work since the AMI was deleted by the Fedora guys
@@ -254,6 +260,7 @@ class GenericFedora18Box( FedoraBox ):
         return 18
 
 
+@deprecated
 class GenericFedora19Box( FedoraBox ):
     def release( self ):
         return 19
@@ -268,6 +275,7 @@ class GenericFedora19Box( FedoraBox ):
         return [ 'paravirtual' ]
 
 
+@deprecated
 class GenericFedora20Box( FedoraBox ):
     def release( self ):
         return 20
@@ -281,10 +289,19 @@ class GenericFedora20Box( FedoraBox ):
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
+    # FIXME: Consider pulling this up
+
+    def _populate_cloud_config( self, instance_type, user_data ):
+        super( GenericFedora20Box, self )._populate_cloud_config( instance_type, user_data )
+        user_data[ 'bootcmd' ][ 0:0 ] = [
+            self._get_package_installation_command( 'yum-plugin-fastestmirror' ),
+            [ 'yum', 'clean', 'all' ] ]
+
 
 class GenericFedora21Box( FedoraBox ):
     def release( self ):
         return 21
+
 
 class GenericFedora22Box( FedoraBox ):
     def release( self ):
