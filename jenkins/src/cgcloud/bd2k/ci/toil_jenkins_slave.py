@@ -52,10 +52,6 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
     def __disable_mesos_daemons( self ):
         for daemon in ('master', 'slave'):
             sudo( 'echo manual > /etc/init/mesos-%s.override' % daemon )
-    @fabric_task
-    def __install_parasol( self ):
-        run("git clone http://github.com/adderan/parasol-binaries")
-        sudo("cp ./parasol-binaries/* /usr/local/bin")
 
     @fabric_task
     def __install_mesos_egg( self ):
@@ -65,6 +61,11 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         # we need a newer version of protobuf than comes default on ubuntu
         sudo( "pip install --upgrade protobuf" )
         sudo( "easy_install mesos-0.22.0-py2.7-linux-x86_64.egg" )
+
+    @fabric_task
+    def __install_parasol( self ):
+        run( "git clone git@github.com:BD2KGenomics/parasol-binaries.git" )
+        sudo( "cp parasol-binaries/* /usr/local/bin" )
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
