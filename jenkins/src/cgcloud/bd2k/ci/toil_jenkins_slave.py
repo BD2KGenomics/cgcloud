@@ -42,6 +42,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
 
     def _post_install_packages( self ):
         super( ToilJenkinsSlave, self )._post_install_packages( )
+        self.setup_repo_host_keys()
         self.__disable_mesos_daemons( )
         self.__install_mesos_egg( )
         self.__install_parasol( )
