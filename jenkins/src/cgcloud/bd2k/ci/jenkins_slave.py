@@ -6,8 +6,7 @@ from cgcloud.core.box import fabric_task
 from cgcloud.core.source_control_client import SourceControlClient
 from cgcloud.bd2k.ci.jenkins_master import Jenkins, JenkinsMaster
 
-BUILD_USER = Jenkins.user
-BUILD_DIR = '/home/jenkins/builds'
+build_dir = '/home/jenkins/builds'
 
 
 class JenkinsSlave( SourceControlClient ):
@@ -30,8 +29,6 @@ class JenkinsSlave( SourceControlClient ):
                              "creating slaves." % ec2_keypair_name )
         return self.ctx.download_ssh_pubkey( ec2_keypair )
 
-
-
     @fabric_task
     def _setup_build_user( self ):
         """
@@ -39,23 +36,23 @@ class JenkinsSlave( SourceControlClient ):
         Jenkins slave.
         """
         kwargs = dict(
-            user=BUILD_USER,
-            dir=BUILD_DIR,
+            user=Jenkins.user,
+            dir=build_dir,
             ephemeral=self._ephemeral_mount_point( 0 ),
             pubkey=self.__get_master_pubkey( ).strip( ) )
 
         # Create the build user
         #
-        sudo( 'useradd -m -s /bin/bash {0}'.format( BUILD_USER ) )
-        self._propagate_authorized_keys( BUILD_USER )
+        sudo( 'useradd -m -s /bin/bash {0}'.format( Jenkins.user ) )
+        self._propagate_authorized_keys( Jenkins.user )
 
         # Ensure that jenkins@build-master can log into this box as the build user
         #
         sudo( "echo '{pubkey}' >> ~/.ssh/authorized_keys".format( **kwargs ),
-              user=BUILD_USER,
+              user=Jenkins.user,
               sudo_args='-i' )
 
-        self.setup_repo_host_keys( user=BUILD_USER )
+        self.setup_repo_host_keys( user=Jenkins.user )
 
         # Setup working directory for all builds in either the build user's home or as a symlink to
         # the ephemeral volume if available. Remember, the ephemeral volume comes back empty every
@@ -63,14 +60,15 @@ class JenkinsSlave( SourceControlClient ):
         #
         if sudo( 'test -d {ephemeral}'.format( **kwargs ), quiet=True ).failed:
             sudo( 'mkdir {ephemeral}'.format( **kwargs ) )
-        chown_cmd = "mount {ephemeral} || true ; chown -R {user}:{user} {ephemeral}".format( **kwargs )
+        chown_cmd = "mount {ephemeral} || true ; chown -R {user}:{user} {ephemeral}".format(
+            **kwargs )
         # chown ephemeral storage now ...
         sudo( chown_cmd )
         # ... and every time instance boots. Note that command must work when set -e is in effect.
         self._register_init_command( chown_cmd )
         # link build directory as symlink to ephemeral volume
         sudo( 'ln -snf {ephemeral} {dir}'.format( **kwargs ),
-              user=BUILD_USER,
+              user=Jenkins.user,
               sudo_args='-i' )
 
     def __jenkins_labels( self ):
@@ -104,25 +102,25 @@ class JenkinsSlave( SourceControlClient ):
                   # Using E.foo('') instead of just E.foo() yields <foo></foo> instead of <foo/>,
                   # consistent with how Jenkins serializes its config:
                   E.securityGroups( '' ),
-                  E.remoteFS( BUILD_DIR ),
+                  E.remoteFS( build_dir ),
                   E.sshPort( '22' ),
                   E.type( snake_to_camel( instance_type, separator='.' ) ),
                   E.labels( ' '.join( self.__jenkins_labels( ) ) ),
                   E.mode( 'EXCLUSIVE' ),
-                  E.initScript( 'while ! touch %s/.writable; do sleep 1; done' % BUILD_DIR ),
+                  E.initScript( 'while ! touch %s/.writable; do sleep 1; done' % build_dir ),
                   E.userData( creation_kwargs.get( 'user_data', '' ) ),
                   E.numExecutors( '1' ),
-                  E.remoteAdmin( BUILD_USER ),
+                  E.remoteAdmin( Jenkins.user ),
                   E.rootCommandPrefix( '' ),
                   E.jvmopts( '' ),
                   E.subnetId( '' ),
                   E.idleTerminationMinutes( '30' ),
-                  E.iamInstanceProfile( self._get_instance_profile_arn() ),
+                  E.iamInstanceProfile( self._get_instance_profile_arn( ) ),
                   E.instanceCap( '1' ),
                   E.stopOnTerminate( 'false' ),
                   E.tags(
                       E( 'hudson.plugins.ec2.EC2Tag',
                          E.name( 'Name' ),
                          E.value( self.ctx.to_aws_name( self.role( ) ) )
-                      ) ),
+                         ) ),
                   E.usePrivateDnsName( 'false' ) )
