@@ -168,9 +168,8 @@ class Box( object ):
         self.instance_id = None
 
         # Set by adopt() and create(), the number of previous generations of this box. When an
-        # instances is booted from a stock AMI, generation is zero. After that instance is set up
-        # and imaged and another instance is booted from the resulting AMI, generation will be
-        # one.
+        # instance is booted from a stock AMI, generation is 0. After that instance is set up and
+        # imaged and another instance is booted from the resulting AMI, generation will be 1.
         self.generation = None
 
         # Set by adopt() and create(), the ordinal of this box within a cluster of boxes. For
@@ -487,7 +486,7 @@ class Box( object ):
     def _on_instance_ready( self, first_boot ):
         """
         Invoked while creating, adopting or starting an instance, right after the instance was
-        found to ready.
+        found to be ready.
 
         :param first_boot: True if the instance was booted for the first time, i.e. if this is
         the first time the instance becomes ready since its creation, False if the instance was
