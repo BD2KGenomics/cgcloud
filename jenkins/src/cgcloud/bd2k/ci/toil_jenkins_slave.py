@@ -31,7 +31,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
 
     def _list_packages_to_install( self ):
         return super( ToilJenkinsSlave, self )._list_packages_to_install( ) + [
-            'mesos', 'python-dev' ] + [
+            'mesos', 'python-dev', 'build-essential' ] + [
                    'gridengine-' + p for p in ('common', 'master', 'client', 'exec') ]
 
     def _get_debconf_selections( self ):
