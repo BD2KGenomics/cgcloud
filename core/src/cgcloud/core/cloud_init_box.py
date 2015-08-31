@@ -142,7 +142,7 @@ class CloudInitBox( Box ):
     def _on_instance_ready( self, first_boot ):
         super( CloudInitBox, self )._on_instance_ready( first_boot )
         self.__wait_for_cloud_init_completion( )
-        if first_boot:
+        if first_boot and self.generation == 0:
             self.__add_per_boot_script( )
 
     @fabric_task
