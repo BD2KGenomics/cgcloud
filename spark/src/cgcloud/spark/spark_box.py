@@ -173,7 +173,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
         run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
         spark_tools_artifacts = ' '.join( self._project_artifacts( 'spark-tools' ) )
         with settings( forward_agent=True ):
-            run( fmt( '{tools_dir}/bin/pip install {spark_tools_artifacts}' ) )
+            run( fmt( '{tools_dir}/bin/pip install {spark_tools_artifacts}' ), pty=False )
         sudo( fmt( 'chown -R root:root {tools_dir}' ) )
         spark_tools = "SparkTools(**%r)" % dict( user=user,
                                                  install_dir=install_dir,

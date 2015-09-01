@@ -87,8 +87,8 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
         def fmt( s ):
             return s.format( **kwargs )
 
-        sudo( 'pip install --upgrade pip==1.5.2' )  # lucid & centos5 have an ancient pip
-        sudo( 'pip install --upgrade virtualenv' )
+        sudo( 'pip install --upgrade pip==1.5.2', pty=False )  # lucid & centos5 have an ancient pip
+        sudo( 'pip install --upgrade virtualenv', pty=False )
         sudo( fmt( 'mkdir -p {install_dir}' ) )
         sudo( fmt( 'chown {admin_account}:{admin_account} {install_dir}' ) )
         # By default, virtualenv installs the latest version of pip. We want a specific
@@ -100,7 +100,7 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
         with settings( forward_agent=True ):
             run( fmt( '{install_dir}/bin/pip install '
                       '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
-                      '{agent_artifacts}' ) )
+                      '{agent_artifacts}' ), pty=False )
         sudo( fmt( 'mkdir {run_dir}' ) )
         script = self.__gunzip_base64_decode( run( fmt(
             '{install_dir}/bin/cgcloudagent'

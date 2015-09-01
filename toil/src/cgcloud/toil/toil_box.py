@@ -73,11 +73,11 @@ class ToilBox(MesosBox):
     @fabric_task
     def _upgrade_pip(self):
         # old version of pip doesn't seem to recognize toil's 'extra' syntax
-        sudo("pip install --upgrade pip")
+        sudo("pip install --upgrade pip", pty=False)
 
     @fabric_task
     def __install_toil(self):
-        sudo("pip install toil[aws,mesos]")
+        sudo("pip install toil[aws,mesos]", pty=False)
 
 class ToilLeader(ToilBox, MesosMaster):
     def __init__( self, ctx):

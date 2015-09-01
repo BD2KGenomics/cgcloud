@@ -185,7 +185,7 @@ class MesosBox(GenericUbuntuTrustyBox):
 
         mesos_tools_artifacts = ' '.join( self._project_artifacts( 'mesos-tools' ) )
         with settings( forward_agent=True ):
-            sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ) )
+            sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ), pty=False )
 
         mesos_tools = "MesosTools(**%r)" % dict( user=user,
                                                  ephemeral_dir=ephemeral_dir,
@@ -223,7 +223,7 @@ class MesosBox(GenericUbuntuTrustyBox):
         run("wget http://downloads.mesosphere.io/master/ubuntu/14.04/mesos-0.22.0-py2.7-linux-x86_64.egg")
 
         # we need a newer version of protobuf than comes default on ubuntu
-        sudo("pip install --upgrade protobuf")
+        sudo("pip install --upgrade protobuf", pty=False)
         sudo("easy_install mesos-0.22.0-py2.7-linux-x86_64.egg")
 
     def _register_upstart_jobs( self, service_map ):
