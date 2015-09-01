@@ -1,6 +1,8 @@
 from StringIO import StringIO
 import time
 
+from bd2k.util.strings import interpolate
+
 from fabric.operations import run, put
 
 from cgcloud.bd2k.ci import UbuntuTrustyGenericJenkinsSlave, Jenkins
@@ -42,12 +44,12 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
 
     def _post_install_packages( self ):
         super( ToilJenkinsSlave, self )._post_install_packages( )
-        self.setup_repo_host_keys()
+        self.setup_repo_host_keys( )
         self.__disable_mesos_daemons( )
         self.__install_mesos_egg( )
         self.__install_parasol( )
         self.__patch_distutils( )
-        self.__configurel_gridengine( )
+        self.__configure_gridengine( )
 
     @fabric_task
     def __disable_mesos_daemons( self ):
@@ -115,7 +117,11 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         run( 'rm distutils.patch' )
 
     @fabric_task
-    def __configurel_gridengine( self ):
+    def __configure_gridengine( self ):
+        """
+        Configure the GridEngine daemons (master and exec) and creata a default queue. Ensure
+        that the queue is updated to reflect the number of cores actually available.
+        """
         def qconf( arg, **kwargs ):
             # qconf can't read from stdin for some reason, neither -, /dev/stdin or /dev/fd/0 works
             tmp = 'qconf.tmp'
@@ -127,22 +133,28 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         # Add the user defined in fname to the Sun Grid Engine cluster.
         qconf( '-Auser', name=Jenkins.user, oticket='0', fshare='0', delete_time='0',
                default_project='NONE' )
+
         # Adds users to Sun Grid Engine user access lists (ACLs).
         sudo( 'qconf -au %s arusers' % Jenkins.user )
+
         # Add hosts hostname to the list of hosts allowed to submit Sun Grid Engine jobs and
         # control their behavior only.
         sudo( 'qconf -as localhost' )
+
         # Remove all currently defined execution hosts
         run( 'for i in `qconf -sel`; do sudo qconf -de $i ; done' )
+
         # Add an execution host
         qconf( '-Ae', hostname='localhost', load_scaling='NONE', complex_values='NONE',
                user_lists='arusers', xuser_lists='NONE', projects='NONE', xprojects='NONE',
                usage_scaling='NONE', report_variables='NONE' );
+
         # Add a parallel environment
         qconf( '-Ap', pe_name='smp', slots='999', user_lists='NONE', xuser_lists='NONE',
                start_proc_args='/bin/true', stop_proc_args='/bin/true', allocation_rule='$pe_slots',
                control_slaves='FALSE', job_is_first_task='TRUE', urgency_slots='min',
                accounting_summary='FALSE' )
+
         # Add a q, the slots and processors will be adjusted dynamically, by an init script
         qconf( '-Aq', qname='all.q', processors='1', slots='1', hostlist='localhost', seq_no='0',
                load_thresholds='np_load_avg=1.75', suspend_thresholds='NONE', nsuspend='1',
@@ -159,8 +171,20 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                h_core='INFINITY', s_rss='INFINITY', h_rss='INFINITY', s_vmem='INFINITY',
                h_vmem='INFINITY' )
 
-        self._register_init_script( 'gridengine-conf', heredoc( """
-            description "GridEngine auto-configuration"
+        # Register an init-script that ensures GridEngine uses localhost instead of hostname
+        path = '/var/lib/gridengine/default/common/'
+        self._register_init_script( 'gridengine-pre', heredoc( """
+            description "GridEngine pre-start configuration"
+            console log
+            start on filesystem
+            pre-start script
+                echo localhost > {path}/act_qmaster ; chown sgeadmin:sgeadmin {path}/act_qmaster
+                echo localhost `hostname -f` > {path}/host_aliases
+            end script""" ) )
+
+        # Register an init-script that adjust the queue config to reflect the number of cores
+        self._register_init_script( 'gridengine-post', heredoc( """
+            description "GridEngine post-start configuration"
             console log
             # I would rather depend on the gridengine daemons but don't know how as they are
             # started by SysV init scripts. Supposedly the 'rc' job is run last.
@@ -171,15 +195,15 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                 qconf -mattr queue slots $cores `qselect`
             end script""" ) )
 
+        # Run pre-start script
         for daemon in ('exec', 'master'):
             sudo( '/etc/init.d/gridengine-%s stop' % daemon )
         sudo( "killall -9 -r 'sge_.*'" )  # the exec daemon likes to hang
-        act_qmaster = '/var/lib/gridengine/default/common/act_qmaster'
-        sudo( 'echo localhost > ' + act_qmaster )
-        sudo( 'chown sgeadmin:sgeadmin ' + act_qmaster )
-        sudo( 'echo localhost `hostname -f` > /var/lib/gridengine/default/common/host_aliases' )
+        self._run_init_script( 'gridengine-pre' )
         for daemon in ('master', 'exec'):
             sudo( '/etc/init.d/gridengine-%s start' % daemon )
-        self._run_init_script( 'gridengine-conf' )
+
+        # Run post-start script
+        self._run_init_script( 'gridengine-post' )
         while 'execd is in unknown state' in run( 'qstat -f -q all.q -explain a', warn_only=True ):
             time.sleep( 1 )
