@@ -1,4 +1,5 @@
 from lxml.builder import E
+from cgcloud.core.agent_box import AgentBox
 
 from cgcloud.lib.util import snake_to_camel, UserError
 from cgcloud.fabric.operations import sudo
@@ -9,11 +10,14 @@ from cgcloud.bd2k.ci.jenkins_master import Jenkins, JenkinsMaster
 build_dir = '/home/jenkins/builds'
 
 
-class JenkinsSlave( SourceControlClient ):
+class JenkinsSlave( SourceControlClient, AgentBox ):
     """
     A box that represents EC2 instances which can serve as a Jenkins build agent. This class is
     typically used as a mix-in.
     """
+
+    def other_accounts( self ):
+        return super( JenkinsSlave, self ).other_accounts( ) + [ Jenkins.user ]
 
     def _post_install_packages( self ):
         super( JenkinsSlave, self )._post_install_packages( )
