@@ -32,7 +32,6 @@ class ToilBox(MesosBox):
 
     def _post_install_packages( self ):
         super( ToilBox, self )._post_install_packages( )
-        self._install_boto( )
         self._upgrade_pip( )
         self.__install_toil( )
         self._docker_group(user=user)
@@ -64,11 +63,6 @@ class ToilBox(MesosBox):
     def _docker_group(self, user=user):
         sudo("gpasswd -a {} docker".format(user))
         sudo("service docker.io restart")
-
-    @fabric_task
-    def _install_boto(self):
-        # FIXME: boto will be automatically installed upon the completion of https://github.com/BD2KGenomics/toil/issues/207
-        sudo("pip install boto") # downloading from git requires git tools.
 
     @fabric_task
     def _upgrade_pip(self):
