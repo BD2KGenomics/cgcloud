@@ -1,6 +1,8 @@
 from abc import abstractmethod
 from StringIO import StringIO
 
+from fabric.context_managers import hide
+
 from fabric.operations import run, put
 import yaml
 
@@ -141,9 +143,13 @@ class CloudInitBox( Box ):
 
     def _on_instance_ready( self, first_boot ):
         super( CloudInitBox, self )._on_instance_ready( first_boot )
-        self.__wait_for_cloud_init_completion( )
-        if first_boot and self.generation == 0:
-            self.__add_per_boot_script( )
+        if first_boot:
+            self.__wait_for_cloud_init_completion( )
+            if self.generation == 0:
+                self.__add_per_boot_script( )
+
+    def _cloudinit_boot_script( self, name ):
+        return '/var/lib/cloud/scripts/per-boot/cgcloud-' + name
 
     @fabric_task
     def __add_per_boot_script( self ):
@@ -153,7 +159,7 @@ class CloudInitBox( Box ):
         stanza in cloud-config. On subsequent boots this per-boot script takes over (runcmd is
         skipped on those boots).
         """
-        put( remote_path='/var/lib/cloud/scripts/per-boot/cgcloud', mode=0755, use_sudo=True,
+        put( remote_path=self._cloudinit_boot_script( 'done' ), mode=0755, use_sudo=True,
              local_path=StringIO( heredoc( """
                     #!/bin/sh
                     touch /tmp/cloud-init.done""" ) ) )
@@ -172,9 +178,11 @@ class CloudInitBox( Box ):
         # For example, it isn't being written by the cloud-init for Lucid. We must use our own file
         # created by a runcmd, see _populate_cloud_config()
         #
-        run( 'echo -n "Waiting for cloud-init to finish ..." ; '
-             'while [ ! -e /tmp/cloud-init.done ]; do '
-             'echo -n "."; '
-             'sleep 1; '
-             'done; '
-             'echo ", done."' )
+        with hide( 'running' ):
+            run( ';'.join( [
+                'echo -n "Waiting for cloud-init to finish ..."',
+                'while [ ! -e /tmp/cloud-init.done ]',
+                'do echo -n "."',
+                'sleep 1 ',
+                'done ',
+                'echo ", done."' ] ), )
