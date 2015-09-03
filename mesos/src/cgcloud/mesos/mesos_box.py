@@ -275,7 +275,10 @@ class MesosMaster(MesosBox):
     def prepare( self, *args, **kwargs ):
         # Stash away arguments to prepare() so we can use them when cloning the slaves
         self.preparation_args = args
-        self.preparation_kwargs = kwargs
+        self.preparation_kwargs = dict(kwargs)
+        # the price kwarg determines if the spot market will be used - with master_on_demand we only want spot workers
+        if kwargs["master_on_demand"]:
+            kwargs["price"]=None
         return super( MesosBox, self ).prepare( *args, **kwargs )
 
     def _post_install_packages( self ):
@@ -294,6 +297,7 @@ class MesosMaster(MesosBox):
         args = master.preparation_args
         kwargs = master.preparation_kwargs.copy( )
         kwargs[ 'instance_type' ] = slave_instance_type
+        print kwargs
         first_slave.prepare( *args, **kwargs )
         other_slaves = first_slave.create( wait_ready=False,
                                            cluster_ordinal=master.cluster_ordinal + 1)

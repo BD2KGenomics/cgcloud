@@ -421,16 +421,20 @@ class Box( object ):
 
         :return: the list of clones of this box, if any
         """
+
         # FIXME: we should be waiting for all instances in parallel, via threads
+        result = []
+        cluster_ordinal = itertools.count( start=cluster_ordinal )
         if 'price' in self.instance_creation_args:
-            reservation = self._spot_create( )
+            reservationList = self._spot_create( )
+            # each spot market reservation contains only 1 instance each
+            instanceList = [reservation.instances.pop() for reservation in reservationList]
+            instances = iter(sorted(instanceList, key=attrgetter('id')))
         else:
             reservation = self._create( )
+            instances = iter( sorted( reservation.instances, key=attrgetter( 'id' ) ) )
 
-        instances = iter( sorted( reservation.instances, key=attrgetter( 'id' ) ) )
-        cluster_ordinal = itertools.count( start=cluster_ordinal )
         self._bind( next( instances ), next( cluster_ordinal ), wait_ready )
-        result = [ ]
         try:
             while True:
                 box = copy( self )
@@ -438,24 +442,33 @@ class Box( object ):
                 result.append( box )
         except StopIteration:
             pass
+
         return result
 
     def _spot_create(self):
-        # Many of the spot_instance methods return lists. The launch_group kwarg insures one request is
-        # returned request_spot_instances, so there is only one object in that and each subsequent list.
-        request = self.ctx.ec2.request_spot_instances(image_id=self.image_id, **self.instance_creation_args)[0]
+        """
+        A request for multiple instances actually creates many requests for 1 instance each, which then become
+        reservations with 1 instance each.
+        :return: list of boto.ec2.instance.Reservation objects
+        """
+        requests = self.ctx.ec2.request_spot_instances(image_id=self.image_id, **self.instance_creation_args)
+        instances = []
         try:
-            while True:
-                request = self.ctx.ec2.get_all_spot_instance_requests(request_ids=[request.id])[0]
-                if request.status.code == 'fulfilled':
-                    reservation = self.ctx.ec2.get_all_instances(request.instance_id)[0]
-                    break
-                # FIXME: REMOVE HARDCODING
-                log.info("Spot request in status %s. Waiting for 60sec" % (request.status.code, ))
-                time.sleep(60)
+            for request in requests:
+                while True:
+                    # get_all_spot_instances_requests returns a list, even if you request only 1 id like in this case
+                    updatedRequest = self.ctx.ec2.get_all_spot_instance_requests(request_ids=[request.id])[0]
+                    if updatedRequest.status.code == 'fulfilled':
+                        # get_all_instances always returns a list, though we know there is only 1 instance
+                        instances.append(self.ctx.ec2.get_all_instances(updatedRequest.instance_id)[0])
+                        break
+                    # FIXME: REMOVE HARDCODING
+                    log.info("Spot request in status %s. Waiting for 60sec" % (updatedRequest.status.code, ))
+                    time.sleep(60)
         finally: # We want to cancel the request if we give up. If the request is fulfilled it doesn't hurt to cancel it either
-            self.ctx.ec2.cancel_spot_instance_requests(request_ids=[request.id])
-        return reservation
+            # FIXME: IF THE REQUEST HAS BEEN FULFILLED WE ALSO WANT TO TERMINATE INSTANCES ON ERROR
+            self.ctx.ec2.cancel_spot_instance_requests(request_ids=[updatedRequest.id for updatedRequest in [request for request in requests]])
+        return instances
 
     def _create( self ):
         """
