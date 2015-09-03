@@ -1,11 +1,11 @@
 import logging
-
-from cgcloud.toil.toil_box import ToilLeader
+from cgcloud.toil.toil_box import ToilBox, ToilLeader
+from cgcloud.core import ClusterCommand
 from cgcloud.mesos.mesos_cluster import CreateMesosCluster
 
 log = logging.getLogger( __name__ )
 shared_dir="/home/mesosbox/shared/"
-class CreateToilCluster(CreateMesosCluster):
+class CreateToilCluster(ClusterCommand):
     def __init__( self, application ):
         super( CreateToilCluster, self ).__init__( application )
         self.option( '--shared-dir', default=None,
