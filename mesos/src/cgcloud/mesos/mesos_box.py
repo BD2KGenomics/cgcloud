@@ -1,14 +1,13 @@
 import logging
-from StringIO import StringIO
-from fabric.operations import run, put, os
-from textwrap import dedent
-from subprocess import check_output
 from collections import namedtuple
-from cgcloud.core import fabric_task
-from pkg_resources import parse_version
+
+from fabric.operations import run
 from bd2k.util.strings import interpolate as fmt
-from cgcloud.fabric.operations import sudo, remote_open
+
 from fabric.context_managers import settings
+
+from cgcloud.core.box import fabric_task
+from cgcloud.fabric.operations import sudo
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.lib.util import abreviated_snake_case_class_name

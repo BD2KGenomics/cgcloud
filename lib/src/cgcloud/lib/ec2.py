@@ -2,9 +2,9 @@ from contextlib import contextmanager
 import logging
 from operator import attrgetter
 import time
+import errno
 
 from boto.exception import EC2ResponseError
-import errno
 
 from cgcloud.lib.util import UserError
 

@@ -1,6 +1,6 @@
 from lxml.builder import E
-from cgcloud.core.agent_box import AgentBox
 
+from cgcloud.core.agent_box import AgentBox
 from cgcloud.lib.util import snake_to_camel, UserError
 from cgcloud.fabric.operations import sudo
 from cgcloud.core.box import fabric_task

@@ -8,8 +8,7 @@ import itertools
 from cgcloud.core.test import CgcloudTestCase
 from cgcloud.core.ui import main
 from cgcloud.lib.util import heredoc
-from cgcloud.spark.spark_box import install_dir
-from cgcloud.spark import SparkBox, SparkMaster, SparkSlave
+from cgcloud.spark.spark_box import install_dir, SparkBox, SparkMaster, SparkSlave
 
 log = logging.getLogger( __name__ )
 

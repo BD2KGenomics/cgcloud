@@ -1,12 +1,13 @@
 import logging
-from cgcloud.core import fabric_task
+from textwrap import dedent
+
+from bd2k.util.strings import interpolate as fmt
+
+from cgcloud.core.box import fabric_task
 from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave
 from cgcloud.fabric.operations import sudo
-from bd2k.util.strings import interpolate as fmt
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
-from fabric.context_managers import settings
-from textwrap import dedent
 
 log = logging.getLogger( __name__ )
 

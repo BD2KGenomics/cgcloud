@@ -1,8 +1,7 @@
 import logging
 
-from cgcloud.core import RecreateCommand
-from cgcloud.mesos import MesosBox
-from cgcloud.mesos.mesos_box import MesosMaster
+from cgcloud.core.commands import RecreateCommand
+from cgcloud.mesos.mesos_box import MesosBox, MesosMaster
 
 log = logging.getLogger( __name__ )
 

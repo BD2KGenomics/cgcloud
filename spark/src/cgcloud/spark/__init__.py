@@ -1,5 +1,8 @@
-from cgcloud.spark.spark_box import SparkBox, SparkSlave, SparkMaster
-from cgcloud.spark.spark_cluster import CreateSparkCluster
+def boxes( ):
+    from cgcloud.spark.spark_box import SparkBox, SparkSlave, SparkMaster
+    return [ SparkBox, SparkMaster, SparkSlave ]
 
-BOXES = [ SparkBox, SparkMaster, SparkSlave ]
-COMMANDS = [ CreateSparkCluster ]
+
+def commands( ):
+    from cgcloud.spark.spark_cluster import CreateSparkCluster
+    return [ CreateSparkCluster ]

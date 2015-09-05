@@ -2,7 +2,6 @@ from abc import abstractmethod
 from StringIO import StringIO
 
 from fabric.context_managers import hide
-
 from fabric.operations import run, put
 import yaml
 

@@ -3,9 +3,7 @@ import logging
 from textwrap import dedent
 
 from lxml import etree
-
 from fabric.context_managers import settings
-
 from fabric.operations import run, sudo, put, get
 
 from cgcloud.lib.ec2 import EC2VolumeHelper

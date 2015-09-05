@@ -9,13 +9,9 @@ import re
 import sys
 
 from bd2k.util.exceptions import panic
-
 from boto.ec2.connection import EC2Connection
-
 from boto.ec2.blockdevicemapping import BlockDeviceType
-
 from boto.ec2.group import Group
-
 from fabric.operations import prompt
 
 from cgcloud.lib.util import Application

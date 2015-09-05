@@ -1,12 +1,11 @@
 from StringIO import StringIO
 import time
 
-from bd2k.util.strings import interpolate
-
 from fabric.operations import run, put
 
-from cgcloud.bd2k.ci import UbuntuTrustyGenericJenkinsSlave, Jenkins
-from cgcloud.core import fabric_task
+from cgcloud.bd2k.ci.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
+from cgcloud.bd2k.ci.jenkins_master import Jenkins
+from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
 from cgcloud.fabric.operations import sudo
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc

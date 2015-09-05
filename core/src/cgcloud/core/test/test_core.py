@@ -5,7 +5,7 @@ from subprocess import check_call
 
 from bd2k.util.exceptions import panic
 
-from cgcloud.core import BOXES
+from cgcloud.core import boxes
 from cgcloud.core.test import CgcloudTestCase
 from cgcloud.core.ui import main
 
@@ -18,7 +18,7 @@ class CoreTests( CgcloudTestCase ):
     """
     _multiprocess_shared_ = True
 
-    boxes = BOXES
+    boxes = boxes()
 
     @classmethod
     def __box_test( cls, box ):

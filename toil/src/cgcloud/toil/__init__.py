@@ -1,5 +1,8 @@
-from cgcloud.toil.toil_box import ToilBox, ToilLeader, ToilWorker
-from cgcloud.toil.toil_cluster import CreateToilCluster
+def boxes( ):
+    from cgcloud.toil.toil_box import ToilBox, ToilLeader, ToilWorker
+    return [ ToilBox, ToilLeader, ToilWorker ]
 
-BOXES = [ ToilBox, ToilLeader, ToilWorker ]
-COMMANDS = [ CreateToilCluster ]
+
+def commands( ):
+    from cgcloud.toil.toil_cluster import CreateToilCluster
+    return [ CreateToilCluster ]

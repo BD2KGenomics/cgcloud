@@ -13,9 +13,7 @@ import itertools
 import errno
 
 import boto.ec2
-
 from bd2k.util import memoize
-
 from bd2k.util.files import mkdir_p
 
 from cgcloud.lib.util import volume_label_hash

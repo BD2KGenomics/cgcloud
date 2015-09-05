@@ -8,10 +8,9 @@ from fabric.context_managers import settings
 from lxml import etree
 from lxml.builder import ElementMaker
 from fabric.operations import run, put, os
-
 from bd2k.util.strings import interpolate as fmt
 
-from cgcloud.core import fabric_task
+from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.fabric.operations import sudo, remote_open

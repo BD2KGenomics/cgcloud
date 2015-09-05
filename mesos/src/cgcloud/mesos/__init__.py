@@ -1,5 +1,8 @@
-from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave
-from cgcloud.mesos.mesos_cluster import CreateMesosCluster
+def boxes( ):
+    from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave
+    return [ MesosBox, MesosMaster, MesosSlave ]
 
-BOXES = [ MesosBox, MesosMaster, MesosSlave ]
-COMMANDS = [ CreateMesosCluster ]
+
+def commands( ):
+    from cgcloud.mesos.mesos_cluster import CreateMesosCluster
+    return [ CreateMesosCluster ]

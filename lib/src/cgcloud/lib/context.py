@@ -18,11 +18,8 @@ from boto.ec2.connection import EC2Connection
 from boto.vpc import VPCConnection
 from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
-
 from bd2k.util import fnmatch
-
 from bd2k.util import memoize
-
 from boto.utils import get_instance_metadata
 
 from cgcloud.lib.message import Message

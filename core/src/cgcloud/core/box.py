@@ -27,10 +27,14 @@ from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
-from cgcloud.lib.util import UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint, \
-    private_to_public_key
+from cgcloud.lib.util import (UserError,
+                              unpack_singleton,
+                              camel_to_snake,
+                              ec2_keypair_fingerprint,
+                              private_to_public_key)
 
 log = logging.getLogger( __name__ )
+
 
 # noinspection PyPep8Naming
 class fabric_task( object ):
@@ -312,7 +316,7 @@ class Box( object ):
                     log.info( "... %s", e.message )
                 else:
                     log.info( "... found %s.", image.id )
-                    assert( image.virtualization_type in virtualization_types )
+                    assert (image.virtualization_type in virtualization_types)
                     return image
             raise RuntimeError( "Could not find suitable image for role %s", self.role( ) )
         else:

@@ -19,7 +19,7 @@ def main( args=None ):
         if package_name ]
     app = CGCloud( packages )
     for package in packages:
-        for command in package.COMMANDS:
+        for command in package.commands():
             app.add( command )
     app.run( args )
 
@@ -34,7 +34,7 @@ class CGCloud( Application ):
                      help='Write debug log to %s in current directory.' % self.debug_log_file_name )
         self.boxes = OrderedDict( )
         for package in packages:
-            for box_cls in package.BOXES:
+            for box_cls in package.boxes():
                 self.boxes[ box_cls.role( ) ] = box_cls
 
     def prepare( self, options ):

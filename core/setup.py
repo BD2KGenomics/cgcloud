@@ -1,7 +1,3 @@
-import os
-from subprocess import check_output
-
-from pkg_resources import parse_version
 from setuptools import setup, find_packages
 
 cgcloud_version = '1.0.dev9'

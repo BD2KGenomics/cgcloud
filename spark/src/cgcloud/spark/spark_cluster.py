@@ -1,8 +1,7 @@
 import logging
 
-from cgcloud.core import RecreateCommand
-from cgcloud.spark import SparkBox
-from cgcloud.spark.spark_box import SparkMaster
+from cgcloud.core.commands import RecreateCommand
+from cgcloud.spark.spark_box import SparkBox, SparkMaster
 
 log = logging.getLogger( __name__ )
 

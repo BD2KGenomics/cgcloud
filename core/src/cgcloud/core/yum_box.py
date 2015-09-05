@@ -4,7 +4,6 @@ from urlparse import urlparse
 from fabric.operations import sudo, run
 
 from cgcloud.core.init_box import SysvInitdBox
-
 from cgcloud.core.box import fabric_task
 from cgcloud.core.package_manager_box import PackageManagerBox
 
