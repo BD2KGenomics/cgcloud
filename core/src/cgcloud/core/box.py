@@ -388,7 +388,8 @@ class Box( object ):
             # this means we are using a spot bid. We need a couple additional kwargs
             self._check_bid(instance_type, options)
             kwargs['price']=options['price']
-            kwargs['launch_group']='cgcloud_spot_group' # FIXME: ADD IN NAMESPACE
+
+            kwargs['launch_group']=self.ctx.namespace.replace("/","")+"_launch_group"
             try: # There is no min/max count parameter for request_spot_instances, just count
                 kwargs['count']=kwargs['max_count']
                 del kwargs['max_count']
@@ -466,7 +467,7 @@ class Box( object ):
                     log.info("Spot request in status %s. Waiting for 60sec" % (updatedRequest.status.code, ))
                     time.sleep(60)
         finally: # We want to cancel the request if we give up. If the request is fulfilled it doesn't hurt to cancel it either
-            # FIXME: IF THE REQUEST HAS BEEN FULFILLED WE ALSO WANT TO TERMINATE INSTANCES ON ERROR
+            # FIXME: IF THE REQUEST HAS BEEN FULFILLED, DO WE ALSO WANT TO TERMINATE INSTANCES ON ERROR?
             self.ctx.ec2.cancel_spot_instance_requests(request_ids=[updatedRequest.id for updatedRequest in [request for request in requests]])
         return instances
 
