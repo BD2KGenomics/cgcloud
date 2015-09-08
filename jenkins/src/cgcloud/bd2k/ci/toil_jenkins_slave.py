@@ -7,7 +7,7 @@ from cgcloud.bd2k.ci.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSla
 from cgcloud.bd2k.ci.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
-from cgcloud.fabric.operations import sudo
+from cgcloud.fabric.operations import sudo, remote_sudo_popen
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 
@@ -81,39 +81,37 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         https://hg.python.org/cpython/rev/cf70f030a744/
         https://bitbucket.org/pypa/setuptools/issues/248/exit-code-is-zero-when-upload-fails
         """
-        # FIXME: use remote popen()
-        put( remote_path='distutils.patch', local_path=StringIO( heredoc( """
-            --- a/Lib/distutils/command/upload.py
-            +++ b/Lib/distutils/command/upload.py
-            @@ -10,7 +10,7 @@ import urlparse
-             import cStringIO as StringIO
-             from hashlib import md5
+        with remote_sudo_popen( 'patch -d /usr/lib/python2.7 -p2' ) as patch:
+            patch.write( heredoc( """
+                --- a/Lib/distutils/command/upload.py
+                +++ b/Lib/distutils/command/upload.py
+                @@ -10,7 +10,7 @@ import urlparse
+                 import cStringIO as StringIO
+                 from hashlib import md5
 
-            -from distutils.errors import DistutilsOptionError
-            +from distutils.errors import DistutilsError, DistutilsOptionError
-             from distutils.core import PyPIRCCommand
-             from distutils.spawn import spawn
-             from distutils import log
-            @@ -181,7 +181,7 @@ class upload(PyPIRCCommand):
-                             self.announce(msg, log.INFO)
-                     except socket.error, e:
-                         self.announce(str(e), log.ERROR)
-            -            return
-            +            raise
-                     except HTTPError, e:
-                         status = e.code
-                         reason = e.msg
-            @@ -190,5 +190,6 @@ class upload(PyPIRCCommand):
-                         self.announce('Server response (%s): %s' % (status, reason),
-                                       log.INFO)
-                     else:
-            -            self.announce('Upload failed (%s): %s' % (status, reason),
-            -                          log.ERROR)
-            +            msg = 'Upload failed (%s): %s' % (status, reason)
-            +            self.announce(msg, log.ERROR)
-            +            raise DistutilsError(msg)""" ) ) )
-        sudo( "sudo patch -d /usr/lib/python2.7 -p2 < distutils.patch" )
-        run( 'rm distutils.patch' )
+                -from distutils.errors import DistutilsOptionError
+                +from distutils.errors import DistutilsError, DistutilsOptionError
+                 from distutils.core import PyPIRCCommand
+                 from distutils.spawn import spawn
+                 from distutils import log
+                @@ -181,7 +181,7 @@ class upload(PyPIRCCommand):
+                                 self.announce(msg, log.INFO)
+                         except socket.error, e:
+                             self.announce(str(e), log.ERROR)
+                -            return
+                +            raise
+                         except HTTPError, e:
+                             status = e.code
+                             reason = e.msg
+                @@ -190,5 +190,6 @@ class upload(PyPIRCCommand):
+                             self.announce('Server response (%s): %s' % (status, reason),
+                                           log.INFO)
+                         else:
+                -            self.announce('Upload failed (%s): %s' % (status, reason),
+                -                          log.ERROR)
+                +            msg = 'Upload failed (%s): %s' % (status, reason)
+                +            self.announce(msg, log.ERROR)
+                +            raise DistutilsError(msg)""" ) )
 
     @fabric_task
     def __configure_gridengine( self ):
@@ -121,6 +119,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         Configure the GridEngine daemons (master and exec) and creata a default queue. Ensure
         that the queue is updated to reflect the number of cores actually available.
         """
+
         def qconf( arg, **kwargs ):
             # qconf can't read from stdin for some reason, neither -, /dev/stdin or /dev/fd/0 works
             tmp = 'qconf.tmp'
