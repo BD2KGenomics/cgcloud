@@ -144,15 +144,11 @@ class Box( object ):
     def _populate_ec2_keypair_globs( self, ec2_keypair_globs ):
         """
         Populate the given list with keypair globs defining the set of keypairs whose public
-        component will be deployed to this box. The base implementation simply returns the
-        argument.
+        component will be deployed to this box.
 
-        :param ec2_keypair_globs: the suggested list of globs, may be modified in place
-
-        :return: the actual list of globs to be used on this box, may be the argument, or a new
-        list
+        :param ec2_keypair_globs: the suggested list of globs, to be modified in place
         """
-        return ec2_keypair_globs
+        pass
 
     def __init__( self, ctx ):
         """
@@ -361,7 +357,7 @@ class Box( object ):
         self._set_instance_options( str_options )
         self.image_id = image.id
 
-        ec2_keypair_globs = self._populate_ec2_keypair_globs( ec2_keypair_globs )
+        self._populate_ec2_keypair_globs( ec2_keypair_globs )
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
         if not ec2_keypairs:
             raise UserError( "No key pairs matching '%s' found." % ' '.join( ec2_keypair_globs ) )

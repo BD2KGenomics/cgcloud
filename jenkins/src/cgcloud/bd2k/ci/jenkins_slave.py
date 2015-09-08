@@ -33,6 +33,10 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                              "creating slaves." % ec2_keypair_name )
         return self.ctx.download_ssh_pubkey( ec2_keypair )
 
+    def _populate_ec2_keypair_globs( self, ec2_keypair_globs ):
+        super( JenkinsSlave, self )._populate_ec2_keypair_globs( ec2_keypair_globs )
+        ec2_keypair_globs.append( JenkinsMaster.ec2_keypair_name( self.ctx ) )
+
     @fabric_task
     def _setup_build_user( self ):
         """
@@ -50,7 +54,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
         sudo( 'useradd -m -s /bin/bash {0}'.format( Jenkins.user ) )
         self._propagate_authorized_keys( Jenkins.user )
 
-        # Ensure that jenkins@build-master can log into this box as the build user
+        # Ensure that jenkins@jenkins-master can log into this box as the build user
         #
         sudo( "echo '{pubkey}' >> ~/.ssh/authorized_keys".format( **kwargs ),
               user=Jenkins.user,
