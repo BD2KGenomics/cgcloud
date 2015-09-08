@@ -20,7 +20,7 @@ setup(
         'cgcloud.agent': [ 'init-script.*' ] },
     entry_points={
         'console_scripts': [
-            'cgcloudagent = cgcloud.agent.ui:main' ], },
+            'cgcloudagent = cgcloud.agent.cli:main' ], },
     install_requires=filter( None, [
         'bd2k-python-lib>=1.6.dev1',
         'cgcloud-lib==' + cgcloud_version,
