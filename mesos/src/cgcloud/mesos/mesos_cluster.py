@@ -1,7 +1,6 @@
 import logging
 
-from cgcloud.core import ClusterCommand
-from cgcloud.mesos import MesosBox
+from cgcloud.core.commands import ClusterCommand
 from cgcloud.mesos.mesos_box import MesosMaster
 
 log = logging.getLogger( __name__ )

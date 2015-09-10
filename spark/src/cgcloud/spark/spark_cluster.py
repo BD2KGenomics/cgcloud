@@ -1,7 +1,6 @@
 import logging
 
-from cgcloud.core import ClusterCommand
-from cgcloud.spark import SparkBox
+from cgcloud.core.commands import ClusterCommand
 from cgcloud.spark.spark_box import SparkMaster
 
 log = logging.getLogger( __name__ )

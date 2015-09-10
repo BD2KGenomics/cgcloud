@@ -1,7 +1,6 @@
 import logging
-from cgcloud.toil.toil_box import ToilBox, ToilLeader
-from cgcloud.core import ClusterCommand
-from cgcloud.mesos.mesos_cluster import CreateMesosCluster
+from cgcloud.toil.toil_box import ToilLeader
+from cgcloud.core.commands import ClusterCommand
 
 log = logging.getLogger( __name__ )
 shared_dir="/home/mesosbox/shared/"
