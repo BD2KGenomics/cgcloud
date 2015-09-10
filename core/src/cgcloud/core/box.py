@@ -4,11 +4,13 @@ from contextlib import closing
 from copy import copy
 from functools import partial, wraps
 from operator import attrgetter
+from collections import namedtuple
 import socket
 import subprocess
 import time
 import itertools
 import datetime
+import numpy
 import os
 
 from bd2k.util.collections import OrderedSet
@@ -386,7 +388,8 @@ class Box( object ):
         if options['price'] != None:
             assert spot_support is True
             # this means we are using a spot bid. We need a couple additional kwargs
-            self._check_bid(instance_type, options)
+            self._optimize_bid(instance_type, options, kwargs)
+
             kwargs['price']=options['price']
 
             kwargs['launch_group']=self.ctx.namespace.replace("/","")+"_launch_group"
@@ -398,18 +401,62 @@ class Box( object ):
                 pass
         self.instance_creation_args = kwargs
 
-    def _check_bid(self, instance_type, options):
+    def _choose_zone(self, bid, spot_data):
+        # returns the zone to put your spot request based on:
+        #    1) zones with prices currently under the bid
+        #    2) zones with the most stable price
+
+        ZoneTuple = namedtuple("ZoneTuple", ["name","price_deviation"])
+        def _sort_zones(bid, spot_data, zones):
+            # returns two lists of tuples of form: [ (zone.name, std_deviation)...]
+            # one for zones over the bid price and one for zones under bid price. Each are sorted by
+            # increasing standard deviation values
+            markets_under_bid, markets_over_bid = [], []
+            for zone in zones:
+                zlist = filter(lambda spot_history: spot_history.availability_zone == zone.name, spot_data)
+                std_deviation = numpy.std([spot_history.price for spot_history in zlist])
+                # http://stackoverflow.com/a/12135169
+                (markets_over_bid, markets_under_bid)[spot_data[0].price < bid].append(ZoneTuple(zone.name,std_deviation))
+            # sort each list in place by increasing standard deviation
+            map(lambda list: list.sort(key=lambda zone_tuple:zone_tuple.price_deviation), [markets_over_bid, markets_under_bid])
+            return markets_under_bid, markets_over_bid
+
+        markets_under_bid, markets_over_bid = _sort_zones(bid, spot_data, self.ctx.ec2.get_all_zones())
+        most_stable_market = markets_under_bid[0].name if markets_under_bid else markets_over_bid[0].name
+        return most_stable_market
+
+    def _optimize_bid(self, instance_type, options, kwargs):
+        # insures that the bid is an appropriate price and makes an effort to place it in a sensible zone
+        bid = float(options['price'])
+        spot_data = self._get_spot_history(instance_type)
+        self._check_bid(bid, spot_data)
+        most_stable_zone = self._choose_zone(bid,spot_data)
+        kwargs["placement"]= most_stable_zone
+        log.info("Requesting spot instances in zone %s", most_stable_zone)
+
+    def _check_bid(self, bid, spotData):
         # Don't allow crazy bids.
+        average = numpy.mean([datum.price for datum in spotData])
         try:
-            current_time = datetime.datetime.now().isoformat()
-            one_week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
-            listOfTuple = self.ctx.ec2.get_spot_price_history(start_time=one_week_ago, end_time=current_time, instance_type=instance_type)
-            average = sum([x.price for x in listOfTuple]) / len(listOfTuple)
-            assert (float(options['price']) < (average * 2))
+            assert (bid < (average * 2))
         except AssertionError as e:
-            log.critical("Your bid $ %f is more than double this instance type's average spot price ($ %f) over the last week"
-                         % (float(options['price']), average))
+            log.critical(
+                "Your bid $ %f is more than double this instance type's average spot price ($ %f) over the last week"
+                % (bid, average))
             raise e
+
+    def _get_spot_history(self, instance_type):
+        # returns list of 1,000 most recent spot market data points represented as SpotPriceHistory objects
+        # Note: The most recent object/data point will be first in the list.
+        current_time = datetime.datetime.now().isoformat()
+        one_week_ago = (datetime.datetime.now() - datetime.timedelta(days=7)).isoformat()
+        # get_spot_price_history returns SpotPriceHistory objects. ignore the methods outdated documentation
+        # We specify linux/unix systems since other OSs are more expensive and throw off the estimation
+        spotData = self.ctx.ec2.get_spot_price_history(start_time=one_week_ago, end_time=current_time,
+                                                       instance_type=instance_type, product_description="Linux/UNIX")
+        spotData.sort(key=lambda spotHistory: spotHistory.timestamp,
+                      reverse=True)
+        return spotData
 
     def create( self, wait_ready=True, cluster_ordinal=0 ):
         """
