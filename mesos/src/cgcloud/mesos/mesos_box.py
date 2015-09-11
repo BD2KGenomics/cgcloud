@@ -294,7 +294,6 @@ class MesosMaster(MesosBox):
         args = master.preparation_args
         kwargs = master.preparation_kwargs.copy( )
         kwargs[ 'instance_type' ] = slave_instance_type
-        print kwargs
         first_slave.prepare( *args, **kwargs )
         other_slaves = first_slave.create( wait_ready=False,
                                            cluster_ordinal=master.cluster_ordinal + 1)
