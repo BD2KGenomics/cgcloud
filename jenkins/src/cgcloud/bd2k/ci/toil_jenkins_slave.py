@@ -1,5 +1,6 @@
 from StringIO import StringIO
 import time
+import re
 
 from fabric.operations import run, put
 
@@ -122,13 +123,21 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         that the queue is updated to reflect the number of cores actually available.
         """
 
+        ws = re.compile( r'\s+' )
+        nl = re.compile( r'[\r\n]+' )
+
         def qconf( arg, **kwargs ):
-            # qconf can't read from stdin for some reason, neither -, /dev/stdin or /dev/fd/0 works
-            tmp = 'qconf.tmp'
-            put( remote_path=tmp,
-                 local_path=StringIO( '\n'.join( ' '.join( i ) for i in kwargs.iteritems( ) ) ) )
-            sudo( ' '.join( [ 'qconf', arg, tmp ] ) )
-            run( ' '.join( [ 'rm', tmp ] ) )
+            if kwargs:
+                # qconf can't read from stdin for some reason, neither -, /dev/stdin or /dev/fd/0 works
+                tmp = 'qconf.tmp'
+                put( remote_path=tmp,
+                     local_path=StringIO(
+                         '\n'.join( ' '.join( i ) for i in kwargs.iteritems( ) ) ) )
+                sudo( ' '.join( [ 'qconf', arg, tmp ] ) )
+                run( ' '.join( [ 'rm', tmp ] ) )
+            else:
+                return dict(tuple( ws.split( l ) )
+                                for l in nl.split( run( 'qconf ' + arg ) ) if l )
 
         # Add the user defined in fname to the Sun Grid Engine cluster.
         qconf( '-Auser', name=Jenkins.user, oticket='0', fshare='0', delete_time='0',
@@ -155,7 +164,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                control_slaves='FALSE', job_is_first_task='TRUE', urgency_slots='min',
                accounting_summary='FALSE' )
 
-        # Add a q, the slots and processors will be adjusted dynamically, by an init script
+        # Add a queue, the slots and processors will be adjusted dynamically, by an init script
         qconf( '-Aq', qname='all.q', processors='1', slots='1', hostlist='localhost', seq_no='0',
                load_thresholds='np_load_avg=1.75', suspend_thresholds='NONE', nsuspend='1',
                suspend_interval='00:05:00', priority='0', min_cpu_interval='00:05:00',
@@ -170,6 +179,12 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                h_data='INFINITY', s_stack='INFINITY', h_stack='INFINITY', s_core='INFINITY',
                h_core='INFINITY', s_rss='INFINITY', h_rss='INFINITY', s_vmem='INFINITY',
                h_vmem='INFINITY' )
+
+        # Enable on-demand scheduling. This will eliminate the long time that jobs spend waiting
+        # in the qw state. There is no -Asconf so we have to fake it using -ssconf and -Msconf.
+        sconf = qconf( '-ssconf' )
+        sconf.update( dict( flush_submit_sec='1', flush_finish_sec='1' ) )
+        qconf( '-Msconf', **sconf )
 
         # Register an init-script that ensures GridEngine uses localhost instead of hostname
         path = '/var/lib/gridengine/default/common/'
