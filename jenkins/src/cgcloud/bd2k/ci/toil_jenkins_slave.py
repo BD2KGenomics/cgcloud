@@ -136,8 +136,9 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                 sudo( ' '.join( [ 'qconf', arg, tmp ] ) )
                 run( ' '.join( [ 'rm', tmp ] ) )
             else:
-                return dict(tuple( ws.split( l ) )
-                                for l in nl.split( run( 'qconf ' + arg ) ) if l )
+                return dict(tuple( ws.split( l, 1 ) )
+                                for l in nl.split( run( 'SGE_SINGLE_LINE=1 qconf ' + arg ) )
+                                if l and not l.startswith('#'))
 
         # Add the user defined in fname to the Sun Grid Engine cluster.
         qconf( '-Auser', name=Jenkins.user, oticket='0', fshare='0', delete_time='0',
@@ -183,8 +184,20 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         # Enable on-demand scheduling. This will eliminate the long time that jobs spend waiting
         # in the qw state. There is no -Asconf so we have to fake it using -ssconf and -Msconf.
         sconf = qconf( '-ssconf' )
-        sconf.update( dict( flush_submit_sec='1', flush_finish_sec='1' ) )
+        sconf.update( dict( flush_submit_sec='1', flush_finish_sec='1',
+                            schedule_interval='0:0:1' ) )
         qconf( '-Msconf', **sconf )
+
+        # Enable immediate flushing of the accounting file. The SGE batch system in Toil uses the
+        # qacct program to determine the exit code of a finished job. The qacct program reads
+        # the accounting file. By default, this file is written to every 15 seconds which means
+        # that it may take up to 15 seconds before a finished job is seen by Toil. An
+        # accounting_flush_time value of 00:00:00 causes the accounting file to be flushed
+        # immediately, allowing qacct to report the status of finished jobs immediately.
+        conf = qconf( '-sconf' )
+        reporting_params = dict( tuple( e.split('=') ) for e in conf['reporting_params'].split(' ') )
+        reporting_params['accounting_flush_time'] = '00:00:00'
+        conf['reporting_params'] = ' '.join( '='.join(e) for e in reporting_params.iteritems() )
 
         # Register an init-script that ensures GridEngine uses localhost instead of hostname
         path = '/var/lib/gridengine/default/common/'
