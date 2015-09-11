@@ -49,6 +49,56 @@ def unpack_singleton( singleton ):
     except StopIteration:
         return result
 
+def mean(listOfNums):
+    """
+    from http://rosettacode.org/wiki/Standard_deviation#Python
+    :param listOfNums:
+    :return: Floating point representation of the average of listOfNums
+
+    >>> mean([2,4,4,4,5,5,7,9])
+    5.0
+    >>> mean([9,10,11,7,13])
+    10.0
+    >>> mean([1,1,10,19,19])
+    10.0
+    >>> mean([10,10,10,10,10])
+    10.0
+    >>> mean(["a","b"])
+    Traceback (most recent call last):
+      ...
+    TypeError: unsupported operand type(s) for /: 'str' and 'float'
+    >>> mean([])
+    Traceback (most recent call last):
+      ...
+    TypeError: reduce() of empty sequence with no initial value
+    """
+    return (lambda MyList : reduce(lambda x, y: x + y, MyList) / float(len(MyList)))(listOfNums)
+
+def std_dev(listOfNums):
+    """
+    from http://rosettacode.org/wiki/Standard_deviation#Python
+    An empty list, or list of non-numbers, will throw a TypeError
+    :param listOfNums:
+    :return: Floating point representation of the standard deviation of listOfNums
+
+    >>> std_dev([2,4,4,4,5,5,7,9])
+    2.0
+    >>> std_dev([9,10,11,7,13])
+    2.0
+    >>> std_dev([1,1,10,19,19])
+    8.049844718999243
+    >>> std_dev([10,10,10,10,10])
+    0.0
+    >>> std_dev(["a","b"])
+    Traceback (most recent call last):
+      ...
+    TypeError: unsupported operand type(s) for /: 'str' and 'float'
+    >>> std_dev([])
+    Traceback (most recent call last):
+      ...
+    TypeError: reduce() of empty sequence with no initial value
+    """
+    return (lambda MyList : (reduce(lambda x,y : x + y , map(lambda x: (x-mean(MyList))**2 , MyList)) / float(len(MyList)))**.5)(listOfNums)
 
 def camel_to_snake( s, separator='_' ):
     """
