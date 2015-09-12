@@ -10,10 +10,14 @@ import sys
 
 from bd2k.util.exceptions import panic
 from boto.ec2.connection import EC2Connection
+
 from boto.ec2.blockdevicemapping import BlockDeviceType
+
 from boto.ec2.group import Group
+
 from fabric.operations import prompt
 
+from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.util import Application
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, Command
@@ -101,8 +105,12 @@ class RoleCommand( ContextCommand ):
         super( RoleCommand, self ).__init__( application, **kwargs )
         self.option( 'role',
                      metavar='ROLE',
+                     completer=self.completer,
                      help="The name of the role. Use the list-roles command to show possible "
                           "roles." )
+
+    def completer( self, prefix, **kwargs ):
+        return [ role for role in self.application.boxes.iterkeys( ) if role.startswith( prefix ) ]
 
     def run_in_ctx( self, options, ctx ):
         role = options.role
@@ -339,6 +347,7 @@ class CreationCommand( RoleCommand ):
 
         self.option( '--instance-type', '-t', metavar='TYPE',
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
+                     choices=ec2_instance_types.keys( ),
                      help='The type of EC2 instance to launch for the box, e.g. t2.micro, m3.small, '
                           'm3.medium, or m3.large etc. The value of the environment variable '
                           'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
@@ -614,10 +623,10 @@ class CleanupCommand( ContextCommand ):
 
 class ResetSecurityCommand( ContextCommand ):
     def run_in_ctx( self, options, ctx ):
-        message = ( 'Do you really want to delete all IAM instance profiles, IAM roles and EC2 '
-                    'security groups in namespace %s and its children? Although these resources '
-                    'will be created on-the-fly for newly created boxes, existing boxes will '
-                    'likely be impacted negatively.' % ctx.namespace )
+        message = ('Do you really want to delete all IAM instance profiles, IAM roles and EC2 '
+                   'security groups in namespace %s and its children? Although these resources '
+                   'will be created on-the-fly for newly created boxes, existing boxes will '
+                   'likely be impacted negatively.' % ctx.namespace)
         if 'yes' == prompt( message + ' (yes/no)', default='no' ):
             ctx.reset_namespace_security( )
 

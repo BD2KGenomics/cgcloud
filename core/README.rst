@@ -57,6 +57,19 @@ the virtualenv or, if you didn't create a virtualenv for cgcloud, into a
 directory on your ``PATH``. You should be able to invoke it now::
 
    cgcloud --help
+   
+Auto-completion for Bash
+========================
+
+Install the awesome argcomplete_ module::
+
+   pip install argcomplete
+   
+Then add the following command to your ``~/.profile``::
+
+   eval "$(register-python-argcomplete cgcloud)" 
+
+.. _argcomplete: https://github.com/kislyuk/argcomplete
 
 Configuration
 =============

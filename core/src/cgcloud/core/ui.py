@@ -1,3 +1,5 @@
+# PYTHON_ARGCOMPLETE_OK
+
 from collections import OrderedDict
 from importlib import import_module
 import logging

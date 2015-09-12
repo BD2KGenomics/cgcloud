@@ -185,7 +185,17 @@ class Application( object ):
         self.commands = { }
 
     def option( self, *args, **kwargs ):
-        self.parser.add_argument( *args, **kwargs )
+        self._option( self.parser, args, kwargs )
+
+    @classmethod
+    def _option( cls, target, args, kwargs ):
+        try:
+            completer = kwargs.pop( 'completer' )
+        except KeyError:
+            completer = None
+        argument = target.add_argument( *args, **kwargs )
+        if completer is not None:
+            argument.completer = completer
 
     def add( self, command_cls ):
         """
@@ -199,6 +209,13 @@ class Application( object ):
         Parses the command line into an options object using arparse and invokes the requested
         command's run() method with that options object.
         """
+        # Pull in bash auto completion if available
+        try:
+            import argcomplete
+        except ImportError:
+            pass
+        else:
+            argcomplete.autocomplete( self.parser )
         options = self.parser.parse_args( args )
         self.prepare( options )
         command = self.commands[ options.command_name ]
@@ -258,7 +275,7 @@ class Command( object ):
 
     def option( self, *args, **kwargs ):
         target = self.parser if self.group is None else self.group
-        target.add_argument( *args, **kwargs )
+        self.application._option( target, args, kwargs )
 
     def name( self ):
         """
@@ -514,8 +531,9 @@ def volume_label_hash( s ):
     h = struct.pack( '!Q', h )
     assert len( h ) == 8
     h = base64.urlsafe_b64encode( h )
-    assert h[-1] == '='
-    return h[:-1]
+    assert h[ -1 ] == '='
+    return h[ :-1 ]
+
 
 def heredoc( s ):
     """
