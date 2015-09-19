@@ -4,8 +4,10 @@ from cgcloud.toil.toil_box import ToilLeader
 from cgcloud.mesos.mesos_cluster import CreateMesosCluster
 
 log = logging.getLogger( __name__ )
-shared_dir="/home/mesosbox/shared/"
-class CreateToilCluster(CreateMesosCluster):
+shared_dir = "/home/mesosbox/shared/"
+
+
+class CreateToilCluster( CreateMesosCluster ):
     def __init__( self, application ):
         super( CreateToilCluster, self ).__init__( application )
         self.option( '--shared-dir', default=None,
@@ -17,13 +19,12 @@ class CreateToilCluster(CreateMesosCluster):
         """
         dir = options.shared_dir
         if dir:
-            log.info("Rsyncing selected directory to master")
-            master.rsync(args=['-r',dir, ":"+shared_dir] ,user="mesosbox")
-            #check_call( ['rsync','-r','-e', 'ssh -o StrictHostKeyChecking=no', dir, "mesosbox@"+str(master.ip_address)+":"+shared_dir] )
+            log.info( "Rsyncing selected directory to master" )
+            master.rsync( args=[ '-r', dir, ":" + shared_dir ] )
         log.info( "=== Launching workers ===" )
         master.clone( num_slaves=options.num_slaves,
                       slave_instance_type=options.slave_instance_type,
-                      ebs_volume_size=options.ebs_volume_size)
+                      ebs_volume_size=options.ebs_volume_size )
 
     def run_in_ctx( self, options, ctx ):
         """
@@ -32,4 +33,4 @@ class CreateToilCluster(CreateMesosCluster):
         log.info( "=== Launching leader ===" )
         if options.instance_type is None:
             options.instance_type = options.slave_instance_type
-        return self.run_on_box( options, ToilLeader( ctx) )
+        return self.run_on_box( options, ToilLeader( ctx ) )

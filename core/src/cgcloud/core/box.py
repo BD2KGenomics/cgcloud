@@ -89,7 +89,15 @@ class Box( object ):
     @abstractmethod
     def admin_account( self ):
         """
-        Returns the username for making SSH connections to the instance.
+        Returns the name of a user that has sudo privileges. All administrative commands on the
+        box are invoked via SSH as this user.
+        """
+        raise NotImplementedError( )
+
+    @abstractmethod
+    def default_account( self ):
+        """
+        Returns the name of the user with which interactive SSH session are started on the box.
         """
         raise NotImplementedError( )
 
@@ -824,7 +832,7 @@ class Box( object ):
         subprocess.check_call( [ 'rsync', '-e', ' '.join( ssh_args ) ] + args )
 
     def _ssh_args( self, user, command ):
-        if user is None: user = self.admin_account( )
+        if user is None: user = self.default_account( )
         # Using host name instead of IP allows for more descriptive known_hosts entries and
         # enables using wildcards like *.compute.amazonaws.com Host entries in ~/.ssh/config.
         return [ 'ssh', '%s@%s' % (user, self.host_name), '-A' ] + command

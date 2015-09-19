@@ -88,6 +88,9 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
     def other_accounts( self ):
         return super( JenkinsMaster, self ).other_accounts( ) + [ Jenkins.user ]
 
+    def default_account( self ):
+        return Jenkins.user
+
     def prepare( self, *args, **kwargs ):
         self.volume = EC2VolumeHelper( ec2=self.ctx.ec2,
                                        name=self.ctx.to_aws_name( Jenkins.data_volume_name ),

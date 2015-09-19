@@ -5,9 +5,13 @@ from StringIO import StringIO
 import logging
 
 from fabric.context_managers import settings
+
 from lxml import etree
+
 from lxml.builder import ElementMaker
+
 from fabric.operations import run, put, os
+
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
@@ -86,6 +90,9 @@ class SparkBox( GenericUbuntuTrustyBox ):
 
     def other_accounts( self ):
         return super( SparkBox, self ).other_accounts( ) + [ user ]
+
+    def default_account( self ):
+        return user
 
     def __init__( self, ctx ):
         super( SparkBox, self ).__init__( ctx )

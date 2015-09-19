@@ -10,9 +10,7 @@ import sys
 
 from bd2k.util.exceptions import panic
 from boto.ec2.connection import EC2Connection
-
 from boto.ec2.blockdevicemapping import BlockDeviceType
-
 from boto.ec2.group import Group
 
 from fabric.operations import prompt
@@ -145,15 +143,33 @@ class BoxCommand( RoleCommand ):
                           'selects the most recently created box.' )
 
 
-class SshCommand( BoxCommand ):
+class UserCommand( BoxCommand ):
+    """
+    A command that runs as a given user
+    """
+
+    def __init__( self, application, **kwargs ):
+        super( UserCommand, self ).__init__( application, **kwargs )
+        self.begin_mutex( )
+        self.option( '--user', '--login', '-u', '-l', default=None,
+                     help="Name of user to login as. The default depends on the role, for most "
+                          "roles the default is the administrative user. Roles that define a "
+                          "second less privileged application user will default to that user." )
+        self.option( '--admin', '-a', default=False, action='store_true',
+                     help="Force logging in as the administrative user." )
+        self.end_mutex( )
+
+    def _user( self, box, options ):
+        return box.admin_account( ) if options.admin else options.user or box.default_account( )
+
+
+class SshCommand( UserCommand ):
     """
     Start an interactive SSH session on a box.
     """
 
     def __init__( self, application ):
         super( SshCommand, self ).__init__( application )
-        self.option( '--user', '--login', '-u', '-l', default=None,
-                     help="Name of user to login as." )
         # FIXME: Create bug report about the following:
         # cgcloud.py ssh generic-ubuntu-saucy-box --zone us-east-1b
         # doesn't work since argparse puts '--zone us-east-1b' into the 'command' positional. This
@@ -171,20 +187,18 @@ class SshCommand( BoxCommand ):
 
     def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal )
-        status = box.ssh( user=options.user, command=options.command )
+        status = box.ssh( user=self._user( box, options ), command=options.command )
         if status != 0:
             sys.exit( status )
 
 
-class RsyncCommand( BoxCommand ):
+class RsyncCommand( UserCommand ):
     """
     Rsync to or from the box
     """
 
     def __init__( self, application ):
         super( RsyncCommand, self ).__init__( application )
-        self.option( '--user', '--login', '-u', '-l', default=None,
-                     help="Name of user to login as." )
         self.option( '--ssh-opts', '-e', default=None, metavar="OPTS",
                      help="Additional options to pass to ssh. Note that if OPTS starts with a "
                           "dash you must use the long option followed by an equal sign. For "
@@ -200,7 +214,7 @@ class RsyncCommand( BoxCommand ):
 
     def run_on_box( self, options, box ):
         box.adopt( ordinal=options.ordinal )
-        box.rsync( options.args, user=options.user, ssh_opts=options.ssh_opts )
+        box.rsync( options.args, user=self._user( box, options ), ssh_opts=options.ssh_opts )
 
 
 class ImageCommand( BoxCommand ):
