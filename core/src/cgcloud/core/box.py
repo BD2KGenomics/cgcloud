@@ -538,6 +538,7 @@ class Box( object ):
                        ordinal=ordinal,
                        id=instance.id,
                        ip=instance.ip_address,
+                       private_ip=instance.private_ip_address,
                        created_at=instance.launch_time,
                        state=instance.state )
             for ordinal, instance in enumerate( instances ) ]
@@ -552,7 +553,7 @@ class Box( object ):
         name = self.ctx.to_aws_name( self.role( ) )
         reservations = self.ctx.ec2.get_all_instances( filters={ 'tag:Name': name } )
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
-        instances.sort( key=lambda _: _.launch_time + _.id )
+        instances.sort( key=lambda i: ' '.join( ( i.launch_time, i.private_ip_address, i.id ) ) )
         return name, instances
 
     def __get_instance_by_ordinal( self, ordinal ):

@@ -125,7 +125,7 @@ class ListCommand( RoleCommand ):
 
     def run_on_box( self, options, box ):
         for box in box.list( ):
-            print( '{role}\t{ordinal}\t{ip}\t{id}\t{created_at}\t{state}'.format( **box ) )
+            print( '{role}\t{ordinal}\t{private_ip}\t{ip}\t{id}\t{created_at}\t{state}'.format( **box ) )
 
 
 # noinspection PyAbstractClass
