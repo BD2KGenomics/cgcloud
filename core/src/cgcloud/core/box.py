@@ -10,12 +10,16 @@ import subprocess
 import time
 import itertools
 import datetime
-import os
 
 from bd2k.util.collections import OrderedSet
 from boto import logging
 from boto.exception import BotoServerError, EC2ResponseError
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
+
+# noinspection PyUnresolvedReferences
+from boto.ec2.spotpricehistory import SpotPriceHistory
+# noinspection PyUnresolvedReferences
+from boto.ec2.instance import Reservation
 from fabric.context_managers import settings
 
 from fabric.operations import sudo, run, get, put
@@ -30,13 +34,8 @@ from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
-from cgcloud.lib.util import (UserError,
-                              unpack_singleton,
-                              camel_to_snake,
-                              ec2_keypair_fingerprint,
-                              private_to_public_key,
-                              mean,
-                              std_dev)
+from cgcloud.lib.util import (UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint,
+                              private_to_public_key, mean, std_dev)
 
 log = logging.getLogger( __name__ )
 
@@ -385,112 +384,140 @@ class Box( object ):
                        instance_profile_arn=self._get_instance_profile_arn( ) )
 
         self._populate_instance_creation_args( image, kwargs )
-        if options['price'] != None:
-            self._add_spot_instance_creation_args(instance_type, kwargs, options)
+        if options[ 'price' ] is not None:
+            self._add_spot_instance_creation_args( instance_type, kwargs, options )
         self.instance_creation_args = kwargs
 
-    def _add_spot_instance_creation_args(self, instance_type, kwargs, options):
-        spot_support = ec2_instance_types[instance_type].spot_availability
+    def _add_spot_instance_creation_args( self, instance_type, kwargs, options ):
+        spot_support = ec2_instance_types[ instance_type ].spot_availability
         assert spot_support is True
         # this means we are using a spot bid. We need a couple additional kwargs
-        self._optimize_bid(instance_type, options, kwargs)
-        kwargs['price'] = options['price']
-        kwargs['launch_group'] = self.ctx.namespace.replace("/", "") + "_launch_group"
+        self._optimize_bid( instance_type, options, kwargs )
+        kwargs[ 'price' ] = options[ 'price' ]
+        kwargs[ 'launch_group' ] = self.ctx.namespace.replace( "/", "" ) + "_launch_group"
         try:  # There is no min/max count parameter for request_spot_instances, just count
-            kwargs['count'] = kwargs['max_count']
-            del kwargs['max_count']
-            del kwargs['min_count']
+            kwargs[ 'count' ] = kwargs[ 'max_count' ]
+            del kwargs[ 'max_count' ]
+            del kwargs[ 'min_count' ]
         except KeyError:
             pass
 
-    @staticmethod
-    def _choose_zone(zones, bid, spot_data):
+    ZoneTuple = namedtuple( 'ZoneTuple', [ 'name', 'price_deviation' ] )
+
+    @classmethod
+    def _choose_zone( cls, zones, bid, spot_history ):
         """
-        returns the zone to put the spot request based on, in order of priority:
+        Returns the zone to put the spot request based on, in order of priority:
+
            1) zones with prices currently under the bid
            2) zones with the most stable price
+
         :return: String representing the name of the selected zone
 
         >>> from collections import namedtuple
-        >>> FauxHistory = namedtuple("FauxHistory",["price","availability_zone"])
-        >>> ZoneTuple = namedtuple("ZoneTuple", ["name"])
-        >>> zones =[ZoneTuple("us-west-2a"),ZoneTuple("us-west-2b")]
-        >>> spot_data=[FauxHistory(0.1,"us-west-2a"),FauxHistory(0.2,"us-west-2a"),FauxHistory(0.3,"us-west-2b"),FauxHistory(0.6,"us-west-2b")]
-        >>> Box._choose_zone(zones, 0.15, spot_data)
+        >>> FauxHistory = namedtuple( 'FauxHistory', [ 'price', 'availability_zone' ] )
+        >>> ZoneTuple = namedtuple( 'ZoneTuple', [ 'name' ] )
+
+        >>> zones = [ ZoneTuple( 'us-west-2a' ), ZoneTuple( 'us-west-2b' ) ]
+        >>> spot_history = [ FauxHistory( 0.1, 'us-west-2a' ), \
+                             FauxHistory( 0.2,'us-west-2a'), \
+                             FauxHistory( 0.3,'us-west-2b'), \
+                             FauxHistory( 0.6,'us-west-2b')]
+        >>> # noinspection PyProtectedMember
+        >>> Box._choose_zone( zones, 0.15, spot_history )
         'us-west-2a'
-        >>> spot_data=[FauxHistory(0.3,"us-west-2a"),FauxHistory(0.2,"us-west-2a"),FauxHistory(0.1,"us-west-2b"),FauxHistory(0.6,"us-west-2b")]
-        >>> Box._choose_zone(zones, 0.15, spot_data)
+
+        >>> spot_history=[ FauxHistory( 0.3, 'us-west-2a' ), \
+                           FauxHistory( 0.2, 'us-west-2a' ), \
+                           FauxHistory( 0.1, 'us-west-2b'), \
+                           FauxHistory( 0.6, 'us-west-2b') ]
+        >>> # noinspection PyProtectedMember
+        >>> Box._choose_zone(zones, 0.15, spot_history)
         'us-west-2b'
-        >>> spot_data=[FauxHistory(0.1,"us-west-2a"),FauxHistory(0.7,"us-west-2a"),FauxHistory(0.1,"us-west-2b"),FauxHistory(0.6,"us-west-2b")]
-        >>> Box._choose_zone(zones, 0.15, spot_data)
+
+        >>> spot_history={ FauxHistory( 0.1, 'us-west-2a' ), \
+                           FauxHistory( 0.7, 'us-west-2a' ), \
+                           FauxHistory( 0.1, "us-west-2b" ), \
+                           FauxHistory( 0.6, 'us-west-2b' ) }
+        >>> # noinspection PyProtectedMember
+        >>> Box._choose_zone(zones, 0.15, spot_history)
         'us-west-2b'
        """
 
-        ZoneTuple = namedtuple("ZoneTuple", ["name","price_deviation"])
-        def _sort_zones(bid, spot_data, zones):
-            # returns two lists of tuples of form: [ (zone.name, std_deviation)...]
-            # one for zones over the bid price and one for zones under bid price. Each are sorted by
-            # increasing standard deviation values
-            markets_under_bid, markets_over_bid = [], []
-            for zone in zones:
-                zlist = filter(lambda spot_history: spot_history.availability_zone == zone.name, spot_data)
-                std_deviation = std_dev([spot_history.price for spot_history in zlist])
-                # http://stackoverflow.com/a/12135169
-                (markets_over_bid, markets_under_bid)[zlist[0].price < bid].append(ZoneTuple(zone.name,std_deviation))
-            # sort each list in place by increasing standard deviation
-            map(lambda list: list.sort(key=attrgetter("price_deviation")), [markets_over_bid, markets_under_bid])
-            return markets_under_bid, markets_over_bid
+        # Create two lists of tuples of form: [ (zone.name, std_deviation), ... ] one for zones
+        # over the bid price and one for zones under bid price. Each are sorted by increasing
+        # standard deviation values.
+        #
+        markets_under_bid, markets_over_bid = [ ], [ ]
+        for zone in zones:
+            zone_histories = filter( lambda zone_history:
+                                     zone_history.availability_zone == zone.name, spot_history )
+            price_deviation = std_dev( [ history.price for history in zone_histories ] )
+            recent_price = zone_histories[ 0 ]
+            zone_tuple = cls.ZoneTuple( name=zone.name, price_deviation=price_deviation )
+            (markets_over_bid, markets_under_bid)[ recent_price.price < bid ].append( zone_tuple )
 
-        markets_under_bid, markets_over_bid = _sort_zones(bid, spot_data, zones)
-        most_stable_market = markets_under_bid[0].name if markets_under_bid else markets_over_bid[0].name
-        return most_stable_market
+        return min( markets_under_bid or markets_over_bid,
+                    key=attrgetter( 'price_deviation' ) ).name
 
-    def _optimize_bid(self, instance_type, options, kwargs):
-        # insures that the bid is an appropriate price and makes an effort to place it in a sensible zone
-        bid = float(options['price'])
-        spot_data = self._get_spot_history(instance_type)
-        self._check_bid(bid, spot_data)
-        most_stable_zone = self._choose_zone(self.ctx.ec2.get_all_zones(),bid,spot_data)
-        kwargs["placement"]= most_stable_zone
-        log.info("Requesting spot instances in zone %s", most_stable_zone)
+    def _optimize_bid( self, instance_type, options, kwargs ):
+        """
+        Insures that the bid is an appropriate price and makes an effort to place it in a
+        sensible zone.
+        """
+        bid = float( options[ 'price' ] )
+        spot_history = self._get_spot_history( instance_type )
+        self._check_bid( bid, spot_history )
+        most_stable_zone = self._choose_zone( self.ctx.ec2.get_all_zones( ), bid, spot_history )
+        kwargs[ "placement" ] = most_stable_zone
+        log.info( "Requesting spot instances in zone %s", most_stable_zone )
 
     @staticmethod
-    def _check_bid(bid, spotData):
+    def _check_bid( bid, spot_history ):
         """
-        Prevents users from potentially overpaying for instances
+        Prevents users from potentially over-paying for instances
+
         Note: this checks over the whole region, not a particular zone
+
         :param bid: Float
-        :param spotData: List of Boto SpotPriceHistory objects
+
+        :type spot_history: list[SpotPriceHistory]
+
         :raises UserError if bid is > 2X the spot price's average
 
         >>> from collections import namedtuple
-        >>> FauxHistory = namedtuple("FauxHistory",["price","availability_zone"])
-        >>> spot_data=[FauxHistory(0.1,"us-west-2a"),FauxHistory(0.2,"us-west-2a"),FauxHistory(0.3,"us-west-2b"),FauxHistory(0.6,"us-west-2b")]
-        >>> Box._check_bid(0.1, spot_data)
-        >>> Box._check_bid(2, spot_data)
+        >>> FauxHistory = namedtuple( "FauxHistory", [ "price", "availability_zone" ] )
+        >>> spot_data = [ FauxHistory( 0.1, "us-west-2a" ), \
+                          FauxHistory( 0.2, "us-west-2a" ), \
+                          FauxHistory( 0.3, "us-west-2b" ), \
+                          FauxHistory( 0.6, "us-west-2b" ) ]
+        >>> # noinspection PyProtectedMember
+        >>> Box._check_bid( 0.1, spot_data )
+        >>> # noinspection PyProtectedMember
+        >>> Box._check_bid( 2, spot_data )
         Traceback (most recent call last):
         ...
         UserError: Your bid $ 2.000000 is more than double this instance type's average spot price ($ 0.300000) over the last week
-
         """
-        average = mean([datum.price for datum in spotData])
-        if bid > (average * 2):
-            raise UserError("Your bid $ %f is more than double this instance type's average "
-                            "spot price ($ %f) over the last week" % (bid, average))
+        average = mean( [ datum.price for datum in spot_history ] )
+        if bid > average * 2:
+            raise UserError( "Your bid $ %f is more than double this instance type's average "
+                             "spot price ($ %f) over the last week" % (bid, average) )
 
-    def _get_spot_history(self, instance_type):
-        # returns list of 1,000 most recent spot market data points represented as SpotPriceHistory objects
-        # Note: The most recent object/data point will be first in the list.
-        now = datetime.datetime.now()
-        current_time = now.isoformat()
-        one_week_ago = (now - datetime.timedelta(days=7)).isoformat()
-        # get_spot_price_history returns SpotPriceHistory objects. ignore the methods outdated documentation
-        # We specify linux/unix systems since other OSs are more expensive and throw off the estimation
-        spotData = self.ctx.ec2.get_spot_price_history(start_time=one_week_ago, end_time=current_time,
-                                                       instance_type=instance_type, product_description="Linux/UNIX")
-        spotData.sort(key=attrgetter("timestamp"),
-                      reverse=True)
-        return spotData
+    def _get_spot_history( self, instance_type ):
+        """
+        Returns list of 1,000 most recent spot market data points represented as SpotPriceHistory
+        objects. Note: The most recent object/data point will be first in the list.
+
+        :rtype: list[SpotPriceHistory]
+        """
+
+        one_week_ago = datetime.datetime.now( ) - datetime.timedelta( days=7 )
+        spot_data = self.ctx.ec2.get_spot_price_history( start_time=one_week_ago.isoformat( ),
+                                                         instance_type=instance_type,
+                                                         product_description="Linux/UNIX" )
+        spot_data.sort( key=attrgetter( "timestamp" ), reverse=True )
+        return spot_data
 
     def create( self, wait_ready=True, cluster_ordinal=0 ):
         """
@@ -503,19 +530,17 @@ class Box( object ):
 
         :return: the list of clones of this box, if any
         """
-
         # FIXME: we should be waiting for all instances in parallel, via threads
-        result = []
+        result = [ ]
         cluster_ordinal = itertools.count( start=cluster_ordinal )
         if 'price' in self.instance_creation_args:
-            reservationList = self._spot_create( )
-            # each spot market reservation contains only 1 instance each
-            instanceList = [reservation.instances.pop() for reservation in reservationList]
-            instances = iter(sorted(instanceList, key=attrgetter('id')))
+            reservations = self._spot_create( )
+            # Each spot market reservation contains only 1 instance each
+            instances = [ unpack_singleton( reservation ) for reservation in reservations ]
         else:
             reservation = self._create( )
-            instances = iter( sorted( reservation.instances, key=attrgetter( 'id' ) ) )
-
+            instances = reservation.instances
+        instances = iter( sorted( instances, key=attrgetter( 'id' ) ) )
         self._bind( next( instances ), next( cluster_ordinal ), wait_ready )
         try:
             while True:
@@ -527,29 +552,39 @@ class Box( object ):
 
         return result
 
-    def _spot_create(self):
+    def _spot_create( self ):
         """
-        A request for multiple instances actually creates many requests for 1 instance each, which then become
-        reservations with 1 instance each.
-        :return: list of boto.ec2.instance.Reservation objects
+        A request for multiple instances actually creates many requests for 1 instance each,
+        which then become reservations with 1 instance each.
+
+        :rtype: list[boto.ec2.instance.Reservation]
         """
-        requests = self.ctx.ec2.request_spot_instances(image_id=self.image_id, **self.instance_creation_args)
-        instances = []
+        requests = self.ctx.ec2.request_spot_instances( image_id=self.image_id,
+                                                        **self.instance_creation_args )
+        instances = [ ]
         try:
             for request in requests:
                 while True:
-                    # get_all_spot_instances_requests returns a list, even if you request only 1 id like in this case
-                    updatedRequest = unpack_singleton(self.ctx.ec2.get_all_spot_instance_requests(request_ids=[request.id]))
+                    # Get_all_spot_instances_requests returns a list, even if you request only 1
+                    # id like in this case.
+                    updatedRequest = unpack_singleton(
+                        self.ctx.ec2.get_all_spot_instance_requests( request_ids=[ request.id ] ) )
                     if updatedRequest.status.code == 'fulfilled':
-                        # get_all_instances always returns a list, though we know there is only 1 instance
-                        instances.append(unpack_singleton(self.ctx.ec2.get_all_instances(updatedRequest.instance_id)))
+                        # The get_all_instances always() method returns a list, though we know
+                        # there is only 1 instance.
+                        instances.append( unpack_singleton(
+                            self.ctx.ec2.get_all_instances( updatedRequest.instance_id ) ) )
                         break
-                    # FIXME: REMOVE HARDCODING
-                    log.info("Spot request in status %s. Waiting for 60sec" % (updatedRequest.status.code, ))
-                    time.sleep(60)
-        finally: # We want to cancel the request if we give up. If the request is fulfilled it doesn't hurt to cancel it either
+                    log.info( "Spot request in status %s. Waiting for %is",
+                              a_short_time, updatedRequest.status.code )
+                    time.sleep( a_short_time )
+        finally:
+            # We want to cancel the request if we give up. If the request is fulfilled, it doesn't
+            # hurt to cancel it either.
             # FIXME: IF THE REQUEST HAS BEEN FULFILLED, DO WE ALSO WANT TO TERMINATE INSTANCES ON ERROR?
-            self.ctx.ec2.cancel_spot_instance_requests(request_ids=[updatedRequest.id for updatedRequest in [request for request in requests]])
+            self.ctx.ec2.cancel_spot_instance_requests(
+                request_ids=[ updatedRequest.id for updatedRequest in
+                    [ request for request in requests ] ] )
         return instances
 
     def _create( self ):
@@ -697,7 +732,7 @@ class Box( object ):
         name = self.ctx.to_aws_name( self.role( ) )
         reservations = self.ctx.ec2.get_all_instances( filters={ 'tag:Name': name } )
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
-        instances.sort( key=lambda i: ' '.join( ( i.launch_time, i.private_ip_address, i.id ) ) )
+        instances.sort( key=lambda i: ' '.join( (i.launch_time, i.private_ip_address, i.id) ) )
         return name, instances
 
     def __get_instance_by_ordinal( self, ordinal ):
