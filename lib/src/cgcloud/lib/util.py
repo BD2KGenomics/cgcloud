@@ -4,6 +4,7 @@ import argparse
 import base64
 import hashlib
 import logging
+from math import sqrt
 import os
 import re
 import sys
@@ -49,7 +50,8 @@ def unpack_singleton( singleton ):
     except StopIteration:
         return result
 
-def mean(listOfNums):
+
+def mean( xs ):
     """
     from http://rosettacode.org/wiki/Standard_deviation#Python
     :param listOfNums:
@@ -63,42 +65,59 @@ def mean(listOfNums):
     10.0
     >>> mean([10,10,10,10,10])
     10.0
-    >>> mean(["a","b"])
+    >>> mean([1,"b"])
     Traceback (most recent call last):
       ...
-    TypeError: unsupported operand type(s) for /: 'str' and 'float'
+    ValueError: Input can't have non-numeric elements
     >>> mean([])
     Traceback (most recent call last):
       ...
-    TypeError: reduce() of empty sequence with no initial value
+    ValueError: Input can't be empty
     """
-    return (lambda MyList : reduce(lambda x, y: x + y, MyList) / float(len(MyList)))(listOfNums)
+    try:
+        return sum( xs ) / float( len( xs ) )
+    except TypeError:
+        raise ValueError( "Input can't have non-numeric elements" )
+    except ZeroDivisionError:
+        raise ValueError( "Input can't be empty" )
 
-def std_dev(listOfNums):
+
+def std_dev( xs ):
     """
-    from http://rosettacode.org/wiki/Standard_deviation#Python
-    An empty list, or list of non-numbers, will throw a TypeError
-    :param listOfNums:
-    :return: Floating point representation of the standard deviation of listOfNums
+    Returns the standard deviation of the given iterable of numbers.
+
+    From http://rosettacode.org/wiki/Standard_deviation#Python
+
+    An empty list, or a list with non-numeric elements will raise a TypeError.
 
     >>> std_dev([2,4,4,4,5,5,7,9])
     2.0
+
     >>> std_dev([9,10,11,7,13])
     2.0
+
     >>> std_dev([1,1,10,19,19])
     8.049844718999243
+
+    >>> std_dev({1,1,10,19,19}) == std_dev({19,10,1})
+    True
+
     >>> std_dev([10,10,10,10,10])
     0.0
-    >>> std_dev(["a","b"])
+
+    >>> std_dev([1,"b"])
     Traceback (most recent call last):
-      ...
-    TypeError: unsupported operand type(s) for /: 'str' and 'float'
+    ...
+    ValueError: Input can't have non-numeric elements
+
     >>> std_dev([])
     Traceback (most recent call last):
-      ...
-    TypeError: reduce() of empty sequence with no initial value
+    ...
+    ValueError: Input can't be empty
     """
-    return (lambda MyList : (reduce(lambda x,y : x + y , map(lambda x: (x-mean(MyList))**2 , MyList)) / float(len(MyList)))**.5)(listOfNums)
+    m = mean( xs ) # this checks our pre-conditions, too
+    return sqrt( sum( (x - m) ** 2 for x in xs ) / float( len( xs ) ) )
+
 
 def camel_to_snake( s, separator='_' ):
     """
