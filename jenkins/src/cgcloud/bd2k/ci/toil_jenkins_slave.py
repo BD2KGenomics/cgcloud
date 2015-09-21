@@ -1,5 +1,6 @@
 from StringIO import StringIO
 import time
+import re
 
 from fabric.operations import run, put
 
@@ -122,13 +123,23 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         that the queue is updated to reflect the number of cores actually available.
         """
 
-        def qconf( arg, **kwargs ):
-            # qconf can't read from stdin for some reason, neither -, /dev/stdin or /dev/fd/0 works
-            tmp = 'qconf.tmp'
-            put( remote_path=tmp,
-                 local_path=StringIO( '\n'.join( ' '.join( i ) for i in kwargs.iteritems( ) ) ) )
-            sudo( ' '.join( [ 'qconf', arg, tmp ] ) )
-            run( ' '.join( [ 'rm', tmp ] ) )
+        ws = re.compile( r'\s+' )
+        nl = re.compile( r'[\r\n]+' )
+
+        def qconf( opt, **kwargs ):
+            return qconf_dict( opt, kwargs )
+
+        def qconf_dict( opt, d=None, file_name='qconf.tmp' ):
+            if d:
+                # qconf can't read from stdin for some reason, neither -, /dev/stdin or /dev/fd/0 works
+                s = '\n'.join( ' '.join( i ) for i in d.iteritems( ) ) + '\n'
+                put( remote_path=file_name, local_path=StringIO( s ) )
+                sudo( ' '.join( [ 'qconf', opt, file_name ] ) )
+                run( ' '.join( [ 'rm', file_name ] ) )
+            else:
+                return dict( tuple( ws.split( l, 1 ) )
+                                 for l in nl.split( run( 'SGE_SINGLE_LINE=1 qconf ' + opt ) )
+                                 if l and not l.startswith( '#' ) )
 
         # Add the user defined in fname to the Sun Grid Engine cluster.
         qconf( '-Auser', name=Jenkins.user, oticket='0', fshare='0', delete_time='0',
@@ -147,7 +158,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         # Add an execution host
         qconf( '-Ae', hostname='localhost', load_scaling='NONE', complex_values='NONE',
                user_lists='arusers', xuser_lists='NONE', projects='NONE', xprojects='NONE',
-               usage_scaling='NONE', report_variables='NONE' );
+               usage_scaling='NONE', report_variables='NONE' )
 
         # Add a parallel environment
         qconf( '-Ap', pe_name='smp', slots='999', user_lists='NONE', xuser_lists='NONE',
@@ -155,7 +166,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                control_slaves='FALSE', job_is_first_task='TRUE', urgency_slots='min',
                accounting_summary='FALSE' )
 
-        # Add a q, the slots and processors will be adjusted dynamically, by an init script
+        # Add a queue, the slots and processors will be adjusted dynamically, by an init script
         qconf( '-Aq', qname='all.q', processors='1', slots='1', hostlist='localhost', seq_no='0',
                load_thresholds='np_load_avg=1.75', suspend_thresholds='NONE', nsuspend='1',
                suspend_interval='00:05:00', priority='0', min_cpu_interval='00:05:00',
@@ -170,6 +181,27 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
                h_data='INFINITY', s_stack='INFINITY', h_stack='INFINITY', s_core='INFINITY',
                h_core='INFINITY', s_rss='INFINITY', h_rss='INFINITY', s_vmem='INFINITY',
                h_vmem='INFINITY' )
+
+        # Enable on-demand scheduling. This will eliminate the long time that jobs spend waiting
+        # in the qw state. There is no -Asconf so we have to fake it using -ssconf and -Msconf.
+        sconf = qconf( '-ssconf' )
+        sconf.update( dict( flush_submit_sec='1', flush_finish_sec='1',
+                            schedule_interval='0:0:1' ) )
+        qconf_dict( '-Msconf', sconf )
+
+        # Enable immediate flushing of the accounting file. The SGE batch system in Toil uses the
+        #  qacct program to determine the exit code of a finished job. The qacct program reads
+        # the accounting file. By default, this file is written to every 15 seconds which means
+        # that it may take up to 15 seconds before a finished job is seen by Toil. An
+        # accounting_flush_time value of 00:00:00 causes the accounting file to be flushed
+        # immediately, allowing qacct to report the status of finished jobs immediately. Again,
+        # there is no -Aconf, so we fake it with -sconf and -Mconf. Also, the file name has to be
+        # 'global'.
+        conf = qconf( '-sconf' )
+        params = dict( tuple( e.split( '=' ) ) for e in conf[ 'reporting_params' ].split( ' ' ) )
+        params[ 'accounting_flush_time' ] = '00:00:00'
+        conf[ 'reporting_params' ] = ' '.join( '='.join( e ) for e in params.iteritems( ) )
+        qconf_dict( '-Mconf', conf, file_name='global' )
 
         # Register an init-script that ensures GridEngine uses localhost instead of hostname
         path = '/var/lib/gridengine/default/common/'

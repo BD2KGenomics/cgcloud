@@ -66,6 +66,9 @@ class MesosBox(GenericUbuntuTrustyBox):
     def other_accounts( self ):
         return super( MesosBox, self ).other_accounts( ) + [ user ]
 
+    def default_account( self ):
+        return user
+
     def __init__( self, ctx):
         super( MesosBox, self ).__init__( ctx )
 

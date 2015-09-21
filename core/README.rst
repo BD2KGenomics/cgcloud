@@ -1,19 +1,3 @@
-The CGCloud project is aimed at automating the creation and management of
-virtual machines (*instances*) and virtual machine images (*AMIs*) in Amazon
-EC2. Additionally, CGCloud maintains SSH keys on running instances—not just
-the one-time injection of a single key at launch time, but the continuous, near
-real-time management of a configurable set of keys for a fleet of instances.
-
-CGCloud can group instances, AMIs and other related cloud resources such as EBS
-volumes in isolated namespaces. Each user can have their own namespace or all
-users can share a root namespace. The production, test and staging environments
-can coexist in separate namespaces, all within one EC2 region.
-
-CGCloud can be extended with plugins. There is a plugin for setting up a
-continuous integration environment consisting of a continually running Jenkins
-master and several Jenkins slaves that are launched on demand. There also is a
-plugin for quickly creating large Apache Spark clusters.
-
 Prerequisites
 =============
 
@@ -73,6 +57,19 @@ the virtualenv or, if you didn't create a virtualenv for cgcloud, into a
 directory on your ``PATH``. You should be able to invoke it now::
 
    cgcloud --help
+   
+Auto-completion for Bash
+========================
+
+Install the awesome argcomplete_ module::
+
+   pip install argcomplete
+   
+Then add the following command to your ``~/.profile``::
+
+   eval "$(register-python-argcomplete cgcloud)" 
+
+.. _argcomplete: https://github.com/kislyuk/argcomplete
 
 Configuration
 =============

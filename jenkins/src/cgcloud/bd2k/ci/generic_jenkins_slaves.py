@@ -42,7 +42,6 @@ class Centos5GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos5Box )
     """
     A generic Jenkins slave for CentOS 5
     """
-
     pass
 
 
@@ -67,7 +66,7 @@ class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
     def _setup_build_user( self ):
         super( UbuntuGenericJenkinsSlave, self )._setup_build_user( )
         sudo( "echo 'Defaults:jenkins !requiretty' >> /etc/sudoers" )
-        for prog in ( 'apt-get', 'dpkg', 'gdebi' ):
+        for prog in ('apt-get', 'dpkg', 'gdebi'):
             sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /usr/bin/%s' >> /etc/sudoers" % prog )
 
     def _get_debconf_selections( self ):
@@ -77,6 +76,7 @@ class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
             "postfix postfix/main_mailer_type string 'No configuration'",
             "postfix postfix/mailname string %s" % self.host_name
         ]
+
 
 class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLucidBox ):
     """
@@ -105,7 +105,6 @@ class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLu
     def _get_package_substitutions( self ):
         return super( UbuntuLucidGenericJenkinsSlave, self )._get_package_substitutions( ) + [
             ('openjdk-7-jre-headless', 'openjdk-6-jre') ]
-
 
 
 class UbuntuPreciseGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuPreciseBox ):

@@ -19,6 +19,9 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
     def other_accounts( self ):
         return super( JenkinsSlave, self ).other_accounts( ) + [ Jenkins.user ]
 
+    def default_account( self ):
+        return Jenkins.user
+
     def _post_install_packages( self ):
         super( JenkinsSlave, self )._post_install_packages( )
         self._setup_build_user( )
