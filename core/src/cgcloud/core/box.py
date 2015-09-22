@@ -411,7 +411,9 @@ class Box( object ):
 
            1) zones with prices currently under the bid
            2) zones with the most stable price
-
+        :param zones: list ['boto.ec2.zone.Zone']
+        :param bid: float
+        :param spot_history: list['boto.ec2.SpotMarketHistory objects']
         :return: String representing the name of the selected zone
 
         >>> from collections import namedtuple
@@ -537,7 +539,7 @@ class Box( object ):
         if 'price' in self.instance_creation_args:
             reservations = self._spot_create( )
             # Each spot market reservation contains only 1 instance each
-            instances = [ unpack_singleton( reservation ) for reservation in reservations ]
+            instances = [ unpack_singleton(reservation.instances) for reservation in reservations ]
         else:
             reservation = self._create( )
             instances = reservation.instances
@@ -553,31 +555,6 @@ class Box( object ):
 
         return result
 
-    def _spot_create(self):
-        """
-        A request for multiple instances actually creates many requests for 1 instance each, which then become
-        reservations with 1 instance each.
-        :return: list of boto.ec2.instance.Reservation objects
-        """
-        requests = self.ctx.ec2.request_spot_instances(image_id=self.image_id, **self.instance_creation_args)
-        instances = []
-        try:
-            for request in requests:
-                while True:
-                    # get_all_spot_instances_requests returns a list, even if you request only 1 id like in this case
-                    updatedRequest = unpack_singleton(self.ctx.ec2.get_all_spot_instance_requests(request_ids=[request.id]))
-                    if updatedRequest.status.code == 'fulfilled':
-                        # get_all_instances always returns a list, though we know there is only 1 instance
-                        instances.append(unpack_singleton(self.ctx.ec2.get_all_instances(updatedRequest.instance_id)))
-                        break
-                    # FIXME: REMOVE HARDCODING
-                    log.info("Spot request in status %s. Waiting for 60sec" % (updatedRequest.status.code, ))
-                    time.sleep(60)
-        finally: # We want to cancel the request if we give up. If the request is fulfilled it doesn't hurt to cancel it either
-            # FIXME: IF THE REQUEST HAS BEEN FULFILLED, DO WE ALSO WANT TO TERMINATE INSTANCES ON ERROR?
-            self.ctx.ec2.cancel_spot_instance_requests(request_ids=[updatedRequest.id for updatedRequest in [request for request in requests]])
-        return instances
-
     def _spot_create( self ):
         """
         A request for multiple instances actually creates many requests for 1 instance each,
@@ -588,22 +565,25 @@ class Box( object ):
         requests = self.ctx.ec2.request_spot_instances( image_id=self.image_id,
                                                         **self.instance_creation_args )
         instances = [ ]
+
+        instance_ids = set()
         try:
-            for request in requests:
-                while True:
-                    # Get_all_spot_instances_requests returns a list, even if you request only 1
-                    # id like in this case.
-                    updatedRequest = unpack_singleton(
-                        self.ctx.ec2.get_all_spot_instance_requests( request_ids=[ request.id ] ) )
-                    if updatedRequest.status.code == 'fulfilled':
+            while True:
+                updatedRequests = self.ctx.ec2.get_all_spot_instance_requests(
+                    request_ids=[ request.id for request in requests] )
+                for request in updatedRequests:
+                    if request.status.code == 'fulfilled':
                         # The get_all_instances always() method returns a list, though we know
                         # there is only 1 instance.
-                        instances.append( unpack_singleton(
-                            self.ctx.ec2.get_all_instances( updatedRequest.instance_id ) ) )
-                        break
-                    log.info( "Spot request in status %s. Waiting for %is",
-                              a_short_time, updatedRequest.status.code )
-                    time.sleep( a_short_time )
+                        instance_ids.add(request.instance_id )
+                if len(instance_ids) < len(requests):
+                    log.info( "%d of the %d spot market requests have been fulfilled. Waiting for %d sec",
+                              len(instance_ids), len(requests), 60 )
+                    time.sleep( 60 )
+                else:
+                    log.info("All spot market requests have been fulfilled. Launching instances now")
+                    instances=self.ctx.ec2.get_all_instances(instance_ids=list(instance_ids))
+                    break
         finally:
             # We want to cancel the request if we give up. If the request is fulfilled, it doesn't
             # hurt to cancel it either.
