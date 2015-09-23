@@ -94,12 +94,12 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    @abstractmethod
     def default_account( self ):
         """
         Returns the name of the user with which interactive SSH session are started on the box.
+        The default implementation forwards to self.admin_account().
         """
-        raise NotImplementedError( )
+        return self.admin_account()
 
     def _image_name_prefix( self ):
         """

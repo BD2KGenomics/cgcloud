@@ -159,7 +159,8 @@ class UserCommand( BoxCommand ):
                      help="Force logging in as the administrative user." )
         self.end_mutex( )
 
-    def _user( self, box, options ):
+    @staticmethod
+    def _user( box, options ):
         return box.admin_account( ) if options.admin else options.user or box.default_account( )
 
 
