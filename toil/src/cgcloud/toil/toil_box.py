@@ -35,13 +35,15 @@ class ToilBox(MesosBox):
         super( ToilBox, self )._post_install_packages( )
         self._upgrade_pip( )
         self.__install_toil( )
+        self.__install_s3am()
         self._docker_group(user=user)
 
     def _list_packages_to_install( self ):
         # packages to apt-get
         # FIXME: GIT WILL BECOME UNNECESSARY UPON COMPLETION OF https://github.com/BD2KGenomics/toil/issues/215
         return super( ToilBox, self )._list_packages_to_install( ) + [
-            'git', 'python-dev','docker.io']
+            'git', 'python-dev','docker.io',
+            'gcc', 'make', 'libcurl4-openssl-dev'] # Only for S3AM
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilBox, self )._get_iam_ec2_role( )
@@ -59,6 +61,10 @@ class ToilBox(MesosBox):
     def _mount_mesos_workdir(self):
         super(ToilBox, self)._mount_mesos_workdir()
         self._lazy_mkdir('/var/lib','toil', persistent=True)
+
+    @fabric_task
+    def __install_s3am(self):
+        sudo("pip install --pre s3am", pty=False)
 
     @fabric_task
     def _docker_group(self, user=user):
