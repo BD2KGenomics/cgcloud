@@ -1,1 +1,1 @@
-cgcloud_version = '1.0.dev9'
+cgcloud_version = '1.1a1'
