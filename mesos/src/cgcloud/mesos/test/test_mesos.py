@@ -4,7 +4,7 @@ import logging
 import itertools
 
 from cgcloud.core.test import CgcloudTestCase
-from cgcloud.core.ui import main
+from cgcloud.core.cli import main
 from cgcloud.lib.ec2 import UnexpectedResourceState
 from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave
 

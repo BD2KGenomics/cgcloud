@@ -34,10 +34,10 @@ class CGCloud( Application ):
         self.option( '--debug',
                      default=False, action='store_true',
                      help='Write debug log to %s in current directory.' % self.debug_log_file_name )
-        self.boxes = OrderedDict( )
+        self.roles = OrderedDict( )
         for package in packages:
-            for box_cls in package.boxes():
-                self.boxes[ box_cls.role( ) ] = box_cls
+            for role in package.roles():
+                self.roles[ role.role( ) ] = role
 
     def prepare( self, options ):
         root_logger = logging.getLogger( )

@@ -18,7 +18,7 @@ setup(
     namespace_packages=[ 'cgcloud' ],
     entry_points={
         'console_scripts': [
-            'cgcloud = cgcloud.core.ui:main' ], },
+            'cgcloud = cgcloud.core.cli:main' ], },
     install_requires=[
         'bd2k-python-lib>=1.6.dev1',
         'cgcloud-lib==' + cgcloud_version,

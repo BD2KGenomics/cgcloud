@@ -7,7 +7,7 @@ from bd2k.util.exceptions import panic
 
 from cgcloud.core import boxes
 from cgcloud.core.test import CgcloudTestCase
-from cgcloud.core.ui import main
+from cgcloud.core.cli import main
 
 log = logging.getLogger( __name__ )
 
