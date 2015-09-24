@@ -3,6 +3,6 @@ def roles( ):
     return [ ToilBox, ToilLeader, ToilWorker ]
 
 
-def commands( ):
+def command_classes( ):
     from cgcloud.toil.toil_cluster import CreateToilCluster
     return [ CreateToilCluster ]

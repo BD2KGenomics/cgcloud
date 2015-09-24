@@ -26,7 +26,7 @@ def roles( ):
         GenericFedora22Box ] )
 
 
-def commands( ):
+def command_classes( ):
     from cgcloud.core.commands import (ListRolesCommand,
                                        CreateCommand,
                                        RecreateCommand,

@@ -22,8 +22,8 @@ def main( args=None ):
         if plugin ]
     app = CGCloud( plugins )
     for plugin in plugins:
-        for command in plugin.commands( ):
-            app.add( command )
+        for command_class in plugin.command_classes( ):
+            app.add( command_class )
     app.run( args )
 
 

@@ -197,11 +197,11 @@ class Application( object ):
         if completer is not None:
             argument.completer = completer
 
-    def add( self, command_cls ):
+    def add( self, command_class ):
         """
         Instantiates a command of the specified class and adds it to this application.
         """
-        command = command_cls( self )
+        command = command_class( self )
         self.commands[ command.name( ) ] = command
 
     def run( self, args=None ):

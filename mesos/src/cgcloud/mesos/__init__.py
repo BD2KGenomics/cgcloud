@@ -3,6 +3,6 @@ def roles( ):
     return [ MesosBox, MesosMaster, MesosSlave ]
 
 
-def commands( ):
+def command_classes( ):
     from cgcloud.mesos.mesos_cluster import CreateMesosCluster
     return [ CreateMesosCluster ]

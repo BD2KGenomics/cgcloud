@@ -31,7 +31,7 @@ def roles( ):
         S3amJenkinsSlave ]
 
 
-def commands( ):
+def command_classes( ):
     from cgcloud.bd2k.ci.commands import RegisterSlaves
     return [
         RegisterSlaves ]

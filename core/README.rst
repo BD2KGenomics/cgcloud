@@ -295,9 +295,9 @@ containing two functions:
       """
       return [ FooBox ]
    
-   def commands():
+   def command_classes():
       """
-      Return a list of commands, each command being a concrete subclass of 
+      Return a list of command classes, each class being a concrete subclass of
       cgcloud.lib.util.Command.
       """
       return [ FooCommand ]
@@ -313,6 +313,6 @@ colon-separated list of plugin module paths.
 
 You can also run CGCloud with the ``--script`` option and a path to a Python
 script. The script will be handled like a plugin, except that it should not
-define a ``commands()`` function since that function will not be invoked for a
-script plugin. In other words, a script plugin should only define roles, not
-commands.
+define a ``command_classes()`` function since that function will not be invoked
+for a script plugin. In other words, a script plugin should only define roles,
+not commands.

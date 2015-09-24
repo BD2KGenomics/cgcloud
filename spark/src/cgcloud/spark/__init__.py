@@ -3,6 +3,6 @@ def roles( ):
     return [ SparkBox, SparkMaster, SparkSlave ]
 
 
-def commands( ):
+def command_classes( ):
     from cgcloud.spark.spark_cluster import CreateSparkCluster
     return [ CreateSparkCluster ]
