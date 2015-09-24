@@ -8,7 +8,7 @@ def __fail_deprecated( artifacts ):
     return artifacts
 
 
-def boxes( ):
+def roles( ):
     from cgcloud.core.generic_boxes import (GenericCentos6Box,
                                             GenericUbuntuPreciseBox,
                                             GenericUbuntuTrustyBox,

@@ -5,7 +5,7 @@ from subprocess import check_call
 
 from bd2k.util.exceptions import panic
 
-from cgcloud.core import boxes
+from cgcloud.core import roles
 from cgcloud.core.test import CgcloudTestCase
 from cgcloud.core.cli import main
 
@@ -18,7 +18,7 @@ class CoreTests( CgcloudTestCase ):
     """
     _multiprocess_shared_ = True
 
-    boxes = boxes()
+    roles = roles()
 
     @classmethod
     def __box_test( cls, box ):
@@ -65,14 +65,14 @@ class CoreTests( CgcloudTestCase ):
 
     @classmethod
     def make_tests( cls ):
-        for box in cls.boxes:
+        for box in cls.roles:
             test_method = cls.__box_test( box )
             test_method.__name__ = 'test_%s' % box.role( ).replace( '-', '_' )
             setattr( cls, test_method.__name__, test_method )
 
     def test_illegal_argument( self ):
         try:
-            self._cgcloud( 'delete-image', self.boxes[ 0 ].role( ), '-1' )
+            self._cgcloud( 'delete-image', self.roles[ 0 ].role( ), '-1' )
             self.fail( )
         except SystemExit:
             pass

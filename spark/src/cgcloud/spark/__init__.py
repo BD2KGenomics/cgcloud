@@ -1,4 +1,4 @@
-def boxes( ):
+def roles( ):
     from cgcloud.spark.spark_box import SparkBox, SparkSlave, SparkMaster
     return [ SparkBox, SparkMaster, SparkSlave ]
 

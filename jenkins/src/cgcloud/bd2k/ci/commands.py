@@ -32,7 +32,7 @@ class RegisterSlaves( BoxCommand ):
     def run_on_box( self, options, master ):
         master.adopt( ordinal=options.ordinal )
         master.register_slaves( [ slave_cls
-                                    for role, slave_cls in self.application.boxes.iteritems( )
+                                    for role, slave_cls in self.application.roles.iteritems( )
                                     for role_glob in options.slaves
                                     if fnmatch( role, role_glob ) ],
                                 clean=options.clean,

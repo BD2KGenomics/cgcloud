@@ -1,4 +1,4 @@
-def boxes( ):
+def roles( ):
     from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave
     return [ MesosBox, MesosMaster, MesosSlave ]
 
