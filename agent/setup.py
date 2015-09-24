@@ -1,8 +1,9 @@
+from __future__ import absolute_import
 import sys
 
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev9'
+from version import cgcloud_version
 
 setup(
     name='cgcloud-agent',
