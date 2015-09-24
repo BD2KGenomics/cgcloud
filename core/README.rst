@@ -280,3 +280,39 @@ try upgrading paramiko::
    pip install --upgrade paramiko
    
 See also https://github.com/fabric/fabric/issues/1212
+
+Customization
+=============
+
+CGCloud can be customized via plugins. A plugin is a Python module or package
+containing two functions:
+
+:: 
+   def roles():
+      """
+      Return a list of roles, each role being a concrete subclass of 
+      cgcloud.core.box.Box
+      """
+      return [ FooBox ]
+   
+   def commands():
+      """
+      Return a list of commands, each command being a concrete subclass of 
+      cgcloud.lib.util.Command.
+      """
+      return [ FooCommand ]
+
+If the plugin is a Python package, these two functions need to be defined in
+its ``__init__.py``. The box and command classes returned by these two
+functions can be defined in submodules of that package.
+
+In order to be loaded by CGCloud, a plugin needs to be loadable from
+``sys.path`` and its module path (foo.bar.blah) needs to be mentioned in the
+``CGCLOUD_PLUGINS`` environment variable which should contains a
+colon-separated list of plugin module paths.
+
+You can also run CGCloud with the ``--script`` option and a path to a Python
+script. The script will be handled like a plugin, except that it should not
+define a ``commands()`` function since that function will not be invoked for a
+script plugin. In other words, a script plugin should only define roles, not
+commands.
