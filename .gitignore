@@ -2,3 +2,5 @@
 *.pyc
 *.egg
 .eggs/
+/*/MANIFEST.in
+/*/version.py
