@@ -9,7 +9,7 @@ from cgcloud.core.agent_box import AgentBox
 from cgcloud.core.yum_box import YumBox
 from cgcloud.core.rc_local_box import RcLocalBox
 
-ADMIN_USER = 'admin'
+admin_user = 'admin'
 
 
 class CentosBox( YumBox, AgentBox, RcLocalBox ):
@@ -76,19 +76,24 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
         super( CentosBox, self )._on_instance_ready( first_boot )
         if first_boot and self.admin_account( ) == 'root':
             self.__create_admin( )
-            self._set_username( ADMIN_USER )
+            self._set_username( admin_user )
             self.__setup_admin( )
 
     @fabric_task
     def __create_admin( self ):
-        # don't clear screen on logout, it's annoying
+        # Don't clear screen on logout, it's annoying
         run( r"sed -i -r 's!^(/usr/bin/)?clear!# \0!' /etc/skel/.bash_logout ~/.bash_logout" )
         # Imitate the security model of Canonical's Ubuntu AMIs: Create an admin user that can sudo
         # without password and disable root logins via console and ssh.
-        run( 'useradd -m -s /bin/bash {0}'.format( ADMIN_USER ) )
-        self._propagate_authorized_keys( ADMIN_USER )
+        run( 'useradd -m -s /bin/bash {0}'.format( admin_user ) )
+        self._propagate_authorized_keys( admin_user )
         run( 'rm ~/.ssh/authorized_keys' )
-        run( 'echo "{0}  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers'.format( ADMIN_USER ) )
+        run( 'echo "{0}  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers'.format( admin_user ) )
+        # CentOS 6 has "Defaults: requiretty" in /etc/sudoers. This makes no sense for users with
+        # NOPASSWD. Requiretty causes sudo(...,pty=False) to fail with "You need a pty for
+        # sudo". We disable requiretty for the admin since we need pty=False for pip which would
+        # spill the progress info all over the output.
+        run( 'echo "Defaults:{0} !requiretty" >> /etc/sudoers'.format( admin_user ) )
         run( 'passwd -l root' )
         run( 'echo PermitRootLogin no >> /etc/ssh/sshd_config' )
 
