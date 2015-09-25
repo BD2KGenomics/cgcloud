@@ -17,5 +17,5 @@ setup(
     packages=find_packages( 'src' ),
     namespace_packages=[ 'cgcloud' ],
     install_requires=[
-        'bd2k-python-lib>=1.6.dev1',
+        'bd2k-python-lib==1.6.dev1',
         'boto>=2.36.0' ] )

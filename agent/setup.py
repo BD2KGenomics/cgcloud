@@ -23,7 +23,7 @@ setup(
         'console_scripts': [
             'cgcloudagent = cgcloud.agent.cli:main' ], },
     install_requires=filter( None, [
-        'bd2k-python-lib>=1.6.dev1',
+        'bd2k-python-lib==1.6.dev1',
         'cgcloud-lib==' + cgcloud_version,
         'boto>=2.36.0',
         'python-daemon>=2.0.5',
