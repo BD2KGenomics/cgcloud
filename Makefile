@@ -90,7 +90,7 @@ endef
 $(foreach project,$(develop_projects),$(eval $(call _test,$(project))))
 
 .PHONY: test
-test: no_sudo nose $(foreach project,$(develop_projects),test_$(project))
+test: no_sudo nose sdist $(foreach project,$(develop_projects),test_$(project))
 
 
 .PHONY: nose
