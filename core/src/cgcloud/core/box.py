@@ -288,7 +288,12 @@ class Box( object ):
         src_security_group_owner_id
         src_security_group_group_id
         """
-        return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
+        return [
+            dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ),
+            # This is necessary to allow PMTUD. A common symptom for PMTUD not working is that
+            # TCP connections hang after a certain constant amount of data has been transferred
+            # if the connection is between the instance and a host with jumbo frames enabled.
+            dict( ip_protocol='icmp', from_port=3, to_port=4, cidr_ip='0.0.0.0/0' ) ]
 
     def __get_virtualization_types( self, instance_type, requested_vtype=None ):
         instance_vtypes = OrderedSet( ec2_instance_types[ instance_type ].virtualization_types )
