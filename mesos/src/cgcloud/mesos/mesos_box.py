@@ -180,7 +180,8 @@ class MesosBox(GenericUbuntuTrustyBox):
         tools_dir = install_dir + '/tools'
         sudo( fmt( 'mkdir -p {tools_dir}') )
         sudo( fmt('mkdir -p %s' % shared_dir) )
-        sudo( fmt('chmod 777 %s' % shared_dir) )
+        sudo( fmt('chown mesosbox %s' % shared_dir))
+        sudo( fmt('chmod 700 %s' % shared_dir) )
 
         sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )

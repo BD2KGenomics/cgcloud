@@ -229,7 +229,6 @@ class MesosTools( object ):
                     time.sleep( 10 )
                 else:
                     break
-            os.chown( dir, self.uid, self.gid )
 
     def __create_lazy_dirs( self ):
         log.info( "Bind-mounting directory structure" )
