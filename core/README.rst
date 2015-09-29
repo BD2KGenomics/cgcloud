@@ -67,7 +67,7 @@ Install the awesome argcomplete_ module::
    
 Then add the following command to your ``~/.profile``::
 
-   eval "$(register-python-argcomplete cgcloud)" 
+   eval "$(/absolute/path/to/virtualenv/bin/register-python-argcomplete cgcloud)"
 
 .. _argcomplete: https://github.com/kislyuk/argcomplete
 
