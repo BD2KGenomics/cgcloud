@@ -309,3 +309,20 @@ class GenericFedora21Box( FedoraBox ):
 class GenericFedora22Box( FedoraBox ):
     def release( self ):
         return 22
+
+    def _on_instance_ready( self, first_boot ):
+        if first_boot:
+            self.__fix_stupid_locale_problem( )
+        super( GenericFedora22Box, self )._on_instance_ready( first_boot )
+
+    @fabric_task
+    def __fix_stupid_locale_problem( self ):
+        """
+        The bug:
+        https://bugzilla.redhat.com/show_bug.cgi?id=1261249
+
+        The workaround:
+        https://www.banym.de/linux/fedora/problems-with-missing-locale-files-on-fedora-20-made-libvirtd-service-not-starting
+        """
+        sudo( 'localedef -c -i en_US -f UTF-8 en_US.UTF-8' )
+
