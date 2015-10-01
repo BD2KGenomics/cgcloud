@@ -1,16 +1,16 @@
 import logging
 import re
 import os
+import errno
 import fcntl
 from grp import getgrnam
 from pwd import getpwnam
 import socket
 import stat
 from urllib2 import urlopen
-from subprocess import check_call, call, check_output
+from subprocess import check_call, check_output, CalledProcessError
 import time
 import itertools
-import errno
 
 import boto.ec2
 from bd2k.util import memoize
@@ -227,8 +227,7 @@ class SparkTools( object ):
                                       availability_zone=self.availability_zone,
                                       name=volume_name,
                                       size=ebs_volume_size,
-                                      volume_type="gp2")
-
+                                      volume_type="gp2" )
             # TODO: handle case where volume is already attached
             device_ext = '/dev/sdf'
             device = '/dev/xvdf'
@@ -303,7 +302,7 @@ class SparkTools( object ):
         """
         Wait until the instance represented by this box is accessible via SSH.
         """
-        for i in itertools.count( ):
+        for _ in itertools.count( ):
             s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
             try:
                 s.settimeout( 5 )
@@ -317,13 +316,13 @@ class SparkTools( object ):
     def __register_with_master( self ):
         log.info( "Registering with master" )
         for tries in range( 5 ):
-            status_code = call(
-                # '-o', 'UserKnownHostsFile=/dev/null','-o', 'StrictHostKeyChecking=no'
-                [ sudo, '-u', self.user, 'ssh', 'spark-master', 'sparkbox-manage-slaves',
-                    self.node_ip + ":" + self.__get_host_key( ) ] )
-            if 0 == status_code: return
-            log.warn( "ssh returned %i, retrying in 5s", status_code )
-            time.sleep( 5 )
+            try:
+                check_call( [ sudo, '-u', self.user, 'ssh', 'spark-master', 'sparkbox-manage-slaves', self.node_ip + ":" + self.__get_host_key( ) ] )
+            except CalledProcessError as e:
+                log.warn( "rsync returned %i, retrying in 5s", e.returncode )
+                time.sleep( 5 )
+            else:
+                return
         raise RuntimeError( "Failed to register with master" )
 
     def __get_host_key( self ):
@@ -355,7 +354,7 @@ class SparkTools( object ):
 
     def __format_namenode( self ):
         log.info( "Formatting namenode" )
-        call( [ 'sudo', '-u', self.user, self.install_dir + '/hadoop/bin/hdfs',
+        check_call( [ 'sudo', '-u', self.user, self.install_dir + '/hadoop/bin/hdfs',
                   'namenode', '-format', '-nonInteractive' ] )
 
     def __patch_etc_hosts( self, hosts ):
