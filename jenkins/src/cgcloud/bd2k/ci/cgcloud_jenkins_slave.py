@@ -23,8 +23,7 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
             'binutils',
             'gcc',
             'make',
-            'libyaml-dev',
-            'libxml2-dev', 'libxslt-dev', 'zlib1g-dev'  # lxml
+            'libyaml-dev'
         ]
 
     def _get_iam_ec2_role( self ):

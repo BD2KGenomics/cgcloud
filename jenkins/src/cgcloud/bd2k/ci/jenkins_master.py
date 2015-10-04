@@ -2,7 +2,7 @@ from StringIO import StringIO
 import logging
 from textwrap import dedent
 
-from lxml import etree
+import xml.etree.ElementTree as ET
 from fabric.context_managers import settings
 from fabric.operations import run, sudo, put, get
 
@@ -13,6 +13,7 @@ from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.core.source_control_client import SourceControlClient
 
 log = logging.getLogger( __name__ )
+
 
 # FIXME: __create_jenkins_keypair and __inject_aws_credentials fail when the Jenkins volume is fresh
 # since certain files like config.xml don't exist (because Jenkins hasn't written them out yet or
@@ -237,8 +238,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         jenkins_config_path = '~/config.xml'
         get( local_path=jenkins_config_file, remote_path=jenkins_config_path )
         jenkins_config_file.seek( 0 )
-        parser = etree.XMLParser( remove_blank_text=True )
-        jenkins_config = etree.parse( jenkins_config_file, parser )
+        jenkins_config = ET.parse( jenkins_config_file )
         templates = jenkins_config.find( './/hudson.plugins.ec2.EC2Cloud/templates' )
         template_element_name = 'hudson.plugins.ec2.SlaveTemplate'
         if clean:
@@ -268,10 +268,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
             if templates.attrib.get( 'class' ) == 'empty-list':
                 templates.attrib.pop( 'class' )
         jenkins_config_file.truncate( 0 )
-        jenkins_config.write( jenkins_config_file,
-                              encoding=jenkins_config.docinfo.encoding,
-                              xml_declaration=True,
-                              pretty_print=True )
+        jenkins_config.write( jenkins_config_file, encoding='utf-8', xml_declaration=True )
         put( local_path=jenkins_config_file, remote_path=jenkins_config_path )
 
     def _image_block_device_mapping( self ):
@@ -310,8 +307,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                 log.warn( "Warning: Cannot find config file '%s' to patch" % path )
                 return
         config_file.seek( 0 )
-        parser = etree.XMLParser( remove_blank_text=True )
-        config = etree.parse( config_file, parser )
+        config = ET.parse( config_file )
         for xpath, text in text_by_xpath.iteritems( ):
             for element in config.iterfind( xpath ):
                 if element.text != text:
@@ -319,10 +315,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                     dirty = True
         if dirty:
             config_file.truncate( 0 )
-            config.write( config_file,
-                          encoding=config.docinfo.encoding,
-                          xml_declaration=True,
-                          pretty_print=True )
+            config.write( config_file, encoding='utf-8', xml_declaration=True )
             put( local_path=config_file, remote_path=path )
         return dirty
 

@@ -5,8 +5,6 @@ import re
 from StringIO import StringIO
 
 from fabric.context_managers import settings
-from lxml import etree
-from lxml.builder import ElementMaker
 from fabric.operations import run, put, os
 from bd2k.util.strings import interpolate as fmt
 
@@ -438,14 +436,19 @@ class SparkBox( GenericUbuntuTrustyBox ):
         </configuration>
         <BLANKLINE>
         """
-        E = ElementMaker( )
-        tree = etree.ElementTree(
-            E.configuration(
-                *(E.property( E.name( name ), E.value( value ) )
-                    for name, value in properties.iteritems( )) ) )
-        tree.getroot( ).addprevious( etree.ProcessingInstruction(
-            "xml-stylesheet", "type='text/xsl' href='configuration.xsl'" ) )
-        return etree.tostring( tree, pretty_print=True, xml_declaration=True, encoding='utf-8' )
+        s = StringIO( )
+        s.write( heredoc( """
+            <?xml version='1.0' encoding='utf-8'?>
+            <?xml-stylesheet type='text/xsl' href='configuration.xsl'?>
+            <configuration>""" ) )
+        for name, value in properties.iteritems( ):
+            s.write( heredoc( """
+                <property>
+                    <name>{name}</name>
+                    <value>{value}</value>
+                </property>""", indent='    ' ) )
+        s.write( "</configuration>\n" )
+        return s.getvalue( )
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( SparkBox, self )._get_iam_ec2_role( )

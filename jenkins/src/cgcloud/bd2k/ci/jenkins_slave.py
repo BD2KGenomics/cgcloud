@@ -1,5 +1,4 @@
-from lxml.builder import E
-
+from bd2k.util.xml.builder import E
 from cgcloud.core.agent_box import AgentBox
 from cgcloud.lib.util import snake_to_camel, UserError
 from cgcloud.fabric.operations import sudo
@@ -96,7 +95,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
         :type image: boto.ec2.image.Image
 
         :return: an XML element containing the slave template
-        :rtype: lxml.etree._Element
+        :rtype: xml.etree.ElementTree.Element
         """
         if instance_type is None:
             instance_type = self.recommended_instance_type( )

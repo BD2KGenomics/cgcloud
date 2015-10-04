@@ -20,5 +20,4 @@ setup(
         'cgcloud-lib>=' + cgcloud_version,
         'cgcloud-core>=' + cgcloud_version,
         'bd2k-python-lib==1.8.dev1',
-        'Fabric>=1.7.0',
-        'lxml>=3.2.1' ] )
+        'Fabric>=1.7.0' ] )

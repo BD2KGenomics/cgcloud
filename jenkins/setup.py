@@ -19,5 +19,4 @@ setup(
     install_requires=[
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core=='  + cgcloud_version,
-        'Fabric>=1.7.0',
-        'lxml>=3.2.1' ] )
+        'Fabric>=1.7.0' ] )
