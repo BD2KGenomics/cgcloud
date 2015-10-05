@@ -90,7 +90,7 @@ class SparkBox( GenericUbuntuTrustyBox ):
 
     def __init__( self, ctx ):
         super( SparkBox, self ).__init__( ctx )
-        self.lazy_dirs = set()
+        self.lazy_dirs = set( )
 
     def _populate_security_group( self, group_name ):
         return super( SparkBox, self )._populate_security_group( group_name ) + [
@@ -208,7 +208,10 @@ class SparkBox( GenericUbuntuTrustyBox ):
             #!{tools_dir}/bin/python2.7
             import sys
             import logging
-            logging.basicConfig( level=logging.INFO )
+            # Prefix each log line to make it more obvious that it's the master logging when the
+            # slave calls this script via ssh.
+            logging.basicConfig( level=logging.INFO,
+                                 format="manage_slaves: " + logging.BASIC_FORMAT )
             from cgcloud.spark_tools import SparkTools
             spark_tools = {spark_tools}
             spark_tools.manage_slaves( slaves_to_add=sys.argv[1:] )""" ) ) )
@@ -429,10 +432,10 @@ class SparkBox( GenericUbuntuTrustyBox ):
         <?xml version='1.0' encoding='utf-8'?>
         <?xml-stylesheet type='text/xsl' href='configuration.xsl'?>
         <configuration>
-          <property>
-            <name>foo</name>
-            <value>bar</value>
-          </property>
+            <property>
+                <name>foo</name>
+                <value>bar</value>
+            </property>
         </configuration>
         <BLANKLINE>
         """
