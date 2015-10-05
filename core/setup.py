@@ -20,7 +20,7 @@ setup(
         'console_scripts': [
             'cgcloud = cgcloud.core.cli:main' ], },
     install_requires=[
-        'bd2k-python-lib==1.8.dev1',
+        'bd2k-python-lib==1.8.dev2',
         'cgcloud-lib==' + cgcloud_version,
         'boto>=2.36.0',
         'Fabric>=1.7.0',

@@ -19,5 +19,5 @@ setup(
     install_requires=[
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core==' + cgcloud_version,
-        'bd2k-python-lib==1.8.dev1',
+        'bd2k-python-lib==1.8.dev2',
         'Fabric>=1.7.0' ] )
