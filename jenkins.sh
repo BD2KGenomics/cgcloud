@@ -8,4 +8,4 @@ export NOSE_WITH_XUNITMP=1
 export NOSE_XUNIT_FILE=nosetests.xml
 
 export CGCLOUD_ME=jenkins@jenkins-master
-make -k $make_targets
+make --keep-going $make_targets

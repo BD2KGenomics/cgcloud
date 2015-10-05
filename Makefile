@@ -20,77 +20,77 @@ no_sudo:
 
 define _develop
 .PHONY: develop_$1
-develop_$1: $1/version.py $1/MANIFEST.in
+develop_$1: no_sudo $1/version.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py egg_info
 	cd $1 && $(sudo) $(python) setup.py develop
 endef
 $(foreach project,$(develop_projects),$(eval $(call _develop,$(project))))
 
 .PHONY: develop
-develop: no_sudo $(foreach project,$(develop_projects),develop_$(project))
+develop: $(foreach project,$(develop_projects),develop_$(project))
 
 
 define _sdist
 .PHONY: sdist_$1
-sdist_$1: $1/version.py $1/MANIFEST.in
+sdist_$1: no_sudo $1/version.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py sdist
 endef
 $(foreach project,$(sdist_projects),$(eval $(call _sdist,$(project))))
 
 .PHONY: sdist
-sdist: no_sudo $(foreach project,$(sdist_projects),sdist_$(project))
+sdist: $(foreach project,$(sdist_projects),sdist_$(project))
 
 
 define _pypi
 .PHONY: pypi_$1
-pypi_$1: $1/version.py $1/MANIFEST.in
-	$(python) setup.py "egg_info --tag-build=.dev$$BUILD_NUMBER register sdist bdist_egg upload" 
+pypi_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
+	$(python) setup.py "egg_info --tag-build=.dev$$$$BUILD_NUMBER register sdist bdist_egg upload"
 endef
 $(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
 
 .PHONY: pypi
-pypi: no_sudo check_running_on_jenkins check_clean_working_copy $(foreach project,$(all_projects),pypi_$(project))
+pypi: $(foreach project,$(all_projects),pypi_$(project))
 
 
 define _pypi_stable
 .PHONY: pypi_stable_$1
-pypi_stable_$1: $1/version.py $1/MANIFEST.in
+pypi_stable_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py egg_info register sdist bdist_egg upload
 endef 
 $(foreach project,$(all_projects),$(eval $(call _pypi_stable,$(project))))
 
 .PHONY: pypi_stable
-pypi_stable: no_sudo check_running_on_jenkins check_clean_working_copy $(foreach project,$(all_projects),pypi_stable_$(project))
+pypi_stable: $(foreach project,$(all_projects),pypi_stable_$(project))
 
 
 define _clean
 .PHONY: clean_$1
-clean_$1:
+clean_$1: no_sudo
 	cd $1 && $(python) setup.py clean --all && rm -rf dist src/*.egg-info MANIFEST.in version.py
 endef
 $(foreach project,$(all_projects),$(eval $(call _clean,$(project))))
 
 define _undevelop
 .PHONY: undevelop_$1
-undevelop_$1:
+undevelop_$1: no_sudo
 	cd $1 && $(sudo) $(python) setup.py develop -u
 endef
 $(foreach project,$(all_projects),$(eval $(call _undevelop,$(project))))
 
 .PHONY: clean
-clean: no_sudo $(foreach project,$(all_projects),clean_$(project)) $(foreach project,$(develop_projects),undevelop_$(project))
+clean: $(foreach project,$(all_projects),clean_$(project)) $(foreach project,$(develop_projects),undevelop_$(project))
 
 
 define _test
 .PHONY: test_$1
-test_$1: develop_$1
+test_$1: no_sudo nose sdist develop_$1
 	cd $1 && $(python) -m nose --verbose
 	@echo "$(green)Tests succeeded.$(normal)"
 endef
 $(foreach project,$(develop_projects),$(eval $(call _test,$(project))))
 
 .PHONY: test
-test: no_sudo nose sdist $(foreach project,$(develop_projects),test_$(project))
+test: $(foreach project,$(develop_projects),test_$(project))
 
 
 .PHONY: nose
