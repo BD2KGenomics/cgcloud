@@ -8,7 +8,7 @@ from pwd import getpwnam
 import socket
 import stat
 from urllib2 import urlopen
-from subprocess import check_call, check_output, CalledProcessError
+from subprocess import check_call, check_output, CalledProcessError, STDOUT
 import time
 import itertools
 
@@ -317,7 +317,9 @@ class SparkTools( object ):
         log.info( "Registering with master" )
         for tries in range( 5 ):
             try:
-                check_call( [ sudo, '-u', self.user, 'ssh', 'spark-master', 'sparkbox-manage-slaves', self.node_ip + ":" + self.__get_host_key( ) ] )
+                check_call(
+                    [ sudo, '-u', self.user, 'ssh', 'spark-master', 'sparkbox-manage-slaves',
+                        self.node_ip + ":" + self.__get_host_key( ) ] )
             except CalledProcessError as e:
                 log.warn( "rsync returned %i, retrying in 5s", e.returncode )
                 time.sleep( 5 )
@@ -354,8 +356,16 @@ class SparkTools( object ):
 
     def __format_namenode( self ):
         log.info( "Formatting namenode" )
-        check_call( [ 'sudo', '-u', self.user, self.install_dir + '/hadoop/bin/hdfs',
-                  'namenode', '-format', '-nonInteractive' ] )
+        try:
+            check_output( [ 'sudo', '-u', self.user,
+                              self.install_dir + '/hadoop/bin/hdfs', 'namenode',
+                              '-format',
+                              '-nonInteractive' ], stderr=STDOUT )
+        except CalledProcessError as e:
+            if e.returncode == 1 and 'data appears to exist in Storage Directory' in e.output:
+                pass
+            else:
+                raise
 
     def __patch_etc_hosts( self, hosts ):
         log.info( "Patching /etc/host" )
