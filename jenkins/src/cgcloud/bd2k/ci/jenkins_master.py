@@ -240,6 +240,10 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         jenkins_config_file.seek( 0 )
         jenkins_config = ET.parse( jenkins_config_file )
         templates = jenkins_config.find( './/hudson.plugins.ec2.EC2Cloud/templates' )
+        if templates is None:
+            raise UserError(
+                "Can't find any configuration for the Jenkins Amazon EC2 plugin. Make sure it is "
+                "installed and configured on the %s in %s." % (self.role( ), self.ctx.namespace) )
         template_element_name = 'hudson.plugins.ec2.SlaveTemplate'
         if clean:
             for old_template in templates.findall( template_element_name ):
