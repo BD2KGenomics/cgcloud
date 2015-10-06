@@ -230,7 +230,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         # Run pre-start script
         for daemon in ('exec', 'master'):
             sudo( '/etc/init.d/gridengine-%s stop' % daemon )
-        sudo( "killall -9 -r 'sge_.*'" )  # the exec daemon likes to hang
+        sudo( "killall -9 -r 'sge_.*'", warn_only=True )  # the exec daemon likes to hang
         self._run_init_script( 'gridengine-pre' )
         for daemon in ('master', 'exec'):
             sudo( '/etc/init.d/gridengine-%s start' % daemon )
