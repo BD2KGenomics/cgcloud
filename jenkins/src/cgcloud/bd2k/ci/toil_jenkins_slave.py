@@ -8,11 +8,12 @@ from cgcloud.bd2k.ci.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSla
 from cgcloud.bd2k.ci.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
+from cgcloud.core.docker_box import DockerBox
 from cgcloud.fabric.operations import sudo, remote_sudo_popen
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 
-class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
+class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox ):
     """
     A Jenkins slave suitable for running Toil unit tests, specifically the Mesos batch system and
     the AWS job store. Legacy batch systems (parasol, gridengine, ...) are not yet supported.
@@ -239,3 +240,6 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
         self._run_init_script( 'gridengine-post' )
         while 'execd is in unknown state' in run( 'qstat -f -q all.q -explain a', warn_only=True ):
             time.sleep( 1 )
+
+    def _docker_users( self ):
+        return super( ToilJenkinsSlave, self )._docker_users( ) + [ self.default_account( ) ]
