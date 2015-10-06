@@ -44,7 +44,7 @@ sdist: $(foreach project,$(sdist_projects),sdist_$(project))
 define _pypi
 .PHONY: pypi_$1
 pypi_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
-	cd $1 && $(python) setup.py "egg_info --tag-build=.dev$$$$BUILD_NUMBER register sdist bdist_egg upload"
+	cd $1 && $(python) setup.py egg_info --tag-build=.dev$$$$BUILD_NUMBER register sdist bdist_egg upload
 endef
 $(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
 
