@@ -2,4 +2,5 @@
 *.pyc
 *.egg
 .eggs/
-*/nosetests.xml
+nosetests.xml
+/venv/

@@ -1,5 +1,5 @@
-virtualenv env
-. env/bin/activate
+virtualenv venv
+. venv/bin/activate
 
 pip install nose
 # https://github.com/nose-devs/nose/issues/2
