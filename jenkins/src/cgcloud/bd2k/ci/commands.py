@@ -18,7 +18,7 @@ class RegisterSlaves( BoxCommand ):
                           'slaves that should be added to the Jenkins config. For each matching '
                           'slave, the most recently created image will be registered using the '
                           'recommended instance type for that slave.' )
-        self.option( '--clean', '-c', default=False, action='store_true',
+        self.option( '--clean', '-C', default=False, action='store_true',
                      help='Clear the list of slaves in the master before registering new slaves. '
                           'Beware that this option removes slaves that were registered through '
                           'other means, e.g. via the web UI.' )
