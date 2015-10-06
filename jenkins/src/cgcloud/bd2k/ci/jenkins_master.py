@@ -5,7 +5,8 @@ from textwrap import dedent
 import xml.etree.ElementTree as ET
 
 from fabric.context_managers import hide
-from fabric.operations import run, sudo, put
+
+from fabric.operations import run, sudo, put, get
 
 from cgcloud.lib.ec2 import EC2VolumeHelper
 from cgcloud.lib.util import UserError, abreviated_snake_case_class_name
@@ -294,11 +295,17 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         XML ElementTree, yields the XML tree, then serializes the tree and saves it back to
         Jenkins.
         """
-        # Get the in-memory config as the on-disk one may be absent on a fresh instance.
-        config_url = "http://localhost:8080/computer/(master)/config.xml"
         config_file = StringIO( )
-        with hide( 'output' ):
-            config_file.write( run( 'curl "%s"' % config_url ) )
+        if run( 'test -f ~/config.xml', quiet=True ).succeeded:
+            fresh_instance = False
+            get( remote_path='~/config.xml', local_path=config_file )
+        else:
+            # Get the in-memory config as the on-disk one may be absent on a fresh instance.
+            # Luckily, a fresh instance won't have any configured security.
+            fresh_instance = True
+            config_url = 'http://localhost:8080/computer/(master)/config.xml'
+            with hide( 'output' ):
+                config_file.write( run( 'curl "%s"' % config_url ) )
         config_file.seek( 0 )
         config = ET.parse( config_file )
 
@@ -306,11 +313,17 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
 
         config_file.truncate( 0 )
         config.write( config_file, encoding='utf-8', xml_declaration=True )
-        self.__service_jenkins( 'stop' )
+        if fresh_instance:
+            self.__service_jenkins( 'stop' )
         try:
             put( local_path=config_file, remote_path='~/config.xml' )
         finally:
-            self.__service_jenkins( 'start' )
+            if fresh_instance:
+                self.__service_jenkins( 'start' )
+            else:
+                log.warn( 'Visit the Jenkins web UI and click Manage Jenkins - Reload '
+                          'Configuration from Disk' )
+
 
     @fabric_task
     def __service_jenkins( self, command ):
