@@ -596,7 +596,10 @@ class Box( object ):
         The EC2 instance needs to use an EBS-backed root volume. The box must be stopped or
         an exception will be raised.
         """
-        self.__assert_state( 'stopped' )
+        # We've observed instance state to flap from stopped back to stoppping. As a best effort
+        # we wait for it to flap back to stopped.
+        instance = self.get_instance( )
+        wait_transition( instance, { 'stopping' }, 'stopped' )
 
         log.info( "Creating image ..." )
         timestamp = time.strftime( '%Y-%m-%d_%H-%M-%S' )
