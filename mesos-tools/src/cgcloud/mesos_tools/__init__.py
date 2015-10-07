@@ -1,16 +1,20 @@
 import logging
 import re
 import os
+import errno
+import fcntl
 from grp import getgrnam
 from pwd import getpwnam
+import socket
 import stat
 from urllib2 import urlopen
-from subprocess import check_call, check_output
+from subprocess import check_call, check_output, CalledProcessError
 import time
-import errno
+import itertools
 
 import boto.ec2
 from bd2k.util import memoize
+
 from bd2k.util.files import mkdir_p
 
 from cgcloud.lib.util import volume_label_hash
@@ -21,8 +25,6 @@ initctl = '/sbin/initctl'
 sudo = '/usr/bin/sudo'
 
 log = logging.getLogger( __name__ )
-
-shared_dir = '/home/mesosbox/shared/'
 
 
 class MesosTools( object ):
@@ -39,12 +41,13 @@ class MesosTools( object ):
     Optionally, a persistent EBS volume is attached, formmatted (if needed) and mounted.
     """
 
-    def __init__( self, user, ephemeral_dir, persistent_dir, lazy_dirs ):
+    def __init__( self, user, shared_dir, ephemeral_dir, persistent_dir, lazy_dirs ):
         """
         :param user: the user the services run as
         """
         super( MesosTools, self ).__init__( )
         self.user = user
+        self.shared_dir = shared_dir
         self.ephemeral_dir = ephemeral_dir
         self.persistent_dir = persistent_dir
         self.uid = getpwnam( self.user ).pw_uid
@@ -65,19 +68,21 @@ class MesosTools( object ):
 
         if self.master_ip == self.node_ip:
             node_type = 'master'
+            self.__publish_host_key( )
         else:
             node_type = 'slave'
-
-        self._copy_dir_from_master( shared_dir )
-
-        log_path = '/var/log/mesosbox/mesos{}'.format( node_type )
-        mkdir_p( log_path )
-        os.chown( log_path, self.uid, self.gid )
+            self.__get_master_host_key( )
+            self.__wait_for_master_ssh( )
+            if self.shared_dir:
+                self._copy_dir_from_master( self.shared_dir )
 
         log.info( "Starting %s services" % node_type )
         check_call( [ initctl, 'emit', 'mesosbox-start-%s' % node_type ] )
 
     def stop( self ):
+        """
+        Invoked at shutdown time or when the mesosbox service is stopped.
+        """
         log.info( "Stopping mesosbox" )
         self.__patch_etc_hosts( { 'mesos-master': None } )
 
@@ -216,20 +221,69 @@ class MesosTools( object ):
             # to place persistent data on the ephemeral volume.
             self.persistent_dir = self.ephemeral_dir
 
-    def _copy_dir_from_master( self, dir ):
-        if dir:
-            mkdir_p( dir )
-            while True:
-                try:
-                    check_call( [ 'sudo', '-u', 'mesosbox', 'rsync', '-r', '-e',
-                                    'ssh -o StrictHostKeyChecking=no', "mesos-master:" + dir,
-                                    dir ] )
-                except:
-                    log.warning( "Failed to rsync specified directory, trying again in 10 sec" )
-                    time.sleep( 10 )
-                else:
-                    break
-            os.chown( dir, self.uid, self.gid )
+    def __get_master_host_key( self ):
+        log.info( "Getting master's host key" )
+        master_host_key = self.__get_instance_tag( self.master_id, 'ssh_host_key' )
+        if master_host_key:
+            self.__add_host_keys( [ 'mesos-master:' + master_host_key ] )
+        else:
+            log.warn( "Could not get master's host key" )
+
+    def __add_host_keys( self, host_keys, globally=None ):
+        if globally is None:
+            globally = os.geteuid( ) == 0
+        if globally:
+            known_hosts_path = '/etc/ssh/ssh_known_hosts'
+        else:
+            known_hosts_path = os.path.expanduser( '~/.ssh/known_hosts' )
+        with open( known_hosts_path, 'a+' ) as f:
+            fcntl.flock( f, fcntl.LOCK_EX )
+            keys = set( _.strip( ) for _ in f.readlines( ) )
+            keys.update( ' '.join( _.split( ':' ) ) for _ in host_keys )
+            if '' in keys: keys.remove( '' )
+            keys = list( keys )
+            keys.sort( )
+            keys.append( '' )
+            f.seek( 0 )
+            f.truncate( 0 )
+            f.write( '\n'.join( keys ) )
+
+    def __wait_for_master_ssh( self ):
+        """
+        Wait until the instance represented by this box is accessible via SSH.
+        """
+        for _ in itertools.count( ):
+            s = socket.socket( socket.AF_INET, socket.SOCK_STREAM )
+            try:
+                s.settimeout( 5 )
+                s.connect( ('mesos-master', 22) )
+                return
+            except socket.error:
+                pass
+            finally:
+                s.close( )
+
+    def _copy_dir_from_master( self, path ):
+        log.info( "Copying %s from master" % path )
+        if not path.endswith('/'):
+            path += '/'
+        for tries in range( 5 ):
+            try:
+                check_call( [ sudo, '-u', self.user, 'rsync', '-av', 'mesos-master:' + path, path ] )
+            except CalledProcessError as e:
+                log.warn( "rsync returned %i, retrying in 5s", e.returncode )
+                time.sleep( 5 )
+            else:
+                return
+        raise RuntimeError( "Failed to copy %s from master" )
+
+    def __get_host_key( self ):
+        with open( '/etc/ssh/ssh_host_ecdsa_key.pub' ) as f:
+            return ':'.join( f.read( ).split( )[ :2 ] )
+
+    def __publish_host_key( self ):
+        master_host_key = self.__get_host_key( )
+        self.ec2.create_tags( [ self.master_id ], dict( ssh_host_key=master_host_key ) )
 
     def __create_lazy_dirs( self ):
         log.info( "Bind-mounting directory structure" )

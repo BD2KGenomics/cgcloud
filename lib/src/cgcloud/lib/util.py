@@ -265,11 +265,11 @@ class Application( object ):
         if completer is not None:
             argument.completer = completer
 
-    def add( self, command_cls ):
+    def add( self, command_class ):
         """
         Instantiates a command of the specified class and adds it to this application.
         """
-        command = command_cls( self )
+        command = command_class( self )
         self.commands[ command.name( ) ] = command
 
     def run( self, args=None ):
@@ -603,7 +603,29 @@ def volume_label_hash( s ):
     return h[ :-1 ]
 
 
-def heredoc( s ):
+def prefix_lines( text, prefix ):
+    """
+    Prefix each non-empty line in the given text with the given prefix.
+
+    >>> prefix_lines('',' ')
+    ''
+    >>> prefix_lines(' ',' ')
+    '  '
+    >>> prefix_lines('\\n',' ')
+    '\\n'
+    >>> prefix_lines('x',' ')
+    ' x'
+    >>> prefix_lines('x\\n',' ')
+    ' x\\n'
+    >>> prefix_lines('x\\ny\\n', ' ' )
+    ' x\\n y\\n'
+    >>> prefix_lines('x\\ny', ' ' )
+    ' x\\n y'
+    """
+    return '\n'.join( prefix + l if l else l for l in text.split( '\n' ) )
+
+
+def heredoc( s, indent=None ):
     """
     Here-documents [1] for Python. Unindents the given string and interpolates format()-like
     placeholders with local variables from the calling method's stack frame. The interpolation
@@ -620,4 +642,7 @@ def heredoc( s ):
     """
     if s[ 0 ] == '\n': s = s[ 1: ]
     if s[ -1 ] != '\n': s += '\n'
-    return interpolate( dedent( s ), skip_frames=1 )
+    s = dedent( s )
+    if indent is not None:
+        s = prefix_lines( s, indent )
+    return interpolate( s, skip_frames=1 )

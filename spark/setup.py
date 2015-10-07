@@ -1,6 +1,8 @@
+from __future__ import absolute_import
+
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev9'
+from version import cgcloud_version
 
 setup(
     name='cgcloud-spark',
@@ -16,7 +18,6 @@ setup(
     namespace_packages=[ 'cgcloud' ],
     install_requires=[
         'Fabric>=1.7.0',
-        'lxml>=3.2.1',
-        'bd2k-python-lib>=1.6.dev1',
+        'bd2k-python-lib==1.8.dev2',
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core==' + cgcloud_version ] )

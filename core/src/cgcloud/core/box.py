@@ -98,12 +98,12 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    @abstractmethod
     def default_account( self ):
         """
         Returns the name of the user with which interactive SSH session are started on the box.
+        The default implementation forwards to self.admin_account().
         """
-        raise NotImplementedError( )
+        return self.admin_account()
 
     def _image_name_prefix( self ):
         """
@@ -292,7 +292,12 @@ class Box( object ):
         src_security_group_owner_id
         src_security_group_group_id
         """
-        return [ dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ) ]
+        return [
+            dict( ip_protocol='tcp', from_port=22, to_port=22, cidr_ip='0.0.0.0/0' ),
+            # This is necessary to allow PMTUD. A common symptom for PMTUD not working is that
+            # TCP connections hang after a certain constant amount of data has been transferred
+            # if the connection is between the instance and a host with jumbo frames enabled.
+            dict( ip_protocol='icmp', from_port=3, to_port=4, cidr_ip='0.0.0.0/0' ) ]
 
     def __get_virtualization_types( self, instance_type, requested_vtype=None ):
         instance_vtypes = OrderedSet( ec2_instance_types[ instance_type ].virtualization_types )
@@ -776,7 +781,10 @@ class Box( object ):
         The EC2 instance needs to use an EBS-backed root volume. The box must be stopped or
         an exception will be raised.
         """
-        self.__assert_state( 'stopped' )
+        # We've observed instance state to flap from stopped back to stoppping. As a best effort
+        # we wait for it to flap back to stopped.
+        instance = self.get_instance( )
+        wait_transition( instance, { 'stopping' }, 'stopped' )
 
         log.info( "Creating image ..." )
         timestamp = time.strftime( '%Y-%m-%d_%H-%M-%S' )

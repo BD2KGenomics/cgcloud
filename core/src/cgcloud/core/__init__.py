@@ -8,7 +8,7 @@ def __fail_deprecated( artifacts ):
     return artifacts
 
 
-def boxes( ):
+def roles( ):
     from cgcloud.core.generic_boxes import (GenericCentos6Box,
                                             GenericUbuntuPreciseBox,
                                             GenericUbuntuTrustyBox,
@@ -26,7 +26,7 @@ def boxes( ):
         GenericFedora22Box ] )
 
 
-def commands( ):
+def command_classes( ):
     from cgcloud.core.commands import (ListRolesCommand,
                                        CreateCommand,
                                        RecreateCommand,

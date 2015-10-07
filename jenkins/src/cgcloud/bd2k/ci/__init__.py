@@ -1,4 +1,4 @@
-def boxes( ):
+def roles( ):
     from cgcloud.bd2k.ci.cgcloud_jenkins_slave import CgcloudJenkinsSlave
     from cgcloud.bd2k.ci.generic_jenkins_slaves import (UbuntuLucidGenericJenkinsSlave,
                                                         Centos5GenericJenkinsSlave,
@@ -31,7 +31,7 @@ def boxes( ):
         S3amJenkinsSlave ]
 
 
-def commands( ):
+def command_classes( ):
     from cgcloud.bd2k.ci.commands import RegisterSlaves
     return [
         RegisterSlaves ]

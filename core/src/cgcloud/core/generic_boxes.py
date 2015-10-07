@@ -60,26 +60,28 @@ class GenericCentos5Box( CentosBox ):
             ('python-devel', 'python26-devel')
         ]
 
-    @fabric_task
     def _post_install_packages( self ):
         if 'python' in self._list_packages_to_install( ):
-            # The pip from the python-pip package is hard-wired to the python 2.4 from the python
-            # package. Also it's ancient, fossilized crap. To get an up-to-date pip that is
-            # wired to python 2.6 from the python26 package we have to jump though some hoops.
+            self.__update_python( )
+        super( GenericCentos5Box, self )._post_install_packages( )
 
-            # First, we need to ignore certs since the CA package on CentOS 5 is, you guessed it,
-            # out of date. We do this globally because the downloaded .py scripts execute wget
-            # internally. Nevertheless, we got cert errors with github.com and so we are using
-            # curl instead to download the scripts from there.
-            sudo( 'echo "check_certificate=off" > /root/.wgetrc' )
-            # Then install setuptools ...
-            run( 'curl -O https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py' )
-            sudo( 'python2.6 ez_setup.py' )
-            # .. and pip.
-            run( 'curl -O https://raw.githubusercontent.com/pypa/pip/master/contrib/get-pip.py' )
-            sudo( 'python2.6 get-pip.py' )
-            sudo( 'rm /root/.wgetrc' )
-            super( GenericCentos5Box, self )._post_install_packages( )
+    @fabric_task
+    def __update_python( self ):
+        # The pip from the python-pip package is hard-wired to the python 2.4 from the python
+        # package. Also it's ancient, fossilized crap. To get an up-to-date pip that is
+        # wired to python 2.6 from the python26 package we have to jump though some hoops.
+        # First, we need to ignore certs since the CA package on CentOS 5 is, you guessed it,
+        # out of date. We do this globally because the downloaded .py scripts execute wget
+        # internally. Nevertheless, we got cert errors with github.com and so we are using
+        # curl instead to download the scripts from there.
+        sudo( 'echo "check_certificate=off" > /root/.wgetrc' )
+        # Then install setuptools ...
+        run( 'curl -O https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py' )
+        sudo( 'python2.6 ez_setup.py' )
+        # .. and pip.
+        run( 'curl -O https://raw.githubusercontent.com/pypa/pip/master/contrib/get-pip.py' )
+        sudo( 'python2.6 get-pip.py' )
+        sudo( 'rm /root/.wgetrc' )
 
 
 class GenericCentos6Box( CentosBox ):
@@ -98,6 +100,7 @@ class GenericCentos6Box( CentosBox ):
         if self.generation == 0 and first_boot:
             if False:
                 self._update_openssh( )
+
 
 @deprecated
 class GenericUbuntuLucidBox( UpstartUbuntuBox ):
@@ -306,3 +309,20 @@ class GenericFedora21Box( FedoraBox ):
 class GenericFedora22Box( FedoraBox ):
     def release( self ):
         return 22
+
+    def _on_instance_ready( self, first_boot ):
+        if first_boot:
+            self.__fix_stupid_locale_problem( )
+        super( GenericFedora22Box, self )._on_instance_ready( first_boot )
+
+    @fabric_task
+    def __fix_stupid_locale_problem( self ):
+        """
+        The bug:
+        https://bugzilla.redhat.com/show_bug.cgi?id=1261249
+
+        The workaround:
+        https://www.banym.de/linux/fedora/problems-with-missing-locale-files-on-fedora-20-made-libvirtd-service-not-starting
+        """
+        sudo( 'localedef -c -i en_US -f UTF-8 en_US.UTF-8' )
+

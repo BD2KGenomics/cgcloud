@@ -1,6 +1,8 @@
+from __future__ import absolute_import
+
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev9'
+from version import cgcloud_version
 
 setup(
     name='cgcloud-lib',
@@ -15,5 +17,5 @@ setup(
     packages=find_packages( 'src' ),
     namespace_packages=[ 'cgcloud' ],
     install_requires=[
-        'bd2k-python-lib>=1.6.dev1',
+        'bd2k-python-lib==1.8.dev2',
         'boto>=2.36.0' ] )

@@ -1,6 +1,8 @@
+from __future__ import absolute_import
+
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev9'
+from version import cgcloud_version
 
 setup(
     name='cgcloud-mesos',
@@ -17,6 +19,5 @@ setup(
     install_requires=[
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core==' + cgcloud_version,
-        'bd2k-python-lib>=1.6.dev1',
-        'Fabric>=1.7.0',
-        'lxml>=3.2.1' ] )
+        'bd2k-python-lib==1.8.dev2',
+        'Fabric>=1.7.0' ] )

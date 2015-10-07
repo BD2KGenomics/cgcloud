@@ -39,11 +39,8 @@ in the following ways (bad news first):
 Prerequisites
 =============
 
-The ``cgcloud-spark`` package 
-
-* requires that the ``cgcloud-core`` package and its prerequisites_ are present
-
-* also depends on ``lxml`` which requires gcc, libxml2 and libxslt
+The ``cgcloud-spark`` package requires that the ``cgcloud-core`` package and
+its prerequisites_ are present.
 
 .. _prerequisites: ../core#prerequisites
 
@@ -66,16 +63,6 @@ python``. If it prints ``/usr/local/bin/python`` you are most likely using a
 HomeBrew Python and should therefore omit ``sudo``. If it prints
 ``/usr/bin/python`` you need to run ``pip`` with ``sudo``.
 
-If you get an error message during the installation of the ``lxml`` dependency,
-you might have to install the ``libxml2`` and ``libxslt`` headers. On Ubuntu,
-for example, run::
-
-   sudo apt-get install gcc libxml2-dev libxslt-dev
-   
-On Redhat-based distros, run the following::
-
-   sudo yum install gcc libxml2-devel libxslt-devel
-   
 Be sure to configure_ ``cgcloud-core`` before proceeding.
 
 Configuration

@@ -6,7 +6,7 @@ import sys
 
 sys.path.append( os.path.join( os.path.dirname( __file__ ), 'src' ) )
 
-from cgcloud.core.ui import main
+from cgcloud.core.cli import main
 
 if __name__ == "__main__":
     main( )

@@ -5,36 +5,124 @@ develop_projects=lib core jenkins spark mesos toil
 sdist_projects=lib agent spark-tools mesos-tools
 all_projects=lib core agent jenkins spark spark-tools mesos mesos-tools toil
 
+green=\033[0;32m
+normal=\033[0m
+red=\033[0;31m
+
+.SUFFIXES:
+
+.PHONY: all
 all: develop sdist
 
+.PHONY: no_sudo
 no_sudo:
-	@test "$$(id -u)" != "0" || ( echo "\033[0;31mDon't run me as 'sudo make'. Use 'make sudo=sudo' instead.\033[0m" && false )
+	@test "$$(id -u)" != "0" || ( echo "$(red)Don't run me as 'sudo make'. Use 'make sudo=sudo' instead.$(normal)" && false )
 
-develop: no_sudo
-	$(python) each_setup.py "egg_info" $(develop_projects)
-	$(sudo) $(python) each_setup.py "develop" $(develop_projects)
+define _develop
+.PHONY: develop_$1
+develop_$1: no_sudo $1/version.py $1/MANIFEST.in
+	cd $1 && $(python) setup.py egg_info
+	cd $1 && $(sudo) $(python) setup.py develop
+endef
+$(foreach project,$(develop_projects),$(eval $(call _develop,$(project))))
 
-sdist: no_sudo
-	$(python) each_setup.py "sdist" $(sdist_projects)
+.PHONY: develop
+develop: $(foreach project,$(develop_projects),develop_$(project))
 
-pypi: no_sudo
-	@echo "\033[0;32mChecking if your working copy is clean ...\033[0m"
-	git diff --exit-code
-	git diff --cached --exit-code
-	test -z "$(git ls-files --other --exclude-standard --directory)"
-	@echo "\033[0;32mLooks like your working copy is clean. Uploading to PyPI ...\033[0m"
-	$(python) each_setup.py "register sdist bdist_egg upload" $(all_projects)
-	@echo "\033[0;32mLooks like the upload to PyPI was successful.\033[0m"
-	@echo "\033[0;32mNow tag this release in git and bump the version in every setup.py.\033[0m"
 
-clean: no_sudo
-	$(sudo) $(python) each_setup.py "develop -u" $(develop_projects)
-	$(python) each_setup.py "clean --all" $(all_projects)
-	for i in $(all_projects); do rm -rf $$i/dist $$i/src/*.egg-info; done
+define _sdist
+.PHONY: sdist_$1
+sdist_$1: no_sudo $1/version.py $1/MANIFEST.in
+	cd $1 && $(python) setup.py sdist
+endef
+$(foreach project,$(sdist_projects),$(eval $(call _sdist,$(project))))
 
-test: no_sudo develop sdist
-	@echo "\033[0;32mChecking if nose is installed. If this fails, you need to 'pip install nose'.\033[0m"
+.PHONY: sdist
+sdist: $(foreach project,$(sdist_projects),sdist_$(project))
+
+
+define _pypi
+.PHONY: pypi_$1
+pypi_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
+	cd $1 && $(python) setup.py egg_info --tag-build=.dev$$$$BUILD_NUMBER sdist bdist_egg upload
+endef
+$(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
+
+.PHONY: pypi
+pypi: $(foreach project,$(all_projects),pypi_$(project))
+
+
+define _pypi_stable
+.PHONY: pypi_stable_$1
+pypi_stable_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
+	cd $1 && $(python) setup.py egg_info sdist bdist_egg upload
+endef 
+$(foreach project,$(all_projects),$(eval $(call _pypi_stable,$(project))))
+
+.PHONY: pypi_stable
+pypi_stable: $(foreach project,$(all_projects),pypi_stable_$(project))
+
+
+define _clean
+.PHONY: clean_$1
+clean_$1: no_sudo
+	cd $1 && $(python) setup.py clean --all && rm -rf dist src/*.egg-info MANIFEST.in version.py
+endef
+$(foreach project,$(all_projects),$(eval $(call _clean,$(project))))
+
+define _undevelop
+.PHONY: undevelop_$1
+undevelop_$1: no_sudo
+	cd $1 && $(sudo) $(python) setup.py develop -u
+endef
+$(foreach project,$(all_projects),$(eval $(call _undevelop,$(project))))
+
+.PHONY: clean
+clean: $(foreach project,$(all_projects),clean_$(project)) $(foreach project,$(develop_projects),undevelop_$(project))
+
+
+define _test
+.PHONY: test_$1
+test_$1: no_sudo nose sdist develop_$1
+	cd $1 && $(python) -m nose --verbose
+	@echo "$(green)Tests succeeded.$(normal)"
+endef
+$(foreach project,$(develop_projects),$(eval $(call _test,$(project))))
+
+.PHONY: test
+test: $(foreach project,$(develop_projects),test_$(project))
+
+
+.PHONY: nose
+nose:
+	@echo "$(green)Checking if nose is installed. If this fails, you need to 'pip install nose'.$(normal)"
 	python -c 'import nose'
-	@echo "\033[0;32mLooks good. Running tests.\033[0m"
-	for i in $(develop_projects); do ( cd $${i} && $(python) -m nose --verbose ) || fail=1 ; done ; test ! "$$fail"
-	@echo "\033[0;32mTests succeeded.\033[0m"
+	@echo "$(green)Looks good. Running tests.$(normal)"
+
+
+.PHONY: check_clean_working_copy
+check_clean_working_copy:
+	@echo "$(green)Checking if your working copy is clean ...$(normal)"
+	@git diff --exit-code > /dev/null \
+		|| ( echo "$(red)Your working copy looks dirty.$(normal)" ; false )
+	@git diff --cached --exit-code > /dev/null \
+		|| ( echo "$(red)Your index looks dirty.$(normal)" ; false )
+	@test -z "$$(git ls-files --other --exclude-standard --directory)" \
+		|| ( echo "$(red)You have are untracked files:$(normal)" \
+			; git ls-files --other --exclude-standard --directory \
+			; false )
+
+
+.PHONY: check_running_on_jenkins
+check_running_on_jenkins:
+	@echo "$(green)Checking if running on Jenkins ...$(normal)"
+	test -n "$$BUILD_NUMBER" \
+		|| ( echo "$(red)This target should only be invoked on Jenkins.$(normal)" ; false )
+
+
+%/version.py: version.py
+	cp $< $@
+
+
+%/MANIFEST.in: MANIFEST.in
+	cp $< $@

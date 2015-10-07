@@ -1,8 +1,9 @@
+from __future__ import absolute_import
 import sys
 
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev9'
+from version import cgcloud_version
 
 setup(
     name='cgcloud-agent',
@@ -22,7 +23,7 @@ setup(
         'console_scripts': [
             'cgcloudagent = cgcloud.agent.cli:main' ], },
     install_requires=filter( None, [
-        'bd2k-python-lib>=1.6.dev1',
+        'bd2k-python-lib==1.8.dev2',
         'cgcloud-lib==' + cgcloud_version,
         'boto>=2.36.0',
         'python-daemon>=2.0.5',

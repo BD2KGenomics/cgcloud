@@ -580,7 +580,13 @@ class Context( object ):
     def resolve_me( self, s, drop_hostname=True ):
         placeholder = self.current_user_placeholder
         if placeholder in s:
-            me = os.environ.get( 'CGCLOUD_ME' ) or self.iam_user_name
+            me = os.environ.get( 'CGCLOUD_ME', self.iam_user_name )
+            if not me:
+                raise UserError(
+                    "Can't determine current IAM user name. Be sure to put valid AWS credentials "
+                    "in ~/.boto. For details, refer to %s. On an EC2 instance that is authorized "
+                    "via IAM roles, you can set the CGCLOUD_ME environment variable (uncommon)."
+                    % 'http://boto.readthedocs.org/en/latest/boto_config_tut.html' )
             if drop_hostname:
                 me = self.drop_hostname( me )
             return s.replace( placeholder, me )

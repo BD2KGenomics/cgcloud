@@ -1,6 +1,8 @@
+from __future__ import absolute_import
+
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev9'
+from version import cgcloud_version
 
 setup(
     name='cgcloud-core',
@@ -16,9 +18,9 @@ setup(
     namespace_packages=[ 'cgcloud' ],
     entry_points={
         'console_scripts': [
-            'cgcloud = cgcloud.core.ui:main' ], },
+            'cgcloud = cgcloud.core.cli:main' ], },
     install_requires=[
-        'bd2k-python-lib>=1.6.dev1',
+        'bd2k-python-lib==1.8.dev2',
         'cgcloud-lib==' + cgcloud_version,
         'boto>=2.36.0',
         'Fabric>=1.7.0',

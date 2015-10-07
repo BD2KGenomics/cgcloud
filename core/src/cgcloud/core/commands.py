@@ -108,11 +108,11 @@ class RoleCommand( ContextCommand ):
                           "roles." )
 
     def completer( self, prefix, **kwargs ):
-        return [ role for role in self.application.boxes.iterkeys( ) if role.startswith( prefix ) ]
+        return [ role for role in self.application.roles.iterkeys( ) if role.startswith( prefix ) ]
 
     def run_in_ctx( self, options, ctx ):
         role = options.role
-        box_cls = self.application.boxes.get( role )
+        box_cls = self.application.roles.get( role )
         if box_cls is None: raise UserError( "No such role: '%s'" % role )
         box = box_cls( ctx )
         return self.run_on_box( options, box )
@@ -159,7 +159,8 @@ class UserCommand( BoxCommand ):
                      help="Force logging in as the administrative user." )
         self.end_mutex( )
 
-    def _user( self, box, options ):
+    @staticmethod
+    def _user( box, options ):
         return box.admin_account( ) if options.admin else options.user or box.default_account( )
 
 
@@ -469,7 +470,7 @@ class ListRolesCommand( Command ):
     """
 
     def run( self, options ):
-        print( '\n'.join( self.application.boxes.iterkeys( ) ) )
+        print( '\n'.join( self.application.roles.iterkeys( ) ) )
 
 
 # noinspection PyAbstractClass

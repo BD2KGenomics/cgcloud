@@ -46,6 +46,7 @@ class remote_popen( object ):
     >>> from fabric.context_managers import hide, settings
     >>> with settings(host_string='localhost'):
     ...     with hide( 'output' ):
+    ...          # Disable shell since it may print additional stuff to console
     ...          with remote_popen( 'sort -n', shell=False ) as f:
     ...              f.write( '\\n'.join( map( str, [ 3, 2, 1] ) ) )
     [localhost] run: sort -n

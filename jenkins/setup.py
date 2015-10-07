@@ -1,6 +1,8 @@
+from __future__ import absolute_import
+
 from setuptools import setup, find_packages
 
-cgcloud_version = '1.0.dev9'
+from version import cgcloud_version
 
 setup(
     name='cgcloud-jenkins',
@@ -17,5 +19,4 @@ setup(
     install_requires=[
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core=='  + cgcloud_version,
-        'Fabric>=1.7.0',
-        'lxml>=3.2.1' ] )
+        'Fabric>=1.7.0' ] )

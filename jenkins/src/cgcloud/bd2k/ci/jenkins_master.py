@@ -1,9 +1,11 @@
 from StringIO import StringIO
+from contextlib import contextmanager
 import logging
 from textwrap import dedent
+import xml.etree.ElementTree as ET
 
-from lxml import etree
-from fabric.context_managers import settings
+from fabric.context_managers import hide
+
 from fabric.operations import run, sudo, put, get
 
 from cgcloud.lib.ec2 import EC2VolumeHelper
@@ -14,6 +16,7 @@ from cgcloud.core.source_control_client import SourceControlClient
 
 log = logging.getLogger( __name__ )
 
+
 # FIXME: __create_jenkins_keypair and __inject_aws_credentials fail when the Jenkins volume is fresh
 # since certain files like config.xml don't exist (because Jenkins hasn't written them out yet or
 # because the plugin isn't installed yet. The workaround is to install all stop the instance (
@@ -22,9 +25,6 @@ log = logging.getLogger( __name__ )
 # key into Jenkins. Since then Jenkins switched to a new credentials system rendering the old
 # method ineffective. We should switch to the new system or remove the code. After all it is easy
 # enought to configure the credentials by hand.
-
-# FIXME: Once we ascertain that the EC2 publisher plugin supports IAM role delegation,
-# remove/disable the access key generation and injection code
 
 class Jenkins:
     user = 'jenkins'
@@ -204,75 +204,61 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         key_path = '%s/.ssh/id_rsa' % Jenkins.home
         ec2_keypair_name = self.ec2_keypair_name( self.ctx )
         ssh_privkey, ssh_pubkey = self._provide_generated_keypair( ec2_keypair_name, key_path )
-        return self.__patch_config_file(
-            path='~/config.xml',
-            text_by_xpath={ './/hudson.plugins.ec2.EC2Cloud/privateKey/privateKey': ssh_privkey } )
+        with self.__patch_jenkins_config( ) as config:
+            text_by_xpath = { './/hudson.plugins.ec2.EC2Cloud/privateKey/privateKey': ssh_privkey }
+            for xpath, text in text_by_xpath.iteritems( ):
+                for element in config.iterfind( xpath ):
+                    if element.text != text:
+                        element.text = text
 
     @fabric_task
     def _post_install_packages( self ):
         super( JenkinsMaster, self )._post_install_packages( )
         self._propagate_authorized_keys( Jenkins.user, Jenkins.group )
         self.setup_repo_host_keys( user=Jenkins.user )
-        restart_needed = self.__create_jenkins_keypair( )
-        # For some reason, simply reloading Jenkins via its WS API won't update the configuration
-        # of certain plugins (s3-publisher-plugin, for example) so since we might have touched
-        # plugin configuration, we need to restart Jenkins.
-        if restart_needed: self.__service_jenkins( 'restart' )
+        self.__create_jenkins_keypair( )
 
     def _ssh_args( self, user, command ):
         # Add port forwarding to Jenkins' web UI
         command = [ '-L', 'localhost:8080:localhost:8080' ] + command
         return super( JenkinsMaster, self )._ssh_args( user, command )
 
-    def register_slaves( self, slave_clss, clean=False, instance_type=None ):
-        self.__service_jenkins( 'stop' )
-        try:
-            self.__register_slaves( clean, instance_type, slave_clss )
-        finally:
-            self.__service_jenkins( 'start' )
-
     @fabric_task( user=Jenkins.user )
-    def __register_slaves( self, clean, instance_type, slave_clss ):
-        jenkins_config_file = StringIO( )
-        jenkins_config_path = '~/config.xml'
-        get( local_path=jenkins_config_file, remote_path=jenkins_config_path )
-        jenkins_config_file.seek( 0 )
-        parser = etree.XMLParser( remove_blank_text=True )
-        jenkins_config = etree.parse( jenkins_config_file, parser )
-        templates = jenkins_config.find( './/hudson.plugins.ec2.EC2Cloud/templates' )
-        template_element_name = 'hudson.plugins.ec2.SlaveTemplate'
-        if clean:
-            for old_template in templates.findall( template_element_name ):
-                old_template.getparent( ).remove( old_template )
-        for slave_cls in slave_clss:
-            slave = slave_cls( self.ctx )
-            images = slave.list_images( )
-            try:
-                image = images[ -1 ]
-            except IndexError:
-                raise UserError( "No images for '%s'" % slave_cls.role( ) )
-            new_template = slave.slave_config_template( image, instance_type )
-            description = new_template.find( 'description' ).text
-            found = False
-            for old_template in templates.findall( template_element_name ):
-                if old_template.find( 'description' ).text == description:
-                    if found:
-                        raise RuntimeError( 'More than one existing slave definition for %s. '
-                                            'Fix and try again' % description )
-                    i = templates.index( old_template )
-                    templates[ i ] = new_template
-                    found = True
-            if not found:
-                templates.append( new_template )
-            # newer versions of Jenkins add class="empty-list" attribute if there are no templates
-            if templates.attrib.get( 'class' ) == 'empty-list':
-                templates.attrib.pop( 'class' )
-        jenkins_config_file.truncate( 0 )
-        jenkins_config.write( jenkins_config_file,
-                              encoding=jenkins_config.docinfo.encoding,
-                              xml_declaration=True,
-                              pretty_print=True )
-        put( local_path=jenkins_config_file, remote_path=jenkins_config_path )
+    def register_slaves( self, slave_clss, clean=False, instance_type=None ):
+        with self.__patch_jenkins_config( ) as config:
+            templates = config.find( './/hudson.plugins.ec2.EC2Cloud/templates' )
+            if templates is None:
+                raise UserError(
+                    "Can't find any configuration for the Jenkins Amazon EC2 plugin. Make sure it is "
+                    "installed and configured on the %s in %s." % (
+                        self.role( ), self.ctx.namespace) )
+            template_element_name = 'hudson.plugins.ec2.SlaveTemplate'
+            if clean:
+                for old_template in templates.findall( template_element_name ):
+                    templates.getchildren( ).remove( old_template )
+            for slave_cls in slave_clss:
+                slave = slave_cls( self.ctx )
+                images = slave.list_images( )
+                try:
+                    image = images[ -1 ]
+                except IndexError:
+                    raise UserError( "No images for '%s'" % slave_cls.role( ) )
+                new_template = slave.slave_config_template( image, instance_type )
+                description = new_template.find( 'description' ).text
+                found = False
+                for old_template in templates.findall( template_element_name ):
+                    if old_template.find( 'description' ).text == description:
+                        if found:
+                            raise RuntimeError( 'More than one existing slave definition for %s. '
+                                                'Fix and try again' % description )
+                        i = templates.getchildren( ).index( old_template )
+                        templates[ i ] = new_template
+                        found = True
+                if not found:
+                    templates.append( new_template )
+                # newer versions of Jenkins add class="empty-list" attribute if there are no templates
+                if templates.attrib.get( 'class' ) == 'empty-list':
+                    templates.attrib.pop( 'class' )
 
     def _image_block_device_mapping( self ):
         # Do not include the data volume in the snapshot
@@ -302,33 +288,42 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                         "arn:aws:s3:::public-artifacts.cghub.ucsc.edu/*" ] ) ] ) ) )
         return role_name, policies
 
-    def __patch_config_file( self, path, text_by_xpath ):
-        dirty = False
+    @contextmanager
+    def __patch_jenkins_config( self ):
+        """
+        A context manager that retrieves the Jenkins configuration XML, deserializes it into an
+        XML ElementTree, yields the XML tree, then serializes the tree and saves it back to
+        Jenkins.
+        """
         config_file = StringIO( )
-        with settings( warn_only=True ):
-            if get( remote_path=path, local_path=config_file ).failed:
-                log.warn( "Warning: Cannot find config file '%s' to patch" % path )
-                return
+        if run( 'test -f ~/config.xml', quiet=True ).succeeded:
+            fresh_instance = False
+            get( remote_path='~/config.xml', local_path=config_file )
+        else:
+            # Get the in-memory config as the on-disk one may be absent on a fresh instance.
+            # Luckily, a fresh instance won't have any configured security.
+            fresh_instance = True
+            config_url = 'http://localhost:8080/computer/(master)/config.xml'
+            with hide( 'output' ):
+                config_file.write( run( 'curl "%s"' % config_url ) )
         config_file.seek( 0 )
-        parser = etree.XMLParser( remove_blank_text=True )
-        config = etree.parse( config_file, parser )
-        for xpath, text in text_by_xpath.iteritems( ):
-            for element in config.iterfind( xpath ):
-                if element.text != text:
-                    element.text = text
-                    dirty = True
-        if dirty:
-            config_file.truncate( 0 )
-            config.write( config_file,
-                          encoding=config.docinfo.encoding,
-                          xml_declaration=True,
-                          pretty_print=True )
-            put( local_path=config_file, remote_path=path )
-        return dirty
+        config = ET.parse( config_file )
 
-    @fabric_task
-    def __reload_jenkins( self ):
-        run( 'curl -X POST http://localhost:8080/reload' )
+        yield config
+
+        config_file.truncate( 0 )
+        config.write( config_file, encoding='utf-8', xml_declaration=True )
+        if fresh_instance:
+            self.__service_jenkins( 'stop' )
+        try:
+            put( local_path=config_file, remote_path='~/config.xml' )
+        finally:
+            if fresh_instance:
+                self.__service_jenkins( 'start' )
+            else:
+                log.warn( 'Visit the Jenkins web UI and click Manage Jenkins - Reload '
+                          'Configuration from Disk' )
+
 
     @fabric_task
     def __service_jenkins( self, command ):
