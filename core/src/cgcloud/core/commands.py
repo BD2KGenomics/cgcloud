@@ -376,12 +376,12 @@ class CreationCommand( RoleCommand ):
                           "newer instance types." )
 
         self.option( '--spot-bid',
-                     default=None,
+                     default=None, type=float,
                      help="The maximum price to pay for the specified instance type, in dollars "
-                          "per hour. Only bids under 2X the instance type's average price for "
-                          "the past week will be accepted. The default is none, and on demand "
-                          "instances are used unless directed otherwise. Warning: some instance "
-                          "types are not available on the spot market!")
+                          "per hour as a floating point value, 1.23 for example. Only bids under "
+                          "double the instance type's average price for the past week will be "
+                          "accepted. By default on-demand instances are used. Note that some "
+                          "instance types are not available on the spot market!")
 
         self.begin_mutex( )
 
