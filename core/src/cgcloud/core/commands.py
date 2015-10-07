@@ -375,6 +375,14 @@ class CreationCommand( RoleCommand ):
                           "on the instance type, but generally speaking, 'hvm' will be used for "
                           "newer instance types." )
 
+        self.option( '--spot-bid',
+                     default=None, type=float,
+                     help="The maximum price to pay for the specified instance type, in dollars "
+                          "per hour as a floating point value, 1.23 for example. Only bids under "
+                          "double the instance type's average price for the past week will be "
+                          "accepted. By default on-demand instances are used. Note that some "
+                          "instance types are not available on the spot market!")
+
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -421,7 +429,6 @@ class CreationCommand( RoleCommand ):
         else:
             if options.terminate is True:
                 box.terminate( )
-
 
 class RegisterKeyCommand( ContextCommand ):
     """
@@ -556,11 +563,69 @@ class RecreateCommand( ImageCommandMixin, CreationCommand ):
         super( RecreateCommand, self ).__init__( application, '--boot-image', '-i' )
 
     def instance_options( self, options ):
-        return dict( image_ref=options.boot_image )
+        return dict( image_ref=options.boot_image,
+                     price=options.spot_bid)
 
     def run_on_creation( self, box, options ):
         pass
 
+class ClusterCommand( RecreateCommand ):
+    def __init__( self, application ):
+        super( ClusterCommand, self ).__init__( application)
+
+        self.option( '--num-slaves', '-s', metavar='NUM',
+                     type=int, default=1,
+                     help='The number of slaves to start.' )
+        # We want --instance-type for the slaves and --master-instance-type for the master and we
+        # want --master-instance-type to default to the value of --instance-type.
+        super( ClusterCommand, self ).option(
+            '--instance-type', '-t', metavar='TYPE', dest='slave_instance_type',
+            default="t2.micro",
+            help='The type of EC2 instance to launch for the slaves, e.g. t2.micro, '
+                 'm3.small, m3.medium, or m3.large etc. ' )
+        self.option( '--master-instance-type', metavar='TYPE', dest='instance_type',
+                     help='The type of EC2 instance to launch for the master, e.g. t2.micro, '
+                          'm3.small, m3.medium, or m3.large etc. The default is the instance type '
+                          'used for the slaves.' )
+        self.option( '--ebs-volume-size', metavar='GB', default=0,
+                     help='The size in GB of an EBS volume to be attached to each node for '
+                          'persistent data such as that backing HDFS. By default HDFS will be '
+                          'backed instance store ( ephemeral) only, or the root volume for '
+                          'instance types that do not offer instance store.' )
+        self.option( '--master-on-demand',dest='master_on_demand', default=None, action='store_true',
+                     help='Use this option to insure that the master instance will be an '
+                          'on demand instance type, even if the spod-bid argument is passed. '
+                          'Using this flag can create a cluster of spot slaves with an on demand '
+                          'master.' )
+
+    def run_on_box( self, options, box ):
+        try:
+            resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
+            box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
+                         instance_type=options.instance_type,
+                         virtualization_type=options.virtualization_type,
+                         master_on_demand=options.master_on_demand,
+                         **self.instance_options( options ) )
+            box.create( wait_ready=True )
+            self.run_on_creation( box, options )
+        except:
+            if options.terminate is not False:
+                with panic( ):
+                    box.terminate( wait=False )
+            else:
+                raise
+        else:
+            if options.terminate is True:
+                box.terminate( )
+
+    def option( self, *args, **kwargs ):
+        option_name = args[ 0 ]
+        if option_name == 'role':
+            return
+        elif option_name == '--instance-type':
+            # Suppress the instance type option inherited from the parent so we can roll our own
+            return
+        super( ClusterCommand, self ).option( *args, **kwargs )
 
 class CreateCommand( CreationCommand ):
     """
@@ -588,10 +653,10 @@ class CreateCommand( CreationCommand ):
                      help="Bring the package repository as well as any installed packages up to "
                           "date, i.e. do what on Ubuntu is achieved by doing "
                           "'sudo apt-get update ; sudo apt-get upgrade'." )
-
     def instance_options( self, options ):
         return dict( image_ref=options.boot_image,
-                     enable_agent=not options.no_agent )
+                     enable_agent=not options.no_agent,
+                     price=options.spot_bid)
 
     def run_on_creation( self, box, options ):
         box.setup( upgrade_installed_packages=options.upgrade )
