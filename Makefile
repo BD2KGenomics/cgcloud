@@ -44,7 +44,7 @@ sdist: $(foreach project,$(sdist_projects),sdist_$(project))
 define _pypi
 .PHONY: pypi_$1
 pypi_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
-	cd $1 && CGCLOUD_VERSION_SUFFIX=.dev$$$$BUILD_NUMBER $(python) setup.py egg_info sdist bdist_egg upload
+	cd $1 && $(python) setup.py egg_info sdist bdist_egg upload
 endef
 $(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
 
@@ -52,33 +52,24 @@ $(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
 pypi: $(foreach project,$(all_projects),pypi_$(project))
 
 
-define _pypi_stable
-.PHONY: pypi_stable_$1
-pypi_stable_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
-	cd $1 && $(python) setup.py egg_info sdist bdist_egg upload
-endef 
-$(foreach project,$(all_projects),$(eval $(call _pypi_stable,$(project))))
-
-.PHONY: pypi_stable
-pypi_stable: $(foreach project,$(all_projects),pypi_stable_$(project))
-
-
 define _clean
 .PHONY: clean_$1
-clean_$1: no_sudo
-	cd $1 && $(python) setup.py clean --all && rm -rf dist src/*.egg-info MANIFEST.in version.py
+# clean depends on version.py since it invokes setup.py
+clean_$1: no_sudo $1/version.py
+	cd $1 && $(python) setup.py clean --all && rm -rf dist src/*.egg-info MANIFEST.in version.py version.pyc
 endef
 $(foreach project,$(all_projects),$(eval $(call _clean,$(project))))
 
 define _undevelop
 .PHONY: undevelop_$1
-undevelop_$1: no_sudo
+# develop depends on version.py since it invokes setup.py
+undevelop_$1: no_sudo $1/version.py
 	cd $1 && $(sudo) $(python) setup.py develop -u
 endef
 $(foreach project,$(all_projects),$(eval $(call _undevelop,$(project))))
 
 .PHONY: clean
-clean: $(foreach project,$(all_projects),clean_$(project)) $(foreach project,$(develop_projects),undevelop_$(project))
+clean: $(foreach project,$(develop_projects),undevelop_$(project)) $(foreach project,$(all_projects),clean_$(project))
 
 
 define _test
@@ -96,7 +87,7 @@ test: $(foreach project,$(develop_projects),test_$(project))
 .PHONY: nose
 nose:
 	@echo "$(green)Checking if nose is installed. If this fails, you need to 'pip install nose'.$(normal)"
-	python -c 'import nose'
+	$(python) -c 'import nose'
 	@echo "$(green)Looks good. Running tests.$(normal)"
 
 
@@ -121,7 +112,7 @@ check_running_on_jenkins:
 
 
 %/version.py: version.py
-	cp $< $@
+	$(python) $< > $@
 
 
 %/MANIFEST.in: MANIFEST.in

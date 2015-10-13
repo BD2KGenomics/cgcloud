@@ -1,3 +1,7 @@
-import os
+cgcloud_version = '1.1a1'
 
-cgcloud_version = '1.1a1' + os.environ.get('CGCLOUD_VERSION_SUFFIX','')
+if __name__ == '__main__':
+    import os
+    is_release_build = os.environ.get('is_release_build') == 'true'
+    suffix = '' if is_release_build else '.dev' + os.environ.get( 'BUILD_NUMBER', '0' )
+    print "cgcloud_version='%s'" % ( cgcloud_version + suffix, )
