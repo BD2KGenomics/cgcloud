@@ -8,4 +8,8 @@ export NOSE_WITH_XUNITMP=1
 export NOSE_XUNIT_FILE=nosetests.xml
 
 export CGCLOUD_ME=jenkins@jenkins-master
-make --keep-going $make_targets
+# We want to use -k/--keep-going such that make doesn't fail the build on the first subproject for
+# which the tests fail and keeps testing the other projects. Unfortunately, that takes away the
+# convenience of specifiying multiple targets in one make invocation since make would not stop on a
+# failing target.
+for target in $make_targets; do make --keep-going $target; done
