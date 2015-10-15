@@ -4,7 +4,7 @@ from cgcloud.lib.util import snake_to_camel, UserError
 from cgcloud.fabric.operations import sudo
 from cgcloud.core.box import fabric_task
 from cgcloud.core.source_control_client import SourceControlClient
-from cgcloud.bd2k.ci.jenkins_master import Jenkins, JenkinsMaster
+from cgcloud.jenkins.jenkins_master import Jenkins, JenkinsMaster
 
 build_dir = '/home/jenkins/builds'
 

@@ -3,7 +3,7 @@ from cgcloud.core.centos_box import CentosBox
 from cgcloud.core.generic_boxes import GenericCentos5Box, GenericCentos6Box
 from cgcloud.fabric.operations import sudo
 
-from cgcloud.bd2k.ci.jenkins_slave import JenkinsSlave
+from cgcloud.jenkins.jenkins_slave import JenkinsSlave
 
 
 class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):

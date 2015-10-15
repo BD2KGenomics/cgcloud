@@ -1,4 +1,4 @@
-from cgcloud.bd2k.ci.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
+from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy
 from cgcloud.fabric.operations import remote_sudo_popen

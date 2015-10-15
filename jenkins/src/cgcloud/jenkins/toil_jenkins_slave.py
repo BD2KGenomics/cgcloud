@@ -4,8 +4,8 @@ import re
 
 from fabric.operations import run, put
 
-from cgcloud.bd2k.ci.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
-from cgcloud.bd2k.ci.jenkins_master import Jenkins
+from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
+from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox

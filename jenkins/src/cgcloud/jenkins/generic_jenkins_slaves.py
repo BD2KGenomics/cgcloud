@@ -1,6 +1,6 @@
 from cgcloud.core.generic_boxes import *
 
-from cgcloud.bd2k.ci.jenkins_slave import JenkinsSlave
+from cgcloud.jenkins.jenkins_slave import JenkinsSlave
 from cgcloud.core.ubuntu_box import UbuntuBox
 
 

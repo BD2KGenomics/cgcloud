@@ -18,7 +18,7 @@ First, install the code, either in the system python (requiring sudo) or in a lo
 CGHub Cloud CI is a plugin to `CGhub Cloud Core <https://bitbucket.org/cghub/custom-centos-packages>`_. 
 The following environment variable tells the core to load the plugin::
 
-   export CGCLOUD_PLUGINS=cgcloud.bd2k.ci
+   export CGCLOUD_PLUGINS=cgcloud.jenkins
 
 Running ``cgcloud list-roles`` should now list the additional roles defined in the
 plugin::

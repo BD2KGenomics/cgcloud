@@ -1,4 +1,4 @@
-from cgcloud.bd2k.ci.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
+from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
 from cgcloud.core.docker_box import DockerBox
 
 
