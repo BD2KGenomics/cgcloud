@@ -1,10 +1,10 @@
-The CGCloud Spark project lets you setup a functioning Apache Spark cluster in
-EC2 in just minutes, regardless of the number of nodes. It is a plugin to
-CGCloud. While Apache Spark already comes with a script called ``spark-ec2``
-that lets you build a cluster in EC2, CGCloud Spark differs from ``spark-ec2``
-in the following ways (bad news first):
+The CGCloud Spark project lets you setup a fully configured Apache Spark
+cluster in EC2 in just minutes, regardless of the number of nodes. It is a
+plugin to CGCloud. While Apache Spark already comes with a script called
+``spark-ec2`` that lets you build a cluster in EC2, CGCloud Spark differs from
+``spark-ec2`` in the following ways (bad news first):
 
-* Tachyon and Yarn are not yet supported.
+* Tachyon or Yarn are not included
 
 * Setup time does not scale linearly with the number of nodes. Setting up a 100
   node cluster takes just as long as setting up a 10 node cluster (2-3 min, as
@@ -105,16 +105,8 @@ SSH into the master::
    
 ... or the first slave::
 
-   cgcloud ssh spark-slave -o 0
+   cgcloud ssh -o 0 spark-slave
    
 ... or the second slave::
 
-   cgcloud ssh spark-slave -o 1
-
-Interactions with Spark and HDFS should be done as the ``sparkbox`` user::
-
-   cgcloud ssh spark-master -l sparkbox
-   hdfs dfs -ls /
-   spark-shell
-
-Otherwise you are likely to run into permission problems.
+   cgcloud ssh -o 1 spark-slave

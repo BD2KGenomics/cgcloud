@@ -26,35 +26,47 @@ prerequisites are installed. It is recommended to install CGCloud into a
 virtualenv. Create a virtualenv and use ``pip`` to install
 the ``cgcloud-core`` package::
 
+   cd
    virtualenv cgcloud
    source cgcloud/bin/activate
    pip install cgcloud-core
 
-If you get an error about ``yaml.h`` being missing you may need to install
-libyaml (via HomeBrew on OS X) or libyaml-dev (via apt-get or yum on Linux).
+* If you get an error about ``yaml.h`` being missing you may need to install
+  libyaml (via HomeBrew on OS X) or libyaml-dev (via apt-get or yum on Linux).
 
-If you get::
+* If you get
 
-   AttributeError: 'tuple' object has no attribute 'is_prerelease'
+  ::
 
-you may need to upgrade setuptools::
+      AttributeError: 'tuple' object has no attribute 'is_prerelease'
 
-   sudo pip install --upgrade setuptools
+  you may need to upgrade setuptools
+  
+  ::
 
-If, on Mountain Lion, you get::
+      sudo pip install --upgrade setuptools
+
+* If, on Mountain Lion, you get::
 
    clang: error: unknown argument: '-mno-fused-madd' [-Wunused-command-line-argument-hard-error-in-future]
    clang: note: this will be a hard error (cannot be downgraded to a warning) in the future
    error: command 'clang' failed with exit status 1
 
-try the following work-around::
+  try the following work-around::
    
-   export CFLAGS=-Qunused-arguments
-   export CPPFLAGS=-Qunused-arguments
+      export CFLAGS=-Qunused-arguments
+      export CPPFLAGS=-Qunused-arguments
 
 The installer places the ``cgcloud`` executable into the ``bin`` directory of
-the virtualenv or, if you didn't create a virtualenv for cgcloud, into a
-directory on your ``PATH``. You should be able to invoke it now::
+the virtualenv. Consider adding 
+
+   ::
+      
+      export PATH="$HOME/cgcloud/bin:$PATH"
+      
+   To your `~/.profile`, `~/.bash_profile` or `~/.bashrc`. 
+   
+You should be able to invoke CGCloud now::
 
    cgcloud --help
    
@@ -104,8 +116,10 @@ any other zone in any other EC2 region.
 
 Public SSH key
 --------------
-If you don't have an
-SSH key, you can create one using the ``ssh-keygen`` command.
+
+If you don't have an SSH key, you can create one using the ``ssh-keygen``
+command. Do not use the EC2 console to generate a key. This would be insecure
+and produce a key that is incompatible with CGCloud.
 
 Register your SSH key in EC2 by running::
 
@@ -115,6 +129,15 @@ The above command imports the given public key to EC2 as a key pair (I know,
 the terminology is confusing) but also uploads it to S3, see next paragraph for
 an explanation. The name of the key pair in EC2 will be set to your IAM user
 account name. In S3 the public key will be stored under its fingerprint.
+
+If cgcloud complains that the ``Private key file is encrypted``, your private
+key is probably encrypted with a passphrase (as it should). You need to add the
+key to the SSH agent via ``ssh-add`` which should prompt you for the
+passphrase. On Mac OS X this can be made more convenient by running ``ssh-add
+-K`` or ``ssh-add -K /path/to/private/key`` once. This will automatically add
+the key to the agent every time you log in. The passphrase will be stored in OS
+X's key chain so won't have to enter it again.
+
 
 Note: Importing your key pair using the EC2 console is not equivalent to
 ``cgcloud register-key`` . In order to be able to manage key pairs within a
@@ -263,17 +286,26 @@ setup.py develop``. To remove the editable install ``python setup.py develop
 Troubleshooting
 ===============
 
-If you get the following error::
+* If ``cgcloud create`` gets stuck repeatedly printing ``Private key file is
+  encrypted``, your private key is probably encrypted with a passphrase (as it
+  should). You need to add the key to the SSH agent via ``ssh-add`` which
+  should prompt you for the passphrase. On Mac OS X this can be made more
+  convenient by running ``ssh-add -K`` or ``ssh-add -K /path/to/private/key``
+  once. This will automatically add the key to the agent every time you log in.
+  The passphrase will be stored in OS X's key chain so won't have to enter it
+  again.
 
-   ERROR: Exception: Incompatible ssh peer (no acceptable kex algorithm)
-   ERROR: Traceback (most recent call last):
-   ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1585, in run
-   ERROR:     self._handler_table[ptype](self, m)
-   ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1664, in _negotiate_keys
-   ERROR:     self._parse_kex_init(m)
-   ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1779, in _parse_kex_init
-   ERROR:     raise SSHException('Incompatible ssh peer (no acceptable kex algorithm)')
-   ERROR: SSHException: Incompatible ssh peer (no acceptable kex algorithm)
+* If you get the following error::
+
+      ERROR: Exception: Incompatible ssh peer (no acceptable kex algorithm)
+      ERROR: Traceback (most recent call last):
+      ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1585, in run
+      ERROR:     self._handler_table[ptype](self, m)
+      ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1664, in _negotiate_keys
+      ERROR:     self._parse_kex_init(m)
+      ERROR:   File "/usr/local/lib/python2.7/site-packages/paramiko/transport.py", line 1779, in _parse_kex_init
+      ERROR:     raise SSHException('Incompatible ssh peer (no acceptable kex algorithm)')
+      ERROR: SSHException: Incompatible ssh peer (no acceptable kex algorithm)
 
 try upgrading paramiko::
 
