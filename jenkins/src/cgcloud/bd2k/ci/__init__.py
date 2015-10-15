@@ -12,6 +12,7 @@ def roles( ):
     from cgcloud.bd2k.ci.rpmbuild_jenkins_slaves import Centos6RpmbuildJenkinsSlave
     from cgcloud.bd2k.ci.s3am_jenkins_slave import S3amJenkinsSlave
     from cgcloud.bd2k.ci.toil_jenkins_slave import ToilJenkinsSlave
+    from cgcloud.bd2k.ci.docker_jenkins_slave import DockerJenkinsSlave
     return [
         JenkinsMaster,
 
@@ -28,7 +29,8 @@ def roles( ):
 
         CgcloudJenkinsSlave,
         ToilJenkinsSlave,
-        S3amJenkinsSlave ]
+        S3amJenkinsSlave,
+        DockerJenkinsSlave]
 
 
 def command_classes( ):
