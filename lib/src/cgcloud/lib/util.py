@@ -287,11 +287,7 @@ class Application( object ):
         options = self.parser.parse_args( args )
         self.prepare( options )
         command = self.commands[ options.command_name ]
-        try:
-            command.run( options )
-        except UserError as e:
-            log.error( e.message )
-            sys.exit( 255 )
+        command.run( options )
 
     def prepare( self, options ):
         pass

@@ -1,30 +1,54 @@
 # PYTHON_ARGCOMPLETE_OK
 
+from __future__ import absolute_import
 from collections import OrderedDict
 from importlib import import_module
 import logging
 import os
 import sys
 import imp
+from bd2k.util.iterables import cons
 
-from cgcloud.lib.util import Application, app_name
+from cgcloud.lib.util import Application, app_name, UserError
 import cgcloud.core
 
 log = logging.getLogger( __name__ )
 
 
+def plugin_module( plugin ):
+    """
+    >>> plugin_module('cgcloud.core') # doctest: +ELLIPSIS
+    <module 'cgcloud.core' from '...'>
+    >>> plugin_module('cgcloud.foobar')
+    Traceback (most recent call last):
+    ...
+    UserError: Cannot find plugin module 'cgcloud.foobar'. Running 'pip install cgcloud-foobar' may fix this.
+    """
+    try:
+        return import_module( plugin )
+    except ImportError:
+        raise UserError(
+            "Cannot find plugin module '%s'. Running 'pip install %s' may fix this." % (
+                plugin, plugin.replace( '.', '-' )) )
+
+
 def main( args=None ):
     """
-    This is the cgcloud entrypoint. It should be installed via setuptools.setup( entry_points=... )
+    This is the cgcloud entry point. It should be installed via setuptools.setup(entry_points=...)
     """
-    plugins = [ cgcloud.core ] + [ import_module( plugin )
-        for plugin in os.environ.get( 'CGCLOUD_PLUGINS', "" ).split( ":" )
-        if plugin ]
-    app = CGCloud( plugins )
-    for plugin in plugins:
-        for command_class in plugin.command_classes( ):
-            app.add( command_class )
-    app.run( args )
+    logging.basicConfig( )
+    try:
+        plugins = os.environ.get( 'CGCLOUD_PLUGINS', '' ).strip( )
+        plugins = cons( cgcloud.core,
+                        (plugin_module( plugin ) for plugin in plugins.split( ":" ) if plugin) )
+        app = CGCloud( plugins )
+        for plugin in plugins:
+            for command_class in plugin.command_classes( ):
+                app.add( command_class )
+        app.run( args )
+    except UserError as e:
+        log.error( e.message )
+        sys.exit( 255 )
 
 
 class CGCloud( Application ):
