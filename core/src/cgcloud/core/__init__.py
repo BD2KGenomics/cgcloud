@@ -12,18 +12,10 @@ def roles( ):
     from cgcloud.core.generic_boxes import (GenericCentos6Box,
                                             GenericUbuntuPreciseBox,
                                             GenericUbuntuTrustyBox,
-                                            GenericUbuntuUtopicBox,
                                             GenericUbuntuVividBox,
                                             GenericFedora21Box,
                                             GenericFedora22Box)
-    return __fail_deprecated( [
-        GenericCentos6Box,
-        GenericUbuntuPreciseBox,
-        GenericUbuntuTrustyBox,
-        GenericUbuntuUtopicBox,
-        GenericUbuntuVividBox,
-        GenericFedora21Box,
-        GenericFedora22Box ] )
+    return __fail_deprecated( sorted( locals( ).values( ), key=lambda cls: cls.__name__ ) )
 
 
 def command_classes( ):
@@ -45,25 +37,7 @@ def command_classes( ):
                                        CleanupCommand,
                                        UpdateInstanceProfile,
                                        ResetSecurityCommand)
-    return __fail_deprecated( [
-        ListRolesCommand,
-        CreateCommand,
-        RecreateCommand,
-        StartCommand,
-        StopCommand,
-        RebootCommand,
-        TerminateCommand,
-        ImageCommand,
-        ShowCommand,
-        SshCommand,
-        RsyncCommand,
-        ListCommand,
-        ListImagesCommand,
-        DeleteImageCommand,
-        RegisterKeyCommand,
-        CleanupCommand,
-        UpdateInstanceProfile,
-        ResetSecurityCommand ] )
+    return __fail_deprecated( sorted( locals( ).values( ), key=lambda cls: cls.__name__ ) )
 
 
 test_namespace_suffix_length = 8

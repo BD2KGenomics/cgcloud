@@ -224,7 +224,7 @@ class GenericUbuntuTrustyBox( UpstartUbuntuBox ):
     def release( self ):
         return 'trusty'
 
-
+@deprecated
 class GenericUbuntuUtopicBox( UpstartUbuntuBox ):
     """
     14.10
