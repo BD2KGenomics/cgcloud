@@ -16,9 +16,13 @@ Activate the virtualenv cgcloud was installed in and install
    ::
 
       cd
+      virtualenv cgcloud
       source cgcloud/bin/activate
       pip install cgcloud-jenkins
-      export CGCLOUD_PLUGINS=cgcloud.jenkins
+      export CGCLOUD_PLUGINS="cgcloud.jenkins:$CGCLOUD_PLUGINS"
+
+If you get ``DistributionNotFound: No distributions matching the version for
+cgcloud-jenkins``, try running ``pip install --pre cgcloud-jenkins``.
 
 Running ``cgcloud list-roles`` should now list the additional roles defined in
 the plugin::

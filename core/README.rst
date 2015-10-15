@@ -31,6 +31,9 @@ the ``cgcloud-core`` package::
    source cgcloud/bin/activate
    pip install cgcloud-core
 
+* If you get ``DistributionNotFound: No distributions matching the version for
+  cgcloud-core``, try running ``pip install --pre cgcloud-core``.
+
 * If you get an error about ``yaml.h`` being missing you may need to install
   libyaml (via HomeBrew on OS X) or libyaml-dev (via apt-get or yum on Linux).
 

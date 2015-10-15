@@ -53,15 +53,14 @@ prerequisites are installed. It is recommended to install cgcloud into a
 virtualenv. Create a virtualenv and use ``pip`` to install
 cgcloud-spark::
 
+   cd
    virtualenv cgcloud
    source cgcloud/bin/activate
    pip install cgcloud-spark
+   export CGCLOUD_PLUGINS="cgcloud.spark:$CGCLOUD_PLUGINS"
 
-On OS X systems with a Python that was installed via HomeBrew, you should omit
-`sudo`. You can find out if that applies to your system by running ``which
-python``. If it prints ``/usr/local/bin/python`` you are most likely using a
-HomeBrew Python and should therefore omit ``sudo``. If it prints
-``/usr/bin/python`` you need to run ``pip`` with ``sudo``.
+If you get ``DistributionNotFound: No distributions matching the version for
+cgcloud-spark``, try running ``pip install --pre cgcloud-spark``.
 
 Be sure to configure_ ``cgcloud-core`` before proceeding.
 
