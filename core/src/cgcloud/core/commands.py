@@ -9,6 +9,7 @@ import re
 import sys
 
 from bd2k.util.exceptions import panic
+from bd2k.util.iterables import cons
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
@@ -31,6 +32,10 @@ class ContextCommand( Command ):
     boxes and other resources into isolated groups.
     """
 
+    default_namespace = os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' )
+
+    default_zone = os.environ.get( 'CGCLOUD_ZONE', None )
+
     @abstractmethod
     def run_in_ctx( self, options, ctx ):
         """
@@ -42,15 +47,14 @@ class ContextCommand( Command ):
 
     def __init__( self, application, **kwargs ):
         super( ContextCommand, self ).__init__( application, **kwargs )
-        zone = os.environ.get( 'CGCLOUD_ZONE', None )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
-                     default=zone, dest='availability_zone', required=not bool( zone ),
+                     default=self.default_zone, dest='availability_zone',
+                     required=not bool( self.default_zone ),
                      help='The name of the EC2 availability zone to operate in, e.g. us-east-1b, '
                           'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
                           'run in. The value of the environment variable CGCLOUD_ZONE, '
                           'if that variable is present, determines the default.' )
-        self.option( '--namespace', '-n', metavar='PREFIX',
-                     default=os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' ),
+        self.option( '--namespace', '-n', metavar='PREFIX', default=self.default_namespace,
                      help='Optional prefix for naming EC2 resource like instances, images, '
                           'volumes, etc. Use this option to create a separate namespace in order '
                           'to avoid collisions, e.g. when running tests. The value of the '
@@ -382,7 +386,7 @@ class CreationCommand( RoleCommand ):
                           "per hour as a floating point value, 1.23 for example. Only bids under "
                           "double the instance type's average price for the past week will be "
                           "accepted. By default on-demand instances are used. Note that some "
-                          "instance types are not available on the spot market!")
+                          "instance types are not available on the spot market!" )
 
         self.begin_mutex( )
 
@@ -428,8 +432,20 @@ class CreationCommand( RoleCommand ):
             else:
                 raise
         else:
+            self.log_ssh_hint( options )
             if options.terminate is True:
                 box.terminate( )
+
+    def log_ssh_hint( self, options ):
+        def opt( option, value, default_value ):
+            return option + ' ' + value if value != default_value else None
+
+        log.info( "Run '%s' to start using this box.", ' '.join( filter( None, (
+            os.path.basename( sys.argv[ 0 ] ), 'ssh',
+            opt( '-n', options.namespace, self.default_namespace ),
+            opt( '-z', options.availability_zone, self.default_zone ),
+            options.role) ) ) )
+
 
 class RegisterKeyCommand( ContextCommand ):
     """
@@ -565,14 +581,15 @@ class RecreateCommand( ImageCommandMixin, CreationCommand ):
 
     def instance_options( self, options ):
         return dict( image_ref=options.boot_image,
-                     price=options.spot_bid)
+                     price=options.spot_bid )
 
     def run_on_creation( self, box, options ):
         pass
 
+
 class ClusterCommand( RecreateCommand ):
     def __init__( self, application ):
-        super( ClusterCommand, self ).__init__( application)
+        super( ClusterCommand, self ).__init__( application )
 
         self.option( '--num-slaves', '-s', metavar='NUM',
                      type=int, default=1,
@@ -593,7 +610,8 @@ class ClusterCommand( RecreateCommand ):
                           'persistent data such as that backing HDFS. By default HDFS will be '
                           'backed instance store ( ephemeral) only, or the root volume for '
                           'instance types that do not offer instance store.' )
-        self.option( '--master-on-demand',dest='master_on_demand', default=None, action='store_true',
+        self.option( '--master-on-demand', dest='master_on_demand', default=None,
+                     action='store_true',
                      help='Use this option to insure that the master instance will be an '
                           'on demand instance type, even if the spod-bid argument is passed. '
                           'Using this flag can create a cluster of spot slaves with an on demand '
@@ -628,6 +646,7 @@ class ClusterCommand( RecreateCommand ):
             return
         super( ClusterCommand, self ).option( *args, **kwargs )
 
+
 class CreateCommand( CreationCommand ):
     """
     Create a box performing the specified role, install an OS and additional packages on it and
@@ -654,10 +673,11 @@ class CreateCommand( CreationCommand ):
                      help="Bring the package repository as well as any installed packages up to "
                           "date, i.e. do what on Ubuntu is achieved by doing "
                           "'sudo apt-get update ; sudo apt-get upgrade'." )
+
     def instance_options( self, options ):
         return dict( image_ref=options.boot_image,
                      enable_agent=not options.no_agent,
-                     price=options.spot_bid)
+                     price=options.spot_bid )
 
     def run_on_creation( self, box, options ):
         box.setup( upgrade_installed_packages=options.upgrade )
