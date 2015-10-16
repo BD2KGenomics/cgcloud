@@ -36,12 +36,12 @@ def main( args=None ):
     """
     This is the cgcloud entry point. It should be installed via setuptools.setup(entry_points=...)
     """
-    logging.basicConfig( )
+    root_logger = setup_logging( )
     try:
         plugins = os.environ.get( 'CGCLOUD_PLUGINS', '' ).strip( )
         plugins = cons( cgcloud.core,
                         (plugin_module( plugin ) for plugin in plugins.split( ":" ) if plugin) )
-        app = CGCloud( plugins )
+        app = CGCloud( plugins, root_logger )
         for plugin in plugins:
             for command_class in plugin.command_classes( ):
                 app.add( command_class )
@@ -51,14 +51,29 @@ def main( args=None ):
         sys.exit( 255 )
 
 
+def setup_logging( ):
+    root_logger = logging.getLogger( )
+    # Only setup logging if it hasn't been done already
+    if len( root_logger.handlers ) == 0:
+        root_logger.setLevel( logging.INFO )
+        stream_handler = logging.StreamHandler( sys.stderr )
+        stream_handler.setFormatter( logging.Formatter( "%(levelname)s: %(message)s" ) )
+        stream_handler.setLevel( logging.INFO )
+        root_logger.addHandler( stream_handler )
+        return root_logger
+    else:
+        return None
+
+
 class CGCloud( Application ):
     """
     The main CLI application
     """
     debug_log_file_name = '%s.{pid}.log' % app_name( )
 
-    def __init__( self, plugins ):
+    def __init__( self, plugins, root_logger=None ):
         super( CGCloud, self ).__init__( )
+        self.root_logger = root_logger
         self.option( '--debug',
                      default=False, action='store_true',
                      help='Write debug log to %s in current directory.' % self.debug_log_file_name )
@@ -73,21 +88,15 @@ class CGCloud( Application ):
             self.roles[ role.role( ) ] = role
 
     def prepare( self, options ):
-        root_logger = logging.getLogger( )
-        if len( root_logger.handlers ) == 0:
-            root_logger.setLevel( logging.INFO )
-            stream_handler = logging.StreamHandler( sys.stderr )
-            stream_handler.setFormatter( logging.Formatter( "%(levelname)s: %(message)s" ) )
-            stream_handler.setLevel( logging.INFO )
-            root_logger.addHandler( stream_handler )
+        if self.root_logger:
             if options.debug:
-                root_logger.setLevel( logging.DEBUG )
+                self.root_logger.setLevel( logging.DEBUG )
                 file_name = self.debug_log_file_name.format( pid=os.getpid( ) )
                 file_handler = logging.FileHandler( file_name )
                 file_handler.setLevel( logging.DEBUG )
                 file_handler.setFormatter( logging.Formatter(
                     '%(asctime)s: %(levelname)s: %(name)s: %(message)s' ) )
-                root_logger.addHandler( file_handler )
+                self.root_logger.addHandler( file_handler )
             else:
                 # There are quite a few cases where we expect AWS requests to fail, but it seems
                 # that boto handles these by logging the error *and* raising an exception. We
