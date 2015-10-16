@@ -124,8 +124,9 @@ class ListCommand( RoleCommand ):
     """
 
     def run_on_box( self, options, box ):
-        for box in box.list( ):
-            print( '{role}\t{ordinal}\t{private_ip}\t{ip}\t{id}\t{created_at}\t{state}'.format( **box ) )
+        for row in box.list( ):
+            columns = 'role ordinal private_ip ip id created_at state'.split( )
+            print( '\t'.join( map( str, map( row.get, columns ) ) ) )
 
 
 # noinspection PyAbstractClass
