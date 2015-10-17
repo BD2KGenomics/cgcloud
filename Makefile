@@ -1,5 +1,41 @@
-python=/usr/bin/env python2.7
-sudo=
+# Copyright (C) 2015 UCSC Computational Genomics Lab
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+define help
+
+Supported targets: 'develop', 'sdist', 'clean', 'test' and 'pypi'
+
+The 'develop' target creates an editable install (aka develop mode).
+
+The 'sdist' target creates source distributions for each of the subprojects.
+
+The 'clean' target undoes the effect of 'sdist' and 'develop'.
+
+The 'test' target runs the unit tests.
+
+The 'pypi' target publishes the current commit of the project to PyPI after
+asserting that it is being invoked on a continuous integration server, that the
+working copy and the index are clean and ensuring .
+
+endef
+export help
+.PHONY: help
+help:
+	@echo "$$help"
+
+
+python=python2.7
 
 develop_projects=lib core jenkins spark mesos toil
 sdist_projects=lib agent spark-tools mesos-tools
@@ -9,45 +45,36 @@ green=\033[0;32m
 normal=\033[0m
 red=\033[0;31m
 
+
 .SUFFIXES:
 
-.PHONY: all
-all: develop sdist
-
-.PHONY: no_sudo
-no_sudo:
-	@test "$$(id -u)" != "0" || ( echo "$(red)Don't run me as 'sudo make'. Use 'make sudo=sudo' instead.$(normal)" && false )
 
 define _develop
 .PHONY: develop_$1
-develop_$1: no_sudo $1/version.py $1/MANIFEST.in
-	cd $1 && $(python) setup.py egg_info
-	cd $1 && $(sudo) $(python) setup.py develop
+develop_$1: _check_venv $1/version.py $1/MANIFEST.in
+	cd $1 && $(python) setup.py egg_info develop
 endef
 $(foreach project,$(develop_projects),$(eval $(call _develop,$(project))))
-
 .PHONY: develop
 develop: $(foreach project,$(develop_projects),develop_$(project))
 
 
 define _sdist
 .PHONY: sdist_$1
-sdist_$1: no_sudo $1/version.py $1/MANIFEST.in
+sdist_$1: _check_venv $1/version.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py sdist
 endef
 $(foreach project,$(sdist_projects),$(eval $(call _sdist,$(project))))
-
 .PHONY: sdist
 sdist: $(foreach project,$(sdist_projects),sdist_$(project))
 
 
 define _pypi
 .PHONY: pypi_$1
-pypi_$1: no_sudo check_running_on_jenkins check_clean_working_copy $1/version.py $1/MANIFEST.in
+pypi_$1: _check_venv _check_running_on_jenkins _check_clean_working_copy $1/version.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py egg_info sdist bdist_egg upload
 endef
 $(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
-
 .PHONY: pypi
 pypi: $(foreach project,$(all_projects),pypi_$(project))
 
@@ -55,44 +82,46 @@ pypi: $(foreach project,$(all_projects),pypi_$(project))
 define _clean
 .PHONY: clean_$1
 # clean depends on version.py since it invokes setup.py
-clean_$1: no_sudo $1/version.py
+clean_$1: _check_venv $1/version.py
 	cd $1 && $(python) setup.py clean --all && rm -rf dist src/*.egg-info MANIFEST.in version.py version.pyc
 endef
 $(foreach project,$(all_projects),$(eval $(call _clean,$(project))))
-
 define _undevelop
 .PHONY: undevelop_$1
 # develop depends on version.py since it invokes setup.py
-undevelop_$1: no_sudo $1/version.py
-	cd $1 && $(sudo) $(python) setup.py develop -u
+undevelop_$1: _check_venv $1/version.py
+	cd $1 && $(python) setup.py develop -u
 endef
 $(foreach project,$(all_projects),$(eval $(call _undevelop,$(project))))
-
 .PHONY: clean
 clean: $(foreach project,$(develop_projects),undevelop_$(project)) $(foreach project,$(all_projects),clean_$(project))
 
 
 define _test
 .PHONY: test_$1
-test_$1: no_sudo nose sdist develop_$1
+test_$1: _check_venv _check_nose sdist develop_$1
 	cd $1 && $(python) -m nose --verbose
 	@echo "$(green)Tests succeeded.$(normal)"
 endef
 $(foreach project,$(develop_projects),$(eval $(call _test,$(project))))
-
 .PHONY: test
 test: $(foreach project,$(develop_projects),test_$(project))
 
 
-.PHONY: nose
-nose:
-	@echo "$(green)Checking if nose is installed. If this fails, you need to 'pip install nose'.$(normal)"
-	$(python) -c 'import nose'
-	@echo "$(green)Looks good. Running tests.$(normal)"
+.PHONY: _check_venv
+_check_venv:
+	@$(python) -c 'import sys; sys.exit( int( not hasattr(sys, "real_prefix") ) )' \
+		|| ( echo "$(red)A virtualenv must be active.$(normal)" ; false )
 
 
-.PHONY: check_clean_working_copy
-check_clean_working_copy:
+.PHONY: _check_nose
+_check_nose: _check_venv
+	$(python) -c 'import nose' \
+		|| ( echo "$(red)A virtualenv must be active.$(normal)" ; false )
+
+
+.PHONY: _check_clean_working_copy
+_check_clean_working_copy:
 	@echo "$(green)Checking if your working copy is clean ...$(normal)"
 	@git diff --exit-code > /dev/null \
 		|| ( echo "$(red)Your working copy looks dirty.$(normal)" ; false )
@@ -104,8 +133,8 @@ check_clean_working_copy:
 			; false )
 
 
-.PHONY: check_running_on_jenkins
-check_running_on_jenkins:
+.PHONY: _check_running_on_jenkins
+_check_running_on_jenkins:
 	@echo "$(green)Checking if running on Jenkins ...$(normal)"
 	test -n "$$BUILD_NUMBER" \
 		|| ( echo "$(red)This target should only be invoked on Jenkins.$(normal)" ; false )

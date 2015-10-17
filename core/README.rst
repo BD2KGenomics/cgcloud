@@ -26,9 +26,8 @@ prerequisites are installed. It is recommended to install CGCloud into a
 virtualenv. Create a virtualenv and use ``pip`` to install
 the ``cgcloud-core`` package::
 
-   cd
-   virtualenv cgcloud
-   source cgcloud/bin/activate
+   virtualenv ~/cgcloud
+   source ~/cgcloud/bin/activate
    pip install cgcloud-core
 
 * If you get ``DistributionNotFound: No distributions matching the version for
@@ -61,15 +60,18 @@ the ``cgcloud-core`` package::
       export CPPFLAGS=-Qunused-arguments
 
 The installer places the ``cgcloud`` executable into the ``bin`` directory of
-the virtualenv. Consider adding 
+the virtualenv. Before you can invoke ``cgcloud``, you have to activate the
+virtualenv as shown above. Alternatively, create a per-user bin directory and
+symlink the ``cgcloud`` executable into it::
 
-   ::
+      mkdir -p ~/bin
+      ln -snf ~/cgcloud/bin/cgcloud ~/bin
       
-      export PATH="$HOME/cgcloud/bin:$PATH"
-      
-   To your `~/.profile`, `~/.bash_profile` or `~/.bashrc`. 
+After adding ``export PATH="$HOME/bin:$PATH"`` to your to your `~/.profile`,
+`~/.bash_profile` or `~/.bashrc`, you won't need to explicitly activate the
+virtualenv before running cgcloud.
    
-You should be able to invoke CGCloud now::
+You should be able to invoke ``cgcloud`` now::
 
    cgcloud --help
    
