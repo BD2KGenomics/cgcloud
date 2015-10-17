@@ -32,9 +32,6 @@ class ContextCommand( Command ):
     boxes and other resources into isolated groups.
     """
 
-    default_namespace = os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' )
-
-    default_zone = os.environ.get( 'CGCLOUD_ZONE', None )
 
     @abstractmethod
     def run_in_ctx( self, options, ctx ):
@@ -46,6 +43,8 @@ class ContextCommand( Command ):
         raise NotImplementedError( )
 
     def __init__( self, application, **kwargs ):
+        self.default_namespace = os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' )
+        self.default_zone = os.environ.get( 'CGCLOUD_ZONE', None )
         super( ContextCommand, self ).__init__( application, **kwargs )
         self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                      default=self.default_zone, dest='availability_zone',
