@@ -2,7 +2,7 @@ import os
 import time
 import logging
 
-from bd2k.util.iterables import flatten, cons
+from bd2k.util.iterables import flatten, concat
 
 from cgcloud.core.test import CgcloudTestCase
 from cgcloud.core.cli import main
@@ -110,7 +110,7 @@ class ClusterTests( CgcloudTestCase ):
 
     @classmethod
     def _ssh( cls, role, *args, **kwargs ):
-        cls._cgcloud( *cons( 'ssh', dict_to_opts( kwargs ), role, cls.ssh_opts, args ) )
+        cls._cgcloud( *concat( 'ssh', dict_to_opts( kwargs ), role, cls.ssh_opts, args ) )
 
     @classmethod
     def _cgcloud( cls, *args ):
