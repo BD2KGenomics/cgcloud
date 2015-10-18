@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 import imp
-from bd2k.util.iterables import cons
+from bd2k.util.iterables import concat
 
 from cgcloud.lib.util import Application, app_name, UserError
 import cgcloud.core
@@ -39,8 +39,8 @@ def main( args=None ):
     root_logger = setup_logging( )
     try:
         plugins = os.environ.get( 'CGCLOUD_PLUGINS', '' ).strip( )
-        plugins = cons( cgcloud.core,
-                        (plugin_module( plugin ) for plugin in plugins.split( ":" ) if plugin) )
+        plugins = concat( cgcloud.core,
+                          [ plugin_module( plugin ) for plugin in plugins.split( ":" ) if plugin ] )
         app = CGCloud( plugins, root_logger )
         for plugin in plugins:
             for command_class in plugin.command_classes( ):

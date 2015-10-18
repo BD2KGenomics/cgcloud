@@ -9,7 +9,6 @@ import re
 import sys
 
 from bd2k.util.exceptions import panic
-from bd2k.util.iterables import cons
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group

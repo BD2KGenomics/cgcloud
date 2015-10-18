@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version
+from version import cgcloud_version, bd2k_python_lib_version
 
 setup(
     name='cgcloud-spark',
@@ -18,6 +18,6 @@ setup(
     namespace_packages=[ 'cgcloud' ],
     install_requires=[
         'Fabric>=1.7.0',
-        'bd2k-python-lib==1.8.dev2',
+        'bd2k-python-lib==' + bd2k_python_lib_version,
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core==' + cgcloud_version ] )

@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version
+from version import cgcloud_version, bd2k_python_lib_version
 
 setup(
     name='cgcloud-core',
@@ -20,7 +20,7 @@ setup(
         'console_scripts': [
             'cgcloud = cgcloud.core.cli:main' ], },
     install_requires=[
-        'bd2k-python-lib==1.8.dev2',
+        'bd2k-python-lib==' + bd2k_python_lib_version,
         'cgcloud-lib==' + cgcloud_version,
         'boto>=2.36.0',
         'Fabric>=1.7.0',
