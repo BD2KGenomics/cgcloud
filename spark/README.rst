@@ -109,3 +109,4 @@ SSH into the master::
 ... or the second slave::
 
    cgcloud ssh -o 1 spark-slave
+
