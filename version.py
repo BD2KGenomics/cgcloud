@@ -1,5 +1,5 @@
 cgcloud_version = '1.1a1'
-bd2k_python_lib_version = '1.10.dev1'
+bd2k_python_lib_version = '1.10.dev2'
 
 if __name__ == '__main__':
     import os

@@ -1,8 +1,8 @@
 import glob
-from itertools import dropwhile
 import os
 
 import pkg_resources
+from bd2k.util.collections import rindex
 
 
 def project_artifacts( project_name ):
@@ -15,35 +15,6 @@ def project_artifacts( project_name ):
     else:
         return [ project_artifact( 'lib' ), project_artifact( project_name ) ]
 
-def rindex(l,v):
-    """
-    Like l.index(v) but finds last occurrence of v in l.
-
-    >>> rindex( [0], 0 )
-    0
-    >>> rindex( [0,0], 0 )
-    1
-    >>> rindex( [0,1], 0 )
-    0
-    >>> rindex( [0,1,0,1], 0 )
-    2
-    >>> rindex( [0,1,0,1], 1 )
-    3
-    >>> rindex( [0], 1 )
-    Traceback (most recent call last):
-    ...
-    ValueError: 1
-    >>> rindex( [None], None )
-    0
-    >>> rindex( [], None )
-    Traceback (most recent call last):
-    ...
-    ValueError: None
-    """
-    try:
-        return len(l) - dropwhile( lambda (i,x): v != x, enumerate( reversed( l ),1 ) ).next()[0]
-    except StopIteration:
-        raise ValueError( v )
 
 def project_artifact( project_name ):
     """
@@ -67,7 +38,7 @@ def project_artifact( project_name ):
     except ValueError:
         # Otherwise, we must be installed and need to determine our current version.
         version = pkg_resources.get_distribution( 'cgcloud-core' ).version
-        return 'cgcloud-%s==%s' % ( project_name, version )
+        return 'cgcloud-%s==%s' % (project_name, version)
     else:
         dir_path = os.path.sep.join( dir_path[ :i ] )
         project_path = os.path.join( os.path.dirname( dir_path ), project_name )
@@ -78,8 +49,9 @@ def project_artifact( project_name ):
         elif sdist:
             raise RuntimeError(
                 "Can't decide which of these is the '%s' source distribution: %s" % (
-                    project_name, sdist ) )
+                    project_name, sdist) )
         else:
-            raise RuntimeError( "Can't find '%s' source distribution. Looking for '%s'." % (
-                project_name, sdist_glob ) )
+            raise RuntimeError( "Can't find '%s' source distribution. Looking for '%s'. You may "
+                                "just need to run 'make sdist' to fix this" % (
+                                    project_name, sdist_glob) )
         return sdist
