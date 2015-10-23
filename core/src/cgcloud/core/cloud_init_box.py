@@ -74,10 +74,9 @@ class CloudInitBox( Box ):
 
         commands = [ ]
 
-        # On instances booted from a stock images we will likely need to install mdadm.
-        # Furthermore, we need to install it on every instance type since an image taken from an
-        # instance with one instance store volume may be used to spawn an instance with multiple
-        # instance store volumes.
+        # On instances booted from a stock image we will likely need to install mdadm. And we
+        # need to install mdadm on every instance type since an image taken from an instance with
+        # one ephemeral volume may be used to spawn an instance with multiple ephemeral volumes.
         if self.generation == 0:
             commands.append( self._get_package_installation_command( 'mdadm' ) )
         num_disks = instance_type.disks
@@ -107,6 +106,7 @@ class CloudInitBox( Box ):
         elif num_disks > 1:
             # RAID multiple SSDs into one, then format and mount it.
             devices = [ device_name( i ) for i in range( num_disks ) ]
+            mount_point = self._ephemeral_mount_point( 0 )
             commands.extend( [
                 [ 'mdadm',
                     '--create', '/dev/md0',
@@ -119,7 +119,8 @@ class CloudInitBox( Box ):
                 # Copy mdadm.conf into init ramdisk
                 [ 'update-initramfs', '-u' ],
                 [ 'mkfs.ext4', '-E', 'nodiscard', '/dev/md0' ],
-                [ 'mount', '/dev/md0', self._ephemeral_mount_point( 0 ) ] ] )
+                [ 'mkdir', '-p', mount_point ],
+                [ 'mount', '/dev/md0', mount_point ] ] )
         else:
             assert False
 
