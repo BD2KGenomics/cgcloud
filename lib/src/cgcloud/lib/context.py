@@ -127,6 +127,7 @@ class Context( object ):
         self.__s3 = None
         self.__sns = None
         self.__sqs = None
+        self.__vpc = None
 
         self.availability_zone = availability_zone
         m = self.availability_zone_re.match( availability_zone )
