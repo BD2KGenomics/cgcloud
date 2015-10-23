@@ -1,6 +1,7 @@
 import logging
 
 from cgcloud.core.box import fabric_task
+from cgcloud.core.docker_box import DockerBox
 from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave, user
 from cgcloud.fabric.operations import sudo
 from cgcloud.lib.util import abreviated_snake_case_class_name
@@ -9,7 +10,7 @@ from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sd
 log = logging.getLogger( __name__ )
 
 
-class ToilBox( MesosBox ):
+class ToilBox( MesosBox, DockerBox ):
     def __init__( self, ctx ):
         super( ToilBox, self ).__init__( ctx )
         self.lazy_dirs = set( )
@@ -19,12 +20,14 @@ class ToilBox( MesosBox ):
         self.__upgrade_pip( )
         self.__install_toil( )
         self.__install_s3am( )
-        self._docker_group( user=user )
 
     def _list_packages_to_install( self ):
         return super( ToilBox, self )._list_packages_to_install( ) + [
-            'python-dev', 'docker.io', 'gcc', 'make',
+            'python-dev', 'gcc', 'make',
             'libcurl4-openssl-dev' ]  # Only for S3AM
+
+    def _docker_users( self ):
+        return super( ToilBox, self )._docker_users( ) + [ user ]
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilBox, self )._get_iam_ec2_role( )
@@ -46,11 +49,6 @@ class ToilBox( MesosBox ):
     @fabric_task
     def __install_s3am( self ):
         sudo( "pip install --pre s3am", pty=False )
-
-    @fabric_task
-    def _docker_group( self, user=user ):
-        sudo( "gpasswd -a {} docker".format( user ) )
-        sudo( "service docker.io restart" )
 
     @fabric_task
     def __upgrade_pip( self ):
