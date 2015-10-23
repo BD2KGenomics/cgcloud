@@ -2,7 +2,7 @@ from StringIO import StringIO
 from contextlib import contextmanager
 import logging
 from textwrap import dedent
-import xml.etree.ElementTree as ET
+from xml.etree import ElementTree
 
 from fabric.context_managers import hide
 
@@ -307,7 +307,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
             with hide( 'output' ):
                 config_file.write( run( 'curl "%s"' % config_url ) )
         config_file.seek( 0 )
-        config = ET.parse( config_file )
+        config = ElementTree.parse( config_file )
 
         yield config
 
