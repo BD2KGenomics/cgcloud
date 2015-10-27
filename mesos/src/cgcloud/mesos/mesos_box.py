@@ -83,13 +83,12 @@ class MesosBox( GenericUbuntuTrustyBox ):
 
     @fabric_task
     def _setup_package_repos( self ):
-        super( MesosBox, self )._setup_package_repos( )
-        sudo( "apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF" )
-        distro = run( "lsb_release -is" ).lower( )
-        codename = run( "lsb_release -cs" )
-
-        sudo( fmt(
-            'echo "deb http://repos.mesosphere.io/{distro} {codename} main" | sudo tee /etc/apt/sources.list.d/mesosphere.list' ) )
+        super( MesosBoxSupport, self )._setup_package_repos( )
+        sudo( 'apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF' )
+        distro = run( 'lsb_release -is' ).lower( )
+        codename = run( 'lsb_release -cs' )
+        sudo( fmt( 'echo "deb http://repos.mesosphere.io/{distro} {codename} main" '
+                   '> /etc/apt/sources.list.d/mesosphere.list' ) )
 
     def _list_packages_to_install( self ):
         return super( MesosBox, self )._list_packages_to_install( ) + [

@@ -4,6 +4,7 @@ import re
 
 from fabric.operations import run, put
 
+from bd2k.util.strings import interpolate as fmt
 from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
 from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
@@ -26,11 +27,11 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox ):
     @fabric_task
     def _setup_package_repos( self ):
         super( ToilJenkinsSlave, self )._setup_package_repos( )
-        sudo( "apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF" )
-        distro = run( "lsb_release -is | tr '[:upper:]' '[:lower:]'" )
-        codename = run( "lsb_release -cs" )
-        run( 'echo "deb http://repos.mesosphere.io/{} {} main"'
-             '| sudo tee /etc/apt/sources.list.d/mesosphere.list'.format( distro, codename ) )
+        sudo( 'apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF' )
+        distro = run( 'lsb_release -is'.lower( ) )
+        codename = run( 'lsb_release -cs' )
+        sudo( fmt( 'echo "deb http://repos.mesosphere.io/{distro} {codename} main"'
+                   '> /etc/apt/sources.list.d/mesosphere.list' ) )
 
     def _list_packages_to_install( self ):
         return super( ToilJenkinsSlave, self )._list_packages_to_install( ) + [
@@ -61,10 +62,9 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox ):
 
     @fabric_task
     def __install_mesos_egg( self ):
-        # FIXME: this is the ubuntu 14.04 version. Wont work with other versions.
-        run( "wget http://downloads.mesosphere.io/master/ubuntu/14.04/"
-             "mesos-0.22.0-py2.7-linux-x86_64.egg" )
-        # we need a newer version of protobuf than comes default on ubuntu
+        run( 'wget http://downloads.mesosphere.io'
+             '/master/ubuntu/14.04/mesos-0.22.0-py2.7-linux-x86_64.egg' )
+        # We need a newer version of protobuf than what comes default on Ubuntu
         pip( 'install --upgrade protobuf', use_sudo=True )
         sudo( "easy_install mesos-0.22.0-py2.7-linux-x86_64.egg" )
 
