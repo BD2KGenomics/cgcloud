@@ -136,5 +136,3 @@ def dict_to_opts( d ):
         return (x for x in xs if x is not None)
 
     return skip_none( flatten( (to_opt( k ), to_arg( v )) for k, v in d.iteritems( ) ) )
-
-

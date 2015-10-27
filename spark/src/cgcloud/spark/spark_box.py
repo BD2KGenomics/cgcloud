@@ -494,7 +494,7 @@ class SparkMaster( SparkBox ):
         # the price kwarg determines if the spot market will be used - with master_on_demand we only want spot workers
         if kwargs[ "master_on_demand" ]:
             kwargs[ "price" ] = None
-        return super( SparkBox, self ).prepare( *args, **kwargs )
+        return super( SparkMaster, self ).prepare( *args, **kwargs )
 
     def _populate_instance_tags( self, tags_dict ):
         super( SparkMaster, self )._populate_instance_tags( tags_dict )

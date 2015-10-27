@@ -289,7 +289,7 @@ class MesosMaster( MesosBox ):
         # the price kwarg determines if the spot market will be used - with master_on_demand we only want spot workers
         if kwargs[ "master_on_demand" ]:
             kwargs[ "price" ] = None
-        return super( MesosBox, self ).prepare( *args, **kwargs )
+        return super( MesosMaster, self ).prepare( *args, **kwargs )
 
     def _populate_instance_tags( self, tags_dict ):
         super( MesosMaster, self )._populate_instance_tags( tags_dict )
@@ -313,7 +313,7 @@ class MesosMaster( MesosBox ):
         return all_slaves
 
 
-class MesosSlave( MesosBoxSupport ):
+class MesosSlave( MesosBox ):
     """
     A MesosBox that serves as the Mesos slave. Slaves are cloned from a master box by
     calling the MesosMaster.clone() method.
