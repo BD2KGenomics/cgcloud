@@ -1,12 +1,16 @@
 import base64
 import zlib
+from bd2k.util.iterables import concat
 
 from fabric.context_managers import settings
-from fabric.operations import sudo, run
+from fabric.operations import run
+
 from bd2k.util import shell, strict_bool
+from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.init_box import AbstractInitBox
 from cgcloud.core.common_iam_policies import *
+from cgcloud.fabric.operations import sudo, pip
 from cgcloud.core.package_manager_box import PackageManagerBox
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.box import fabric_task
@@ -73,22 +77,18 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
             self.__setup_agent( )
 
     def __setup_agent( self ):
-        kwargs = dict(
-            availability_zone=self.ctx.availability_zone,
-            namespace=self.ctx.namespace,
-            ec2_keypair_globs=' '.join( shell.quote( _ ) for _ in self.ec2_keypair_globs ),
-            accounts=' '.join( [ self.admin_account( ) ] + self.other_accounts( ) ),
-            admin_account=self.admin_account( ),
-            run_dir='/var/run/cgcloudagent',
-            log_dir='/var/log',
-            install_dir='/opt/cgcloudagent',
-            agent_artifacts=' '.join( self._project_artifacts( 'agent' ) ) )
+        availability_zone = self.ctx.availability_zone
+        namespace = self.ctx.namespace
+        ec2_keypair_globs = ' '.join( shell.quote( _ ) for _ in self.ec2_keypair_globs )
+        accounts = ' '.join( [ self.admin_account( ) ] + self.other_accounts( ) )
+        admin_account = self.admin_account( )
+        run_dir = '/var/run/cgcloudagent'
+        log_dir = '/var/log'
+        install_dir = '/opt/cgcloudagent'
 
-        def fmt( s ):
-            return s.format( **kwargs )
-
-        sudo( 'pip install --upgrade pip==1.5.2', pty=False )  # lucid & centos5 have an ancient pip
-        sudo( 'pip install --upgrade virtualenv', pty=False )
+        # Lucid & CentOS 5 have an ancient pip
+        pip( 'install --upgrade pip==1.5.2', use_sudo=True )
+        pip( 'install --upgrade virtualenv', use_sudo=True )
         sudo( fmt( 'mkdir -p {install_dir}' ) )
         sudo( fmt( 'chown {admin_account}:{admin_account} {install_dir}' ) )
         # By default, virtualenv installs the latest version of pip. We want a specific
@@ -98,9 +98,10 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
         run( fmt( '{install_dir}/bin/easy_install pip==1.5.2' ) )
 
         with settings( forward_agent=True ):
-            run( fmt( '{install_dir}/bin/pip install '
-                      '--allow-external argparse '  # needed on CentOS 5 and 6 for some reason
-                      '{agent_artifacts}' ), pty=False )
+            pip( path=install_dir + '/bin/pip',
+                 args=concat( 'install',
+                              '--allow-external', 'argparse',  # needed on CentOS 5 and 6
+                              self._project_artifacts( 'agent' ) ) )
         sudo( fmt( 'mkdir {run_dir}' ) )
         script = self.__gunzip_base64_decode( run( fmt(
             '{install_dir}/bin/cgcloudagent'

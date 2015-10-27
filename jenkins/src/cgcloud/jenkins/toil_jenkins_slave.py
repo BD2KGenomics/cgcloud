@@ -9,7 +9,7 @@ from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.fabric.operations import sudo, remote_sudo_popen
+from cgcloud.fabric.operations import sudo, remote_sudo_popen, pip
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 
@@ -65,7 +65,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox ):
         run( "wget http://downloads.mesosphere.io/master/ubuntu/14.04/"
              "mesos-0.22.0-py2.7-linux-x86_64.egg" )
         # we need a newer version of protobuf than comes default on ubuntu
-        sudo( "pip install --upgrade protobuf", pty=False )
+        pip( 'install --upgrade protobuf', use_sudo=True )
         sudo( "easy_install mesos-0.22.0-py2.7-linux-x86_64.egg" )
 
     @fabric_task

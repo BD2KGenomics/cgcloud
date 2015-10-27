@@ -1,4 +1,5 @@
 from cgcloud.core.generic_boxes import *
+from cgcloud.fabric.operations import sudo
 
 from cgcloud.jenkins.jenkins_slave import JenkinsSlave
 from cgcloud.core.ubuntu_box import UbuntuBox
@@ -90,11 +91,11 @@ class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLu
 
     @fabric_task
     def __add_git_ppa( self ):
-        sudo( 'sudo add-apt-repository ppa:git-core/ppa' )
+        sudo( 'add-apt-repository -y ppa:git-core/ppa' )
 
     @fabric_task
     def __add_python_ppa( self ):
-        sudo( 'sudo apt-add-repository ppa:fkrull/deadsnakes/ubuntu' )
+        sudo( 'apt-add-repository -y ppa:fkrull/deadsnakes/ubuntu' )
 
     def _list_packages_to_install( self ):
         return super( UbuntuLucidGenericJenkinsSlave, self )._list_packages_to_install( ) + [

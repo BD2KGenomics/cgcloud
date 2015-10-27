@@ -3,13 +3,14 @@ from collections import namedtuple
 import json
 import re
 from StringIO import StringIO
+from bd2k.util.iterables import concat
 
 from fabric.context_managers import settings
 from fabric.operations import run, put, os
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
-from cgcloud.fabric.operations import sudo, remote_open
+from cgcloud.fabric.operations import sudo, remote_open, pip
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
@@ -170,9 +171,10 @@ class SparkBox( GenericUbuntuTrustyBox ):
         sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) )
         run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
-        spark_tools_artifacts = ' '.join( self._project_artifacts( 'spark-tools' ) )
         with settings( forward_agent=True ):
-            run( fmt( '{tools_dir}/bin/pip install {spark_tools_artifacts}' ), pty=False )
+            pip( use_sudo=True,
+                 path=tools_dir + '/bin/pip ',
+                 args=concat( 'install', self._project_artifacts( 'spark-tools' ) ) )
         sudo( fmt( 'chown -R root:root {tools_dir}' ) )
         spark_tools = "SparkTools(**%r)" % dict( user=user,
                                                  install_dir=install_dir,

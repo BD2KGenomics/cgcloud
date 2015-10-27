@@ -1,12 +1,13 @@
 import logging
 from collections import namedtuple
+from bd2k.util.iterables import concat
 
 from fabric.context_managers import settings
 from fabric.operations import run
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
-from cgcloud.fabric.operations import sudo, remote_open
+from cgcloud.fabric.operations import sudo, remote_open, pip
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
@@ -152,9 +153,10 @@ class MesosBox( GenericUbuntuTrustyBox ):
         sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
 
-        mesos_tools_artifacts = ' '.join( self._project_artifacts( 'mesos-tools' ) )
         with settings( forward_agent=True ):
-            sudo( fmt( '{tools_dir}/bin/pip install {mesos_tools_artifacts}' ), pty=False )
+            pip( path=tools_dir + '/bin/pip',
+                 use_sudo=True,
+                 args=concat( 'install', self._project_artifacts( 'mesos-tools' ) ) )
 
         mesos_tools = "MesosTools(**%r)" % dict( user=user,
                                                  shared_dir=shared_dir,
@@ -212,8 +214,8 @@ class MesosBox( GenericUbuntuTrustyBox ):
         run( 'wget http://downloads.mesosphere.io'
              '/master/ubuntu/14.04/mesos-0.22.0-py2.7-linux-x86_64.egg' )
         # We need a newer version of protobuf than comes by default on Ubuntu
-        sudo( "pip install --upgrade protobuf", pty=False )
-        sudo( "easy_install mesos-0.22.0-py2.7-linux-x86_64.egg" )
+        pip( 'install --upgrade protobuf', use_sudo=True )
+        sudo( 'easy_install mesos-0.22.0-py2.7-linux-x86_64.egg' )
 
     @fabric_task( user=user )
     def __setup_shared_dir( self ):

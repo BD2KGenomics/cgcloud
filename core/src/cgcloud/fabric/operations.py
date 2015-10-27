@@ -1,10 +1,13 @@
 from StringIO import StringIO
 from contextlib import contextmanager
 from fcntl import fcntl, F_GETFL, F_SETFL
+from pipes import quote
 import sys
 import os
 from threading import Thread
 import time
+from bd2k.util.expando import Expando
+from bd2k.util.iterables import concat
 
 from fabric.operations import sudo as real_sudo, get, put, run
 from fabric.state import env
@@ -24,6 +27,35 @@ def sudo( command, sudo_args=None, **kwargs ):
     finally:
         if sudo_args is not None:
             env.sudo_prefix = old_prefix
+
+
+def pip( args, path='pip', use_sudo=False ):
+    """
+    Run pip.
+
+    :param args: a string or sequence of strings to be passed to pip as command line arguments.
+    If given a sequence of strings, its elements will be quoted if necessary and joined with a
+    single space in between.
+
+    :param path: the path to pip
+
+    :param use_sudo: whther to run pip as sudo
+    """
+    if isinstance(args, (str,unicode)):
+        command = path + ' ' + args
+    else:
+        command = ' '.join( map( quote, concat( path, args ) ) )
+    # Disable pseudo terminal creation to prevent pip from spamming output with progress bar.
+    kwargs = Expando( pty=False )
+    if use_sudo:
+        f = sudo
+        # Set HOME so pip's cache doesn't go into real user's home, potentially creating files
+        # not owned by that user (older versions of pip) or printing a warning about caching
+        # being disabled.
+        kwargs.sudo_args = '-H'
+    else:
+        f = run
+    f( command, **kwargs )
 
 
 @contextmanager
