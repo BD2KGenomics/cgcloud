@@ -1,3 +1,4 @@
+from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy
@@ -5,7 +6,7 @@ from cgcloud.fabric.operations import remote_sudo_popen
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 
-class S3amJenkinsSlave( UbuntuTrustyGenericJenkinsSlave ):
+class S3amJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntuBox ):
     """
     A Jenkins slave for running the S3AM build
     """

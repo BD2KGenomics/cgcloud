@@ -124,3 +124,16 @@ class UpstartUbuntuBox( UbuntuBox, UpstartBox ):
 
 class SystemdUbuntuBox( UbuntuBox, SystemdBox ):
     pass
+
+
+class Python27UpdateUbuntuBox( UbuntuBox ):
+    """
+    A mixin for retrieving 2.7.x updates of Python from Felix Krull's deadsnakes PPA (not the one
+    with old and new Pythons, but the one dedicated to 2.7 point updates.
+
+    https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes-python2.7
+    """
+
+    def _setup_package_repos( self ):
+        super( Python27UpdateUbuntuBox, self )._setup_package_repos( )
+        sudo( 'add-apt-repository -y ppa:fkrull/deadsnakes-python2.7' )

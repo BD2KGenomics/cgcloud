@@ -10,6 +10,7 @@ from fabric.operations import run, put, os
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
+from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.fabric.operations import sudo, remote_open, pip
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
@@ -74,7 +75,7 @@ spark_services = {
     'slave': [ spark_service( 'slave', 'slaves' ) ] }
 
 
-class SparkBox( GenericUbuntuTrustyBox ):
+class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
     """
     A node in a Spark cluster. Workers and the master undergo the same setup. Whether a node acts
     as a master or a slave is determined at boot time, via user data. All slave nodes will be
@@ -489,10 +490,10 @@ class SparkMaster( SparkBox ):
     def prepare( self, *args, **kwargs ):
         # Stash away arguments to prepare() so we can use them when cloning the slaves
         self.preparation_args = args
-        self.preparation_kwargs = dict(kwargs)
+        self.preparation_kwargs = dict( kwargs )
         # the price kwarg determines if the spot market will be used - with master_on_demand we only want spot workers
-        if kwargs["master_on_demand"]:
-            kwargs["price"]=None
+        if kwargs[ "master_on_demand" ]:
+            kwargs[ "price" ] = None
         return super( SparkBox, self ).prepare( *args, **kwargs )
 
     def _populate_instance_tags( self, tags_dict ):

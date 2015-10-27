@@ -2,7 +2,7 @@ import logging
 
 from cgcloud.core.box import fabric_task
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.mesos.mesos_box import MesosBox, MesosMaster, MesosSlave, user
+from cgcloud.mesos.mesos_box import MesosBoxSupport, MesosMaster, MesosSlave, user
 from cgcloud.fabric.operations import pip
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
@@ -10,7 +10,7 @@ from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sd
 log = logging.getLogger( __name__ )
 
 
-class ToilBox( MesosBox, DockerBox ):
+class ToilBox( MesosBoxSupport, DockerBox ):
     def __init__( self, ctx ):
         super( ToilBox, self ).__init__( ctx )
         self.lazy_dirs = set( )

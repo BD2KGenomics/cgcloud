@@ -5,6 +5,8 @@ import re
 from fabric.operations import run, put
 
 from bd2k.util.strings import interpolate as fmt
+from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
+
 from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
 from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
@@ -14,7 +16,7 @@ from cgcloud.fabric.operations import sudo, remote_sudo_popen, pip
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 
-class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox ):
+class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox, Python27UpdateUbuntuBox ):
     """
     A Jenkins slave suitable for running Toil unit tests, specifically the Mesos batch system and
     the AWS job store. Legacy batch systems (parasol, gridengine, ...) are not yet supported.

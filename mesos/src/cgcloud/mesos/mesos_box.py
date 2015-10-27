@@ -7,6 +7,7 @@ from fabric.operations import run
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
+from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.fabric.operations import sudo, remote_open, pip
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
@@ -57,7 +58,7 @@ mesos_services = {
                               "--work_dir=" + work_dir ) ] }
 
 
-class MesosBox( GenericUbuntuTrustyBox ):
+class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
     """
     A node in a Mesos cluster. Both slaves and masters are based on this initial setup. Those
     specific roles are determined at boot time. Worker nodes need to be passed the master's IP
@@ -65,17 +66,17 @@ class MesosBox( GenericUbuntuTrustyBox ):
     """
 
     def other_accounts( self ):
-        return super( MesosBox, self ).other_accounts( ) + [ user ]
+        return super( MesosBoxSupport, self ).other_accounts( ) + [ user ]
 
     def default_account( self ):
         return user
 
     def __init__( self, ctx ):
-        super( MesosBox, self ).__init__( ctx )
-        self.lazy_dirs = set()
+        super( MesosBoxSupport, self ).__init__( ctx )
+        self.lazy_dirs = set( )
 
     def _populate_security_group( self, group_name ):
-        return super( MesosBox, self )._populate_security_group( group_name ) + [
+        return super( MesosBoxSupport, self )._populate_security_group( group_name ) + [
             dict( ip_protocol='tcp', from_port=0, to_port=65535,
                   src_security_group_name=group_name ),
             dict( ip_protocol='udp', from_port=0, to_port=65535,
@@ -91,15 +92,15 @@ class MesosBox( GenericUbuntuTrustyBox ):
                    '> /etc/apt/sources.list.d/mesosphere.list' ) )
 
     def _list_packages_to_install( self ):
-        return super( MesosBox, self )._list_packages_to_install( ) + [
+        return super( MesosBoxSupport, self )._list_packages_to_install( ) + [
             'mesos=0.21.1-1.1.ubuntu1404' ]
 
     def _pre_install_packages( self ):
-        super( MesosBox, self )._pre_install_packages( )
+        super( MesosBoxSupport, self )._pre_install_packages( )
         self.__setup_application_user( )
 
     def _post_install_packages( self ):
-        super( MesosBox, self )._post_install_packages( )
+        super( MesosBoxSupport, self )._post_install_packages( )
         self._propagate_authorized_keys( user, user )
         self.__setup_ssh_config( )
         self.__create_mesos_keypair( )
@@ -249,8 +250,8 @@ class MesosBox( GenericUbuntuTrustyBox ):
                 start_on = "started " + service.init_name
 
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( MesosBox, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( MesosBox )
+        role_name, policies = super( MesosBoxSupport, self )._get_iam_ec2_role( )
+        role_name += '--' + abreviated_snake_case_class_name( MesosBoxSupport )
         policies.update( dict(
             ec2_read_only=ec2_read_only_policy,
             ec2_mesos_box=dict( Version="2012-10-17", Statement=[
@@ -259,6 +260,8 @@ class MesosBox( GenericUbuntuTrustyBox ):
                 dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
         return role_name, policies
 
+
+class MesosBox( MesosBoxSupport ):
     def _image_name_prefix( self ):
         # Make this class and its subclasses use the same image
         return "mesos-box"
@@ -282,10 +285,10 @@ class MesosMaster( MesosBox ):
     def prepare( self, *args, **kwargs ):
         # Stash away arguments to prepare() so we can use them when cloning the slaves
         self.preparation_args = args
-        self.preparation_kwargs = dict(kwargs)
+        self.preparation_kwargs = dict( kwargs )
         # the price kwarg determines if the spot market will be used - with master_on_demand we only want spot workers
-        if kwargs["master_on_demand"]:
-            kwargs["price"]=None
+        if kwargs[ "master_on_demand" ]:
+            kwargs[ "price" ] = None
         return super( MesosBox, self ).prepare( *args, **kwargs )
 
     def _populate_instance_tags( self, tags_dict ):
@@ -310,7 +313,7 @@ class MesosMaster( MesosBox ):
         return all_slaves
 
 
-class MesosSlave( MesosBox ):
+class MesosSlave( MesosBoxSupport ):
     """
     A MesosBox that serves as the Mesos slave. Slaves are cloned from a master box by
     calling the MesosMaster.clone() method.
