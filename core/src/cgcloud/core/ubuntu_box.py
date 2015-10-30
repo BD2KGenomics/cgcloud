@@ -138,6 +138,7 @@ class Python27UpdateUbuntuBox( UbuntuBox ):
     https://launchpad.net/~fkrull/+archive/ubuntu/deadsnakes-python2.7
     """
 
+    @fabric_task
     def _setup_package_repos( self ):
         super( Python27UpdateUbuntuBox, self )._setup_package_repos( )
         sudo( 'add-apt-repository -y ppa:fkrull/deadsnakes-python2.7' )
