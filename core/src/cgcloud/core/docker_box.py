@@ -27,9 +27,8 @@ class DockerBox( UbuntuBox ):
         sudo( ' '.join( [ 'apt-key', 'adv',
                             '--keyserver', 'hkp://p80.pool.sks-keyservers.net:80',
                             '--recv-keys', '58118E89F3A912897C070ADBF76221572C52609D' ] ) )
-        distro = run( "lsb_release -is" ).lower( )
-        codename = run( "lsb_release -cs" )
-        sudo( fmt( 'echo deb https://apt.dockerproject.org/repo {distro}-{codename} main '
+        codename = self.release().codename
+        sudo( fmt( 'echo deb https://apt.dockerproject.org/repo ubuntu-{codename} main '
                    '> /etc/apt/sources.list.d/docker.list' ) )
 
     @fabric_task
