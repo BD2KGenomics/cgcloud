@@ -4,19 +4,21 @@ import re
 
 from fabric.operations import run, put
 
-from bd2k.util.strings import interpolate as fmt
+from cgcloud.core.mesos_box import MesosBox
 from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
-
 from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
 from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.fabric.operations import sudo, remote_sudo_popen, pip
+from cgcloud.fabric.operations import sudo, remote_sudo_popen
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 
-class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox, Python27UpdateUbuntuBox ):
+class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
+                        Python27UpdateUbuntuBox,
+                        DockerBox,
+                        MesosBox ):
     """
     A Jenkins slave suitable for running Toil unit tests, specifically the Mesos batch system and
     the AWS job store. Legacy batch systems (parasol, gridengine, ...) are not yet supported.
@@ -26,19 +28,9 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox, Python27Upda
     def recommended_instance_type( cls ):
         return "m3.large"
 
-    @fabric_task
-    def _setup_package_repos( self ):
-        super( ToilJenkinsSlave, self )._setup_package_repos( )
-        sudo( 'apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF' )
-        distro = run( 'lsb_release -is'.lower( ) )
-        codename = run( 'lsb_release -cs' )
-        sudo( fmt( 'echo "deb http://repos.mesosphere.io/{distro} {codename} main"'
-                   '> /etc/apt/sources.list.d/mesosphere.list' ) )
-
     def _list_packages_to_install( self ):
         return super( ToilJenkinsSlave, self )._list_packages_to_install( ) + [
             'python-dev', 'gcc', 'make',
-            'mesos',  # Mesos
             'libffi-dev'  # Azure client-side encryption
         ] + [ 'gridengine-' + p for p in ('common', 'master', 'client', 'exec') ]
 
@@ -52,7 +44,6 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox, Python27Upda
         super( ToilJenkinsSlave, self )._post_install_packages( )
         self.setup_repo_host_keys( )
         self.__disable_mesos_daemons( )
-        self.__install_mesos_egg( )
         self.__install_parasol( )
         self.__patch_distutils( )
         self.__configure_gridengine( )
@@ -61,14 +52,6 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, DockerBox, Python27Upda
     def __disable_mesos_daemons( self ):
         for daemon in ('master', 'slave'):
             sudo( 'echo manual > /etc/init/mesos-%s.override' % daemon )
-
-    @fabric_task
-    def __install_mesos_egg( self ):
-        run( 'wget http://downloads.mesosphere.io'
-             '/master/ubuntu/14.04/mesos-0.22.0-py2.7-linux-x86_64.egg' )
-        # We need a newer version of protobuf than what comes default on Ubuntu
-        pip( 'install --upgrade protobuf', use_sudo=True )
-        sudo( "easy_install mesos-0.22.0-py2.7-linux-x86_64.egg" )
 
     @fabric_task
     def __install_parasol( self ):

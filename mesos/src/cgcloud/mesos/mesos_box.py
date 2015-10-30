@@ -1,9 +1,10 @@
 import logging
 from collections import namedtuple
-from bd2k.util.iterables import concat
 
+from bd2k.util.iterables import concat
 from fabric.context_managers import settings
 from fabric.operations import run
+
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
@@ -11,11 +12,10 @@ from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.fabric.operations import sudo, remote_open, pip
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
+from cgcloud.core.mesos_box import MesosBox as CoreMesosBox
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 log = logging.getLogger( __name__ )
-
-mesos_version = '0.22'
 
 user = 'mesosbox'
 
@@ -58,7 +58,9 @@ mesos_services = {
                               "--work_dir=" + work_dir ) ] }
 
 
-class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
+class MesosBoxSupport( GenericUbuntuTrustyBox,
+                       Python27UpdateUbuntuBox,
+                       CoreMesosBox ):
     """
     A node in a Mesos cluster. Both slaves and masters are based on this initial setup. Those
     specific roles are determined at boot time. Worker nodes need to be passed the master's IP
@@ -82,19 +84,6 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
             dict( ip_protocol='udp', from_port=0, to_port=65535,
                   src_security_group_name=group_name ) ]
 
-    @fabric_task
-    def _setup_package_repos( self ):
-        super( MesosBoxSupport, self )._setup_package_repos( )
-        sudo( 'apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF' )
-        distro = run( 'lsb_release -is' ).lower( )
-        codename = run( 'lsb_release -cs' )
-        sudo( fmt( 'echo "deb http://repos.mesosphere.io/{distro} {codename} main" '
-                   '> /etc/apt/sources.list.d/mesosphere.list' ) )
-
-    def _list_packages_to_install( self ):
-        return super( MesosBoxSupport, self )._list_packages_to_install( ) + [
-            'mesos=0.21.1-1.1.ubuntu1404' ]
-
     def _pre_install_packages( self ):
         super( MesosBoxSupport, self )._pre_install_packages( )
         self.__setup_application_user( )
@@ -105,7 +94,6 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
         self.__setup_ssh_config( )
         self.__create_mesos_keypair( )
         self.__setup_shared_dir( )
-        self.__install_mesos_egg( )
         self._setup_mesos( )
         self.__install_mesosbox_tools( )
         self._register_upstart_jobs( mesos_services )
@@ -208,14 +196,6 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
         sudo( 'mkdir -p "%s"' % logical_path )
         self.lazy_dirs.add( (parent, name, persistent) )
         return logical_path
-
-    @fabric_task
-    def __install_mesos_egg( self ):
-        run( 'wget http://downloads.mesosphere.io'
-             '/master/ubuntu/14.04/mesos-0.22.0-py2.7-linux-x86_64.egg' )
-        # We need a newer version of protobuf than comes by default on Ubuntu
-        pip( 'install --upgrade protobuf', use_sudo=True )
-        sudo( 'easy_install mesos-0.22.0-py2.7-linux-x86_64.egg' )
 
     @fabric_task( user=user )
     def __setup_shared_dir( self ):
