@@ -1,4 +1,5 @@
 from abc import abstractmethod
+from collections import namedtuple
 import contextlib
 import csv
 import logging
@@ -24,10 +25,13 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
     A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """
 
+    Release = namedtuple( 'Release', ('codename', 'version') )
+
     @abstractmethod
     def release( self ):
         """
-        :return: the code name of the Ubuntu release, e.g. "precise"
+        :return: the code name of the Ubuntu release
+        :rtype: UbuntuBox.Release
         """
         raise NotImplementedError( )
 
@@ -48,7 +52,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
             return all( v == other.get( k ) for k, v in self.iteritems( ) )
 
     def _base_image( self, virtualization_type ):
-        release = self.release( )
+        release = self.release( ).codename
         template = self.TemplateDict( release=release, purpose='server', release_type='release',
                                       storage_type='ebs', arch='amd64', region=self.ctx.region,
                                       hypervisor=virtualization_type )

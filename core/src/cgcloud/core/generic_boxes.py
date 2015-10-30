@@ -104,12 +104,8 @@ class GenericCentos6Box( CentosBox ):
 
 @deprecated
 class GenericUbuntuLucidBox( UpstartUbuntuBox ):
-    """
-    10.04 LTS
-    """
-
     def release( self ):
-        return 'lucid'
+        return self.Release( codename='lucid', version='10.04' )
 
     @classmethod
     def supported_virtualization_types( cls ):
@@ -141,38 +137,28 @@ class GenericUbuntuLucidBox( UpstartUbuntuBox ):
 
 @deprecated
 class GenericUbuntuMaverickBox( UpstartUbuntuBox ):
-    """
-    10.10
-    """
-
     def release( self ):
-        return 'maverick'
+        return self.Release( codename='maverick', version='10.10' )
 
     @classmethod
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
+
 
 @deprecated
 class GenericUbuntuNattyBox( UpstartUbuntuBox ):
-    """
-    11.04
-    """
-
     def release( self ):
-        return 'natty'
+        return self.Release( codename='natty', version='11.04' )
 
     @classmethod
     def supported_virtualization_types( cls ):
         return [ 'paravirtual' ]
 
+
 @deprecated
 class GenericUbuntuOneiricBox( UpstartUbuntuBox ):
-    """
-    11.10
-    """
-
     def release( self ):
-        return 'oneiric'
+        return self.Release( codename='oneiric', version='11.10' )
 
     @classmethod
     def supported_virtualization_types( cls ):
@@ -180,67 +166,42 @@ class GenericUbuntuOneiricBox( UpstartUbuntuBox ):
 
 
 class GenericUbuntuPreciseBox( UpstartUbuntuBox ):
-    """
-    12.04 LTS
-    """
-
     def release( self ):
-        return 'precise'
+        return self.Release( codename='precise', version='12.04' )
 
 
 @deprecated
 class GenericUbuntuQuantalBox( UpstartUbuntuBox ):
-    """
-    12.10
-    """
-
     def release( self ):
-        return 'quantal'
+        return self.Release( codename='quantal', version='12.10' )
+
 
 @deprecated
 class GenericUbuntuRaringBox( UpstartUbuntuBox ):
-    """
-    13.04
-    """
-
     def release( self ):
-        return 'raring'
+        return self.Release( codename='raring', version='13.04' )
+
 
 @deprecated
 class GenericUbuntuSaucyBox( UpstartUbuntuBox ):
-    """
-    13.10
-    """
-
     def release( self ):
-        return 'saucy'
+        return self.Release( codename='saucy', version='13.10' )
 
 
 class GenericUbuntuTrustyBox( UpstartUbuntuBox ):
-    """
-    14.04
-    """
-
     def release( self ):
-        return 'trusty'
+        return self.Release( codename='trusty', version='14.04' )
+
 
 @deprecated
 class GenericUbuntuUtopicBox( UpstartUbuntuBox ):
-    """
-    14.10
-    """
-
     def release( self ):
-        return 'utopic'
+        return self.Release( codename='utopic', version='14.10' )
 
 
 class GenericUbuntuVividBox( SystemdUbuntuBox ):
-    """
-    15.04
-    """
-
     def release( self ):
-        return 'vivid'
+        return self.Release( codename='vivid', version='15.04' )
 
 
 @deprecated
@@ -325,4 +286,3 @@ class GenericFedora22Box( FedoraBox ):
         https://www.banym.de/linux/fedora/problems-with-missing-locale-files-on-fedora-20-made-libvirtd-service-not-starting
         """
         sudo( 'localedef -c -i en_US -f UTF-8 en_US.UTF-8' )
-
