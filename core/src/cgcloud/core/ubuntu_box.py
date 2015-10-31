@@ -1,11 +1,12 @@
 from abc import abstractmethod
+from ast import literal_eval
 from collections import namedtuple
 import contextlib
 import csv
 import logging
 import urllib2
 
-from fabric.operations import sudo
+from fabric.operations import sudo, put, run
 
 from box import fabric_task
 from cgcloud.core.init_box import UpstartBox, SystemdBox
@@ -142,3 +143,15 @@ class Python27UpdateUbuntuBox( UbuntuBox ):
     def _setup_package_repos( self ):
         super( Python27UpdateUbuntuBox, self )._setup_package_repos( )
         sudo( 'add-apt-repository -y ppa:fkrull/deadsnakes-python2.7' )
+
+    # FIXME: This should go some place else
+
+    @fabric_task
+    def _remote_python_version( self, python='python' ):
+        """
+        Returns a version tuple for the Python installed on the instance represented by this box
+
+        :rtype: tuple
+        """
+        return literal_eval( run( python + " -c 'import sys; print tuple(sys.version_info)'" ) )
+

@@ -31,7 +31,8 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
     def _list_packages_to_install( self ):
         return super( ToilJenkinsSlave, self )._list_packages_to_install( ) + [
             'python-dev', 'gcc', 'make',
-            'libffi-dev'  # Azure client-side encryption
+            'libffi-dev',  # pynacl -> toil, Azure client-side encryption
+            'libcurl4-openssl-dev'  # pycurl -> SPARQLWrapper -> rdflib>=4.2.0 -> cwltool -> toil
         ] + [ 'gridengine-' + p for p in ('common', 'master', 'client', 'exec') ]
 
     def _get_debconf_selections( self ):
@@ -69,38 +70,40 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         """
         https://hg.python.org/cpython/rev/cf70f030a744/
         https://bitbucket.org/pypa/setuptools/issues/248/exit-code-is-zero-when-upload-fails
+        Fixed in 2.7.8: https://hg.python.org/cpython/raw-file/v2.7.8/Misc/NEWS
         """
-        with remote_sudo_popen( 'patch -d /usr/lib/python2.7 -p2' ) as patch:
-            patch.write( heredoc( """
-                --- a/Lib/distutils/command/upload.py
-                +++ b/Lib/distutils/command/upload.py
-                @@ -10,7 +10,7 @@ import urlparse
-                 import cStringIO as StringIO
-                 from hashlib import md5
+        if self._remote_python_version( ) < (2, 7, 8):
+            with remote_sudo_popen( 'patch -d /usr/lib/python2.7 -p2' ) as patch:
+                patch.write( heredoc( """
+                    --- a/Lib/distutils/command/upload.py
+                    +++ b/Lib/distutils/command/upload.py
+                    @@ -10,7 +10,7 @@ import urlparse
+                     import cStringIO as StringIO
+                     from hashlib import md5
 
-                -from distutils.errors import DistutilsOptionError
-                +from distutils.errors import DistutilsError, DistutilsOptionError
-                 from distutils.core import PyPIRCCommand
-                 from distutils.spawn import spawn
-                 from distutils import log
-                @@ -181,7 +181,7 @@ class upload(PyPIRCCommand):
-                                 self.announce(msg, log.INFO)
-                         except socket.error, e:
-                             self.announce(str(e), log.ERROR)
-                -            return
-                +            raise
-                         except HTTPError, e:
-                             status = e.code
-                             reason = e.msg
-                @@ -190,5 +190,6 @@ class upload(PyPIRCCommand):
-                             self.announce('Server response (%s): %s' % (status, reason),
-                                           log.INFO)
-                         else:
-                -            self.announce('Upload failed (%s): %s' % (status, reason),
-                -                          log.ERROR)
-                +            msg = 'Upload failed (%s): %s' % (status, reason)
-                +            self.announce(msg, log.ERROR)
-                +            raise DistutilsError(msg)""" ) )
+                    -from distutils.errors import DistutilsOptionError
+                    +from distutils.errors import DistutilsError, DistutilsOptionError
+                     from distutils.core import PyPIRCCommand
+                     from distutils.spawn import spawn
+                     from distutils import log
+                    @@ -181,7 +181,7 @@ class upload(PyPIRCCommand):
+                                     self.announce(msg, log.INFO)
+                             except socket.error, e:
+                                 self.announce(str(e), log.ERROR)
+                    -            return
+                    +            raise
+                             except HTTPError, e:
+                                 status = e.code
+                                 reason = e.msg
+                    @@ -190,5 +190,6 @@ class upload(PyPIRCCommand):
+                                 self.announce('Server response (%s): %s' % (status, reason),
+                                               log.INFO)
+                             else:
+                    -            self.announce('Upload failed (%s): %s' % (status, reason),
+                    -                          log.ERROR)
+                    +            msg = 'Upload failed (%s): %s' % (status, reason)
+                    +            self.announce(msg, log.ERROR)
+                    +            raise DistutilsError(msg)""" ) )
 
     @fabric_task
     def __configure_gridengine( self ):
