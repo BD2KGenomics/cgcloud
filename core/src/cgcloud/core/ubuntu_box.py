@@ -5,6 +5,7 @@ import contextlib
 import csv
 import logging
 import urllib2
+from StringIO import StringIO
 
 from fabric.operations import sudo, put, run
 
@@ -15,6 +16,7 @@ from cgcloud.core.cloud_init_box import CloudInitBox
 from cgcloud.core.package_manager_box import PackageManagerBox
 from cgcloud.core.rc_local_box import RcLocalBox
 from cgcloud.fabric.operations import remote_sudo_popen
+from cgcloud.lib.util import heredoc
 
 BASE_URL = 'http://cloud-images.ubuntu.com'
 
@@ -83,6 +85,11 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
 
     @fabric_task
     def _sync_package_repos( self ):
+        put( remote_path='/etc/apt/apt.conf.d/99timeout',
+             use_sudo=True,
+             local_path=StringIO( heredoc( """
+                Acquire::http::Timeout "10";
+                Acquire::ftp::Timeout "10"; """ ) ), )
         for i in range( 5 ):
             cmd = self.apt_get + ' update'
             result = sudo( cmd, warn_only=True )
