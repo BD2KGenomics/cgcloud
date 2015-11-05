@@ -11,7 +11,9 @@ from cgcloud.lib.ec2 import running_on_ec2
 
 class CgcloudTestCase( TestCase ):
     """
-    A base class for CGCloud test cases
+    A base class for CGCloud test cases. When run with CGCLOUD_NAMESPACE unset, a new test
+    namespace will be prepared during setup and cleaned up during teardown. Otherwise,
+    the configured namespace will be used and not
     """
     cleanup = True
     ctx = None

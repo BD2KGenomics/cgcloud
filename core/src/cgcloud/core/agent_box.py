@@ -5,7 +5,7 @@ from bd2k.util.iterables import concat
 from fabric.context_managers import settings
 from fabric.operations import run
 
-from bd2k.util import shell, strict_bool
+from bd2k.util import shell, less_strict_bool
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.init_box import AbstractInitBox
@@ -44,12 +44,16 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
 
     def _set_instance_options( self, options ):
         super( AgentBox, self )._set_instance_options( options )
-        self._enable_agent = strict_bool( options.get( 'enable_agent', 'True' ) )
+        self._enable_agent = less_strict_bool( options.get( 'enable_agent' ) )
 
     def _get_instance_options( self ):
-        options = super( AgentBox, self )._get_instance_options( )
-        options[ 'enable_agent' ] = str( self.enable_agent )
-        return options
+        return self.__get_options( super( AgentBox, self )._get_instance_options( ) )
+
+    def _get_image_options( self ):
+        return self.__get_options( super( AgentBox, self )._get_image_options( ) )
+
+    def __get_options( self, options ):
+        return dict( options, enable_agent=str( self.enable_agent ) )
 
     def _manages_keys_internally( self ):
         return self.enable_agent

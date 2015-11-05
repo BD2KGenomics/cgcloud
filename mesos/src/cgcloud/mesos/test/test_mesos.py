@@ -21,7 +21,7 @@ cleanup = True
 create_image = True
 
 
-class ClusterTests( CgcloudTestCase ):
+class MesosClusterTests( CgcloudTestCase ):
     """
     Tests the typical life-cycle of instances and images
     """
@@ -29,7 +29,7 @@ class ClusterTests( CgcloudTestCase ):
     @classmethod
     def setUpClass( cls ):
         os.environ[ 'CGCLOUD_PLUGINS' ] = 'cgcloud.mesos'
-        super( ClusterTests, cls ).setUpClass( )
+        super( MesosClusterTests, cls ).setUpClass( )
         if create_image:
             cls._cgcloud( 'create', box, '-I', '-T' )
 
@@ -37,7 +37,7 @@ class ClusterTests( CgcloudTestCase ):
     def tearDownClass( cls ):
         if cleanup and create_image:
             cls._cgcloud( 'delete-image', box )
-        super( ClusterTests, cls ).tearDownClass( )
+        super( MesosClusterTests, cls ).tearDownClass( )
 
     def test_mesos( self ):
         self._create_cluster( )

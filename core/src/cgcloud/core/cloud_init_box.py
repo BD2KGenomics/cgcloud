@@ -130,16 +130,16 @@ class CloudInitBox( Box ):
         bootcmd = user_data.setdefault( 'bootcmd', [ ] )
         bootcmd[ 0:0 ] = commands
 
-    def _populate_instance_creation_args( self, image, kwargs ):
-        super( CloudInitBox, self )._populate_instance_creation_args( image, kwargs )
+    def _populate_instance_spec( self, image, spec ):
+        super( CloudInitBox, self )._populate_instance_spec( image, spec )
         cloud_config = { }
-        instance_type = ec2_instance_types[ kwargs[ 'instance_type' ] ]
+        instance_type = ec2_instance_types[ spec[ 'instance_type' ] ]
         self._populate_cloud_config( instance_type, cloud_config )
         if cloud_config:
-            if 'user_data' in kwargs:
+            if 'user_data' in spec:
                 raise ReferenceError( "Conflicting user-data" )
             user_data = '#cloud-config\n' + yaml.dump( cloud_config )
-            kwargs[ 'user_data' ] = user_data
+            spec[ 'user_data' ] = user_data
 
     def _on_instance_ready( self, first_boot ):
         super( CloudInitBox, self )._on_instance_ready( first_boot )

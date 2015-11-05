@@ -120,7 +120,7 @@ class SparkTools( object ):
             else:
                 log.info( "Initializing slaves file" )
                 reservations = self.ec2.get_all_reservations(
-                    filters={ 'tag:spark_master': self.master_id } )
+                    filters={ 'tag:leader_instance_id': self.master_id } )
                 slaves = set( i.private_ip_address
                                   for r in reservations
                                   for i in r.instances if i.id != self.master_id )
@@ -189,7 +189,7 @@ class SparkTools( object ):
     @memoize
     def master_id( self ):
         while True:
-            master_id = self.__get_instance_tag( self.instance_id, 'spark_master' )
+            master_id = self.__get_instance_tag( self.instance_id, 'leader_instance_id' )
             if master_id:
                 log.info( "Master's instance ID is '%s'", master_id )
                 return master_id

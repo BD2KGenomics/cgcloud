@@ -101,7 +101,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
             instance_type = self.recommended_instance_type( )
         self._set_instance_options( image.tags )
         creation_kwargs = dict( instance_type=instance_type )
-        self._populate_instance_creation_args( image, creation_kwargs )
+        self._populate_instance_spec( image, creation_kwargs )
         return E( 'hudson.plugins.ec2.SlaveTemplate',
                   E.ami( image.id ),
                   # By convention we use the description element as the primary identifier. We
@@ -125,7 +125,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                   E.jvmopts( '' ),
                   E.subnetId( '' ),
                   E.idleTerminationMinutes( '30' ),
-                  E.iamInstanceProfile( self._get_instance_profile_arn( ) ),
+                  E.iamInstanceProfile( self.get_instance_profile_arn( ) ),
                   E.instanceCap( '1' ),
                   E.stopOnTerminate( 'false' ),
                   E.tags(

@@ -1,5 +1,5 @@
 from __future__ import print_function
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 import argparse
 import functools
 import logging
@@ -30,7 +30,6 @@ class ContextCommand( Command ):
     boxes to run in. The most important aspect of a context is its namespace. Namespaces group
     boxes and other resources into isolated groups.
     """
-
 
     @abstractmethod
     def run_in_ctx( self, options, ctx ):
@@ -86,20 +85,8 @@ class ContextCommand( Command ):
 class RoleCommand( ContextCommand ):
     """
     An abstract command that targets boxes of a particular role.  Note that there may be more
-    than one box per role. To target a specific box, BoxCommand might be a better choice.
+    than one box per role. To target a specific box, InstanceCommand might be a better choice.
     """
-
-    @abstractmethod
-    def run_on_box( self, options, box ):
-        """
-        Execute this command using the specified parsed command line options on the specified box.
-
-        :param options: the parsed command line options
-        :type options: dict
-        :param box: the box to operate on
-        :type box: Box
-        """
-        raise NotImplementedError( )
 
     def __init__( self, application, **kwargs ):
         super( RoleCommand, self ).__init__( application, **kwargs )
@@ -109,32 +96,49 @@ class RoleCommand( ContextCommand ):
                      help="The name of the role. Use the list-roles command to show possible "
                           "roles." )
 
+    # noinspection PyUnusedLocal
     def completer( self, prefix, **kwargs ):
         return [ role for role in self.application.roles.iterkeys( ) if role.startswith( prefix ) ]
 
     def run_in_ctx( self, options, ctx ):
         role = options.role
-        box_cls = self.application.roles.get( role )
-        if box_cls is None: raise UserError( "No such role: '%s'" % role )
-        box = box_cls( ctx )
+        role = self.application.roles.get( role )
+        if role is None: raise UserError( "No such role: '%s'" % role )
+        return self.run_on_role( options, ctx, role )
+
+    @abstractmethod
+    def run_on_role( self, options, ctx, role ):
+        """
+        :type options: dict
+        :type ctx: Context
+        :type role: type[Box]
+        """
+        raise NotImplementedError( )
+
+
+class BoxCommand( RoleCommand ):
+    """
+    An abstract command that runs on a box, i.e. an instance of a role class.
+    """
+
+    def run_on_role( self, options, ctx, role ):
+        box = role( ctx )
         return self.run_on_box( options, box )
 
-
-class ListCommand( RoleCommand ):
-    """
-    List the boxes performing a particular role.
-    """
-
+    @abstractmethod
     def run_on_box( self, options, box ):
-        for row in box.list( ):
-            columns = 'role ordinal private_ip ip id created_at state'.split( )
-            print( '\t'.join( map( str, map( row.get, columns ) ) ) )
+        """
+        Execute this command using the specified parsed command line options on the specified box.
+
+        :type options: dict
+        :type box: Box
+        """
+        raise NotImplementedError( )
 
 
-# noinspection PyAbstractClass
-class BoxCommand( RoleCommand ):
+class InstanceCommand( BoxCommand ):
     def __init__( self, application, **kwargs ):
-        super( BoxCommand, self ).__init__( application, **kwargs )
+        super( InstanceCommand, self ).__init__( application, **kwargs )
         self.option( '--ordinal', '-o', default=-1, type=int,
                      help='Selects an individual box from the list of boxes performing the '
                           'specified role. The ordinal is a zero-based index into the list of all '
@@ -145,8 +149,29 @@ class BoxCommand( RoleCommand ):
                           'number of boxes performing the specified role. Passing -1, for example, '
                           'selects the most recently created box.' )
 
+    wait_ready = True
 
-class UserCommand( BoxCommand ):
+    def run_on_box( self, options, box ):
+        box.adopt( ordinal=options.ordinal, wait_ready=self.wait_ready )
+        self.run_on_instance( options, box )
+
+    @abstractmethod
+    def run_on_instance( self, options, box ):
+        raise NotImplementedError( )
+
+
+class ListCommand( BoxCommand ):
+    """
+    List the boxes performing a particular role.
+    """
+
+    def run_on_box( self, options, box ):
+        for row in box.list( ):
+            columns = 'role ordinal private_ip ip id created_at state'.split( )
+            print( '\t'.join( map( str, map( row.get, columns ) ) ) )
+
+
+class UserCommand( InstanceCommand ):
     """
     A command that runs as a given user
     """
@@ -189,8 +214,7 @@ class SshCommand( UserCommand ):
                           "would normally pass to the ssh program excluding user name and host "
                           "but including, for example, the remote command to execute." )
 
-    def run_on_box( self, options, box ):
-        box.adopt( ordinal=options.ordinal )
+    def run_on_instance( self, options, box ):
         status = box.ssh( user=self._user( box, options ), command=options.command )
         if status != 0:
             sys.exit( status )
@@ -203,7 +227,7 @@ class RsyncCommand( UserCommand ):
 
     def __init__( self, application ):
         super( RsyncCommand, self ).__init__( application )
-        self.option( '--ssh-opts', '-e', default=None, metavar="OPTS",
+        self.option( '--ssh-opts', '-e', default=None, metavar='OPTS',
                      help="Additional options to pass to ssh. Note that if OPTS starts with a "
                           "dash you must use the long option followed by an equal sign. For "
                           "example, to run ssh in verbose mode, use --ssh-opt=-v. If OPTS is to "
@@ -216,22 +240,20 @@ class RsyncCommand( UserCommand ):
                           ":bar .' would copy the file 'bar' from the home directory of the admin "
                           "user on the box 'foo' to the current directory on the local machine." )
 
-    def run_on_box( self, options, box ):
-        box.adopt( ordinal=options.ordinal )
+    def run_on_instance( self, options, box ):
         box.rsync( options.args, user=self._user( box, options ), ssh_opts=options.ssh_opts )
 
 
-class ImageCommand( BoxCommand ):
+class ImageCommand( InstanceCommand ):
     """
     Create an AMI image of a box performing a given role. The box must be stopped.
     """
 
-    def run_on_box( self, options, box ):
-        box.adopt( ordinal=options.ordinal, wait_ready=False )
+    def run_on_instance( self, options, box ):
         box.image( )
 
 
-class ShowCommand( BoxCommand ):
+class ShowCommand( InstanceCommand ):
     """
     Display the EC2 attributes of the box.
     """
@@ -265,22 +287,27 @@ class ShowCommand( BoxCommand ):
                 else:
                     sys.stdout.write( repr( v ) )
 
-    def run_on_box( self, options, box ):
-        box.adopt( ordinal=options.ordinal, wait_ready=False )
+    wait_ready = False
+
+    def run_on_instance( self, options, box ):
         self.print_object( box.get_instance( ) )
 
 
-class LifecycleCommand( BoxCommand ):
+class LifecycleCommand( InstanceCommand ):
     """
-    Transition a box into a particular state.
+    Transition an instance box into a particular state.
     """
+    wait_ready = False
 
-    def adopt( self, box, options ):
-        box.adopt( ordinal=options.ordinal, wait_ready=False )
-
-    def run_on_box( self, options, box ):
-        self.adopt( box, options )
+    def run_on_instance( self, options, box ):
         getattr( box, self.name( ) )( )
+
+
+class StartCommand( LifecycleCommand ):
+    """
+    Start the box, ie. bring it from the stopped state to the running state.
+    """
+    pass
 
 
 class StopCommand( LifecycleCommand ):
@@ -308,19 +335,11 @@ class TerminateCommand( LifecycleCommand ):
                      help="Exit immediately after termination request has been made, don't wait "
                           "until the box is terminated." )
 
-    def run_on_box( self, options, box ):
-        self.adopt( box, options )
+    def run_on_instance( self, options, box ):
         box.terminate( wait=not options.quick )
 
 
-class StartCommand( LifecycleCommand ):
-    """
-    Start the box, ie. bring it from the stopped state to the running state.
-    """
-    pass
-
-
-class ListImagesCommand( RoleCommand ):
+class ListImagesCommand( BoxCommand ):
     """
     List the AMI images that were created from boxes performing a particular role.
     """
@@ -331,7 +350,7 @@ class ListImagesCommand( RoleCommand ):
                                                               **image.__dict__ ) )
 
 
-class CreationCommand( RoleCommand ):
+class CreationCommand( BoxCommand ):
     def __init__( self, application ):
         super( CreationCommand, self ).__init__( application )
         default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '__me__' ).split( )
@@ -363,23 +382,20 @@ class CreationCommand( RoleCommand ):
                           "authorized to login to the box. Shell-style globs can not be combined "
                           "with @ or @@ substitutions within one argument." )
 
-        self.option( '--instance-type', '-t', metavar='TYPE',
+        self.option( '--instance-type', '-t', metavar='TYPE', choices=ec2_instance_types.keys( ),
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
-                     choices=ec2_instance_types.keys( ),
                      help='The type of EC2 instance to launch for the box, e.g. t2.micro, m3.small, '
                           'm3.medium, or m3.large etc. The value of the environment variable '
                           'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
                           'default, an instance type appropriate for the role.' )
 
-        self.option( '--virtualization-type', metavar='TYPE',
-                     default=None, choices=Box.virtualization_types,
+        self.option( '--virtualization-type', metavar='TYPE', choices=Box.virtualization_types,
                      help="The virtualization type to be used for the instance. This affects the "
                           "choice of image (AMI) the instance is created from. The default depends "
                           "on the instance type, but generally speaking, 'hvm' will be used for "
                           "newer instance types." )
 
-        self.option( '--spot-bid',
-                     default=None, type=float,
+        self.option( '--spot-bid', metavar='AMOUNT', type=float,
                      help="The maximum price to pay for the specified instance type, in dollars "
                           "per hour as a floating point value, 1.23 for example. Only bids under "
                           "double the instance type's average price for the past week will be "
@@ -407,21 +423,20 @@ class CreationCommand( RoleCommand ):
         """
         raise NotImplementedError( )
 
-    @abstractmethod
     def instance_options( self, options ):
         """
         Return dict with instance options to be passed box.create()
         """
-        raise NotImplementedError( )
+        return dict( spot_bid=options.spot_bid )
 
     def run_on_box( self, options, box ):
         try:
             resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
-            box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
-                         instance_type=options.instance_type,
-                         virtualization_type=options.virtualization_type,
-                         **self.instance_options( options ) )
-            box.create( wait_ready=True )
+            spec = box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
+                                instance_type=options.instance_type,
+                                virtualization_type=options.virtualization_type,
+                                **self.instance_options( options ) )
+            box.create( spec, wait_ready=True )
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
@@ -489,12 +504,12 @@ class ListRolesCommand( Command ):
 
 
 # noinspection PyAbstractClass
-class ImageCommandMixin( Command ):
+class ImageReferenceCommand( Command ):
     """
     Any command that accepts an image ordinal or AMI ID.
 
     >>> app = Application()
-    >>> class FooCmd( ImageCommandMixin ):
+    >>> class FooCmd( ImageReferenceCommand ):
     ...     def run(self, options):
     ...         pass
     >>> cmd = FooCmd( app, '--foo', '-f' )
@@ -537,7 +552,7 @@ class ImageCommandMixin( Command ):
                 raise ValueError( )
 
     def __init__( self, application, long_image_option, short_image_option ):
-        super( ImageCommandMixin, self ).__init__( application )
+        super( ImageReferenceCommand, self ).__init__( application )
         self.option( long_image_option, short_image_option, metavar='ORDINAL_OR_AMI_ID',
                      type=self.ordinal_or_ami_id, default=-1,  # default to the last one
                      help="An image ordinal, i.e. the index of an image in the list of images for "
@@ -549,7 +564,7 @@ class ImageCommandMixin( Command ):
                           "e.g. 'ami-4dcced7d' can be passed in as well." )
 
 
-class DeleteImageCommand( ImageCommandMixin, RoleCommand ):
+class DeleteImageCommand( ImageReferenceCommand, BoxCommand ):
     def __init__( self, application ):
         super( DeleteImageCommand, self ).__init__( application, '--image', '-i' )
         self.begin_mutex( )
@@ -569,7 +584,7 @@ class DeleteImageCommand( ImageCommandMixin, RoleCommand ):
                           delete_snapshot=not options.keep_snapshot )
 
 
-class RecreateCommand( ImageCommandMixin, CreationCommand ):
+class RecreateCommand( ImageReferenceCommand, CreationCommand ):
     """
     Recreate a box from an image that was taken from an earlier incarnation of the box
     """
@@ -578,71 +593,11 @@ class RecreateCommand( ImageCommandMixin, CreationCommand ):
         super( RecreateCommand, self ).__init__( application, '--boot-image', '-i' )
 
     def instance_options( self, options ):
-        return dict( image_ref=options.boot_image,
-                     price=options.spot_bid )
+        return dict( super( RecreateCommand, self ).instance_options( options ),
+                     image_ref=options.boot_image )
 
     def run_on_creation( self, box, options ):
         pass
-
-
-class ClusterCommand( RecreateCommand ):
-    def __init__( self, application ):
-        super( ClusterCommand, self ).__init__( application )
-
-        self.option( '--num-slaves', '-s', metavar='NUM',
-                     type=int, default=1,
-                     help='The number of slaves to start.' )
-        # We want --instance-type for the slaves and --master-instance-type for the master and we
-        # want --master-instance-type to default to the value of --instance-type.
-        super( ClusterCommand, self ).option(
-            '--instance-type', '-t', metavar='TYPE', dest='slave_instance_type',
-            default="t2.micro",
-            help='The type of EC2 instance to launch for the slaves, e.g. t2.micro, '
-                 'm3.small, m3.medium, or m3.large etc. ' )
-        self.option( '--master-instance-type', metavar='TYPE', dest='instance_type',
-                     help='The type of EC2 instance to launch for the master, e.g. t2.micro, '
-                          'm3.small, m3.medium, or m3.large etc. The default is the instance type '
-                          'used for the slaves.' )
-        self.option( '--ebs-volume-size', metavar='GB', default=0,
-                     help='The size in GB of an EBS volume to be attached to each node for '
-                          'persistent data such as that backing HDFS. By default HDFS will be '
-                          'backed instance store ( ephemeral) only, or the root volume for '
-                          'instance types that do not offer instance store.' )
-        self.option( '--master-on-demand', dest='master_on_demand', default=None,
-                     action='store_true',
-                     help='Use this option to insure that the master instance will be an '
-                          'on demand instance type, even if the spod-bid argument is passed. '
-                          'Using this flag can create a cluster of spot slaves with an on demand '
-                          'master.' )
-
-    def run_on_box( self, options, box ):
-        try:
-            resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
-            box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
-                         instance_type=options.instance_type,
-                         virtualization_type=options.virtualization_type,
-                         master_on_demand=options.master_on_demand,
-                         **self.instance_options( options ) )
-            box.create( wait_ready=True )
-            self.run_on_creation( box, options )
-        except:
-            if options.terminate is not False:
-                with panic( ):
-                    box.terminate( wait=False )
-            else:
-                raise
-        else:
-            if options.terminate is True:
-                box.terminate( )
-
-    def option( self, *args, **kwargs ):
-        option_name = args[ 0 ]
-        if option_name == 'role':
-            return
-        elif option_name == '--instance-type':
-            # Suppress the instance type option inherited from the parent so we can roll our own
-            return
-        super( ClusterCommand, self ).option( *args, **kwargs )
 
 
 class CreateCommand( CreationCommand ):
@@ -673,9 +628,9 @@ class CreateCommand( CreationCommand ):
                           "'sudo apt-get update ; sudo apt-get upgrade'." )
 
     def instance_options( self, options ):
-        return dict( image_ref=options.boot_image,
-                     enable_agent=not options.no_agent,
-                     price=options.spot_bid )
+        return dict( super( CreateCommand, self ).instance_options( options ),
+                     image_ref=options.boot_image,
+                     enable_agent=not options.no_agent )
 
     def run_on_creation( self, box, options ):
         box.setup( upgrade_installed_packages=options.upgrade )
@@ -730,7 +685,7 @@ class ResetSecurityCommand( ContextCommand ):
             ctx.reset_namespace_security( )
 
 
-class UpdateInstanceProfile( BoxCommand ):
+class UpdateInstanceProfile( InstanceCommand ):
     """
     Update the instance profile and associated IAM roles for a given role.
 
@@ -739,6 +694,5 @@ class UpdateInstanceProfile( BoxCommand ):
     this command to update the instance profile for existing boxes.
     """
 
-    def run_on_box( self, options, box ):
-        box.adopt( ordinal=options.ordinal )
-        box._get_instance_profile_arn( )
+    def run_on_instance( self, options, box ):
+        box.get_instance_profile_arn( )

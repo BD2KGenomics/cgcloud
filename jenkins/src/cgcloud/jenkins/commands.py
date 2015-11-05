@@ -1,10 +1,10 @@
 from fnmatch import fnmatch
 import os
 
-from cgcloud.core.commands import BoxCommand
+from cgcloud.core.commands import InstanceCommand
 
 
-class RegisterSlaves( BoxCommand ):
+class RegisterSlaves( InstanceCommand ):
     """
     Adds the specified slave images to Jenkins' EC2 configuration on the given master to the
     extend that the specified master can spawn later these slaves to run builds as needed.
@@ -29,8 +29,7 @@ class RegisterSlaves( BoxCommand ):
                           'variable CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides '
                           'the default, an instance type appropriate for the role.' )
 
-    def run_on_box( self, options, master ):
-        master.adopt( ordinal=options.ordinal )
+    def run_on_instance( self, options, master ):
         master.register_slaves( [ slave_cls
                                     for role, slave_cls in self.application.roles.iteritems( )
                                     for role_glob in options.slaves

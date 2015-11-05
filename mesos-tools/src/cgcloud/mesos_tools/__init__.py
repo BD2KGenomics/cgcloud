@@ -139,7 +139,7 @@ class MesosTools( object ):
     @memoize
     def master_id( self ):
         while True:
-            master_id = self.__get_instance_tag( self.instance_id, 'mesos_master' )
+            master_id = self.__get_instance_tag( self.instance_id, 'leader_instance_id' )
             if master_id:
                 log.info( "Master's instance ID is '%s'", master_id )
                 return master_id

@@ -8,6 +8,7 @@ from fabric.operations import run
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
+from cgcloud.core.cluster import ClusterBox, ClusterLeader, ClusterWorker
 from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.fabric.operations import sudo, remote_open, pip
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
@@ -241,77 +242,13 @@ class MesosBoxSupport( GenericUbuntuTrustyBox,
         return role_name, policies
 
 
-class MesosBox( MesosBoxSupport ):
-    def _image_name_prefix( self ):
-        # Make this class and its subclasses use the same image
-        return "mesos-box"
-
-    def _security_group_name( self ):
-        # Make this class and its subclasses use the same security group
-        return "mesos-box"
+class MesosBox( MesosBoxSupport, ClusterBox ):
+    pass
 
 
-class MesosMaster( MesosBox ):
-    """
-    A MesosBox that serves as the Mesos master
-    """
-
-    def __init__( self, ctx, ebs_volume_size=0 ):
-        super( MesosMaster, self ).__init__( ctx )
-        self.preparation_args = None
-        self.preparation_kwargs = None
-        self.ebs_volume_size = ebs_volume_size
-
-    def prepare( self, *args, **kwargs ):
-        # Stash away arguments to prepare() so we can use them when cloning the slaves
-        self.preparation_args = args
-        self.preparation_kwargs = dict( kwargs )
-        # the price kwarg determines if the spot market will be used - with master_on_demand we only want spot workers
-        if kwargs[ "master_on_demand" ]:
-            kwargs[ "price" ] = None
-        return super( MesosMaster, self ).prepare( *args, **kwargs )
-
-    def _populate_instance_tags( self, tags_dict ):
-        super( MesosMaster, self )._populate_instance_tags( tags_dict )
-        tags_dict[ 'mesos_master' ] = self.instance_id
-        if self.ebs_volume_size:
-            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
-
-    def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
-        """
-        Create a number of slave boxes that are connected to this master.
-        """
-        master = self
-        first_slave = MesosSlave( master.ctx, num_slaves, master.instance_id, ebs_volume_size )
-        args = master.preparation_args
-        kwargs = master.preparation_kwargs.copy( )
-        kwargs[ 'instance_type' ] = slave_instance_type
-        first_slave.prepare( *args, **kwargs )
-        other_slaves = first_slave.create( wait_ready=False,
-                                           cluster_ordinal=master.cluster_ordinal + 1 )
-        all_slaves = [ first_slave ] + other_slaves
-        return all_slaves
+class MesosMaster( MesosBox, ClusterLeader ):
+    pass
 
 
-class MesosSlave( MesosBox ):
-    """
-    A MesosBox that serves as the Mesos slave. Slaves are cloned from a master box by
-    calling the MesosMaster.clone() method.
-    """
-
-    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0 ):
-        super( MesosSlave, self ).__init__( ctx )
-        self.num_slaves = num_slaves
-        self.mesos_master_id = mesos_master_id
-        self.ebs_volume_size = ebs_volume_size
-
-    def _populate_instance_creation_args( self, image, kwargs ):
-        kwargs.update( dict( min_count=self.num_slaves, max_count=self.num_slaves ) )
-        return super( MesosSlave, self )._populate_instance_creation_args( image, kwargs )
-
-    def _populate_instance_tags( self, tags_dict ):
-        super( MesosSlave, self )._populate_instance_tags( tags_dict )
-        if self.mesos_master_id:
-            tags_dict[ 'mesos_master' ] = self.mesos_master_id
-        if self.ebs_volume_size:
-            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
+class MesosSlave( MesosBox, ClusterWorker ):
+    pass

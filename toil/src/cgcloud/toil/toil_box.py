@@ -1,8 +1,11 @@
 import logging
+import os
+from bd2k.util.iterables import concat
 
 from cgcloud.core.box import fabric_task
+from cgcloud.core.cluster import ClusterBox, ClusterWorker, ClusterLeader
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.mesos.mesos_box import MesosBoxSupport, MesosMaster, MesosSlave, user
+from cgcloud.mesos.mesos_box import MesosBoxSupport, user
 from cgcloud.fabric.operations import pip
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
@@ -10,9 +13,13 @@ from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sd
 log = logging.getLogger( __name__ )
 
 
-class ToilBox( MesosBoxSupport, DockerBox ):
-    def __init__( self, ctx ):
-        super( ToilBox, self ).__init__( ctx )
+class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
+    """
+    A box with Mesos, Toil and their dependencies installed.
+    """
+
+    def __init__( self, *args, **kwargs ):
+        super( ToilBox, self ).__init__( *args, **kwargs )
         self.lazy_dirs = set( )
 
     def _post_install_packages( self ):
@@ -57,36 +64,24 @@ class ToilBox( MesosBoxSupport, DockerBox ):
 
     @fabric_task
     def __install_toil( self ):
-        pip( 'install toil[aws,mesos]', use_sudo=True )
+        pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
+
+    def _toil_pip_args( self ):
+        return [ os.environ.get( 'CGCLOUD_TOIL_REQUIREMENT', 'toil[aws,mesos]' ) ]
 
 
-class ToilLeader( ToilBox, MesosMaster ):
-    def __init__( self, ctx ):
-        super( ToilLeader, self ).__init__( ctx )
-        pass
+class ToilPreReleaseBox( ToilBox ):
+    """
+    A ToilBox that enables installation of Toil pre-releases.
+    """
 
-    def _post_install_packages( self ):
-        super( ToilLeader, self )._post_install_packages( )
-
-    def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
-        """
-        Create a number of slave boxes that are connected to this master.
-        """
-        master = self
-        first_slave = ToilWorker( master.ctx, num_slaves, master.instance_id, ebs_volume_size )
-        args = master.preparation_args
-        kwargs = master.preparation_kwargs.copy( )
-        kwargs[ 'instance_type' ] = slave_instance_type
-        first_slave.prepare( *args, **kwargs )
-        other_slaves = first_slave.create( wait_ready=False,
-                                           cluster_ordinal=master.cluster_ordinal + 1 )
-        all_slaves = [ first_slave ] + other_slaves
-        return all_slaves
+    def _toil_pip_args( self ):
+        return concat( '--pre', super( ToilPreReleaseBox, self )._toil_pip_args( ) )
 
 
-class ToilWorker( ToilBox, MesosSlave ):
-    def __init__( self, ctx, num_slaves=1, mesos_master_id=None, ebs_volume_size=0 ):
-        super( ToilWorker, self ).__init__( ctx )
-        self.num_slaves = num_slaves
-        self.mesos_master_id = mesos_master_id
-        self.ebs_volume_size = ebs_volume_size
+class ToilLeader( ToilBox, ClusterLeader ):
+    pass
+
+
+class ToilWorker( ToilBox, ClusterWorker ):
+    pass

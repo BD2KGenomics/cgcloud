@@ -3,13 +3,15 @@ from collections import namedtuple
 import json
 import re
 from StringIO import StringIO
-from bd2k.util.iterables import concat
 
+from bd2k.util.iterables import concat
 from fabric.context_managers import settings
 from fabric.operations import run, put, os
+
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
+from cgcloud.core.cluster import ClusterLeader, ClusterWorker, ClusterBox
 from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.fabric.operations import sudo, remote_open, pip
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
@@ -75,7 +77,7 @@ spark_services = {
     'slave': [ spark_service( 'slave', 'slaves' ) ] }
 
 
-class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
+class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
     """
     A node in a Spark cluster. Workers and the master undergo the same setup. Whether a node acts
     as a master or a slave is determined at boot time, via user data. All slave nodes will be
@@ -425,8 +427,8 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
         return url
 
     def __apache_s3_mirror_url( self, path ):
-        return 'https://s3-us-west-2.amazonaws.com/bd2k-artifacts/cgcloud/' + os.path.basename(
-            path )
+        file_name = os.path.basename( path )
+        return 'https://s3-us-west-2.amazonaws.com/bd2k-artifacts/cgcloud/' + file_name
 
     @staticmethod
     def __to_hadoop_xml_config( properties ):
@@ -467,76 +469,10 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox ):
                 dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
         return role_name, policies
 
-    def _image_name_prefix( self ):
-        # Make this class and its subclasses use the same image
-        return "spark-box"
 
-    def _security_group_name( self ):
-        # Make this class and its subclasses use the same security group
-        return "spark-box"
+class SparkMaster( SparkBox, ClusterLeader ):
+    pass
 
 
-class SparkMaster( SparkBox ):
-    """
-    A SparkBox that serves as the Spark/Hadoop master
-    """
-
-    def __init__( self, ctx, ebs_volume_size=0 ):
-        super( SparkMaster, self ).__init__( ctx )
-        self.preparation_args = None
-        self.preparation_kwargs = None
-        self.ebs_volume_size = ebs_volume_size
-
-    def prepare( self, *args, **kwargs ):
-        # Stash away arguments to prepare() so we can use them when cloning the slaves
-        self.preparation_args = args
-        self.preparation_kwargs = dict( kwargs )
-        # the price kwarg determines if the spot market will be used - with master_on_demand we only want spot workers
-        if kwargs[ "master_on_demand" ]:
-            kwargs[ "price" ] = None
-        return super( SparkMaster, self ).prepare( *args, **kwargs )
-
-    def _populate_instance_tags( self, tags_dict ):
-        super( SparkMaster, self )._populate_instance_tags( tags_dict )
-        tags_dict[ 'spark_master' ] = self.instance_id
-        if self.ebs_volume_size:
-            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
-
-    def clone( self, num_slaves, slave_instance_type, ebs_volume_size ):
-        """
-        Create a number of slave boxes that are connected to this master.
-        """
-        master = self
-        first_slave = SparkSlave( master.ctx, num_slaves, master.instance_id, ebs_volume_size )
-        args = master.preparation_args
-        kwargs = master.preparation_kwargs.copy( )
-        kwargs[ 'instance_type' ] = slave_instance_type
-        first_slave.prepare( *args, **kwargs )
-        other_slaves = first_slave.create( wait_ready=False,
-                                           cluster_ordinal=master.cluster_ordinal + 1 )
-        all_slaves = [ first_slave ] + other_slaves
-        return all_slaves
-
-
-class SparkSlave( SparkBox ):
-    """
-    A SparkBox that serves as the Spark/Hadoop slave. Slaves are cloned from a master box by
-    calling the SparkMaster.clone() method.
-    """
-
-    def __init__( self, ctx, num_slaves=1, spark_master_id=None, ebs_volume_size=0 ):
-        super( SparkSlave, self ).__init__( ctx )
-        self.num_slaves = num_slaves
-        self.spark_master_id = spark_master_id
-        self.ebs_volume_size = ebs_volume_size
-
-    def _populate_instance_creation_args( self, image, kwargs ):
-        kwargs.update( dict( min_count=self.num_slaves, max_count=self.num_slaves ) )
-        return super( SparkSlave, self )._populate_instance_creation_args( image, kwargs )
-
-    def _populate_instance_tags( self, tags_dict ):
-        super( SparkSlave, self )._populate_instance_tags( tags_dict )
-        if self.spark_master_id:
-            tags_dict[ 'spark_master' ] = self.spark_master_id
-        if self.ebs_volume_size:
-            tags_dict[ 'ebs_volume_size' ] = self.ebs_volume_size
+class SparkSlave( SparkBox, ClusterWorker ):
+    pass

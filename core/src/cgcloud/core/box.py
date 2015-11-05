@@ -12,6 +12,7 @@ import time
 import datetime
 
 from bd2k.util.collections import OrderedSet
+from bd2k.util.expando import Expando
 from boto import logging
 from boto.exception import BotoServerError, EC2ResponseError
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
@@ -105,7 +106,6 @@ class Box( object ):
     def _image_name_prefix( self ):
         """
         Returns the prefix to be used for naming images created from this box
-        :return:
         """
         return self.role( )
 
@@ -176,7 +176,7 @@ class Box( object ):
         # Set by adopt() and create(), the ID of the instance represented by this box
         self.instance_id = None
 
-        # Set by adopt() and create(), the number of previous generations of this box. When an
+        # Set by adopt() and prepare(), the number of previous generations of this box. When an
         # instance is booted from a stock AMI, generation is 0. After that instance is set up and
         # imaged and another instance is booted from the resulting AMI, generation will be 1.
         self.generation = None
@@ -194,11 +194,8 @@ class Box( object ):
         # Set by adopt() and create(), the private IP address of this instance
         self.private_ip_address = None
 
-        # Set by adopt() and create(), the ID of the AMI the instance was booted from
+        # Set by adopt() and prepare(), the ID of the AMI the instance was booted from
         self.image_id = None
-
-        # Set by prepare() only, the keyword arguments to be passed to RunInstances
-        self.instance_creation_args = None
 
         # Set by prepare() only, the SSH key pairs to be injected into the instance'
         self.ec2_keypairs = None
@@ -211,13 +208,13 @@ class Box( object ):
 
     # FIXME: this can probably be rolled into prepare()
 
-    def _populate_instance_creation_args( self, image, kwargs ):
+    def _populate_instance_spec( self, image, spec ):
         """
         Add, remove or modify the keyword arguments that will be passed to the EC2 run_instances
         request.
 
         :type image: boto.ec2.image.Image
-        :type kwargs: dict
+        :type spec: dict
         """
         for root_device in self.possible_root_devices:
             root_bdt = image.block_device_mapping.get( root_device )
@@ -226,9 +223,9 @@ class Box( object ):
                 root_bdt.snapshot_id = None
                 root_bdt.encrypted = None
                 root_bdt.delete_on_termination = True
-                bdm = kwargs.setdefault( 'block_device_map', BlockDeviceMapping( ) )
+                bdm = spec.setdefault( 'block_device_map', BlockDeviceMapping( ) )
                 bdm[ '/dev/sda1' ] = root_bdt
-                for i in range( ec2_instance_types[ kwargs[ 'instance_type' ] ].disks ):
+                for i in range( ec2_instance_types[ spec[ 'instance_type' ] ].disks ):
                     device = '/dev/sd' + chr( ord( 'b' ) + i )
                     bdm[ device ] = BlockDeviceType( ephemeral_name='ephemeral%i' % i )
                 return
@@ -337,39 +334,50 @@ class Box( object ):
                         virtualization_types, image.virtualization_type) )
             return image
 
-    def prepare( self, ec2_keypair_globs, instance_type=None, image_ref=None,
-                 virtualization_type=None, **options ):
+    def prepare( self, ec2_keypair_globs,
+                 instance_type=None, image_ref=None, virtualization_type=None, spot_bid=None,
+                 **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
-        :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
-
-        :type instance_type: string
-
+        :type ec2_keypair_globs: list of strings
         :param ec2_keypair_globs: The names of EC2 keypairs whose public key is to be to injected
          into the instance to facilitate SSH logins. For the first listed keypair a matching
          private key needs to be present locally. Note that after the agent is installed on the
          box it will
 
-        :type ec2_keypair_globs: list of strings
+        :type instance_type: str
+        :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
 
+        :type image_ref: int|str
         :param image_ref: the ordinal or AMI ID of the image to boot from. If None,
         the return value of self._base_image() will be used.
+
+        :type virtualization_type: str
+        :param virtualization_type: The desired virtualization type to use for the instance
+
+        :type spot_bid: float
+        :param spot_bid: dollar amount to bid for spot instances. If None, and on-demand instance
+        will be created
+
+        Additional, role-specific options can be specified. These options augment the options
+        associated with the givem image.
         """
         if self.instance_id is not None:
-            raise AssertionError( "Instance already adopted or created" )
+            raise AssertionError( 'Instance already adopted or created' )
+
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
 
         virtualization_types = self.__get_virtualization_types( instance_type, virtualization_type )
         image = self.__get_image( virtualization_types, image_ref )
+        self.image_id = image.id
+
         security_groups = self.__setup_security_groups( )
 
-        str_options = dict( image.tags )
-        for k, v in options.iteritems( ):
-            str_options[ k ] = str( v )
-        self._set_instance_options( str_options )
-        self.image_id = image.id
+        tags = dict( image.tags )
+        tags.update( options )
+        self._set_instance_options( tags )
 
         self._populate_ec2_keypair_globs( ec2_keypair_globs )
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
@@ -380,28 +388,24 @@ class Box( object ):
         self.ec2_keypairs = ec2_keypairs
         self.ec2_keypair_globs = ec2_keypair_globs
 
-        kwargs = dict( instance_type=instance_type,
-                       key_name=ec2_keypairs[ 0 ].name,
-                       placement=self.ctx.availability_zone,
-                       security_groups=security_groups,
-                       instance_profile_arn=self._get_instance_profile_arn( ) )
-        self._populate_instance_creation_args( image, kwargs )
-        if options[ 'price' ] is not None:
-            self._add_spot_instance_creation_args( instance_type, kwargs, options )
-        self.instance_creation_args = kwargs
+        spec = Expando( instance_type=instance_type,
+                        key_name=ec2_keypairs[ 0 ].name,
+                        placement=self.ctx.availability_zone,
+                        security_groups=security_groups,
+                        instance_profile_arn=self.get_instance_profile_arn( ) )
+        self._populate_instance_spec( image, spec )
+        self.__add_spot_instance_spec( spec, spot_bid )
+        return spec
 
-    def _add_spot_instance_creation_args( self, instance_type, kwargs, options ):
-        assert ec2_instance_types[ instance_type ].spot_availability is True
-        # This means we are using a spot bid. We need a couple additional kwargs
-        self._optimize_spot_bid( instance_type, options, kwargs )
-        kwargs[ 'price' ] = options[ 'price' ]
-        kwargs[ 'launch_group' ] = self.ctx.namespace.replace( "/", "" ) + "_launch_group"
-        try:  # There is no min/max count parameter for request_spot_instances, just count
-            kwargs[ 'count' ] = kwargs[ 'max_count' ]
-            del kwargs[ 'max_count' ]
-            del kwargs[ 'min_count' ]
-        except KeyError:
-            pass
+    def __add_spot_instance_spec( self, spec, spot_bid ):
+        if spot_bid is not None:
+            assert ec2_instance_types[ spec.instance_type ].spot_availability is True
+            spec.placement = self._optimize_spot_bid( spec.instance_type, spot_bid )
+            spec.price = spot_bid
+            # FIXME: we have to allow more than one launch group per namespace. The launchgroup
+            # name should be configurable with the default being derived from the role name and
+            # maybe the bid.
+            spec.launch_group = self.ctx.namespace.replace( "/", "" ) + '_launch_group'
 
     ZoneTuple = namedtuple( 'ZoneTuple', [ 'name', 'price_deviation' ] )
 
@@ -463,27 +467,26 @@ class Box( object ):
         return min( markets_under_bid or markets_over_bid,
                     key=attrgetter( 'price_deviation' ) ).name
 
-    def _optimize_spot_bid( self, instance_type, options, kwargs ):
+    def _optimize_spot_bid( self, instance_type, spot_bid ):
         """
         Insures that the bid is an appropriate price and makes an effort to place it in a
         sensible zone.
         """
-        bid = float( options[ 'price' ] )
         spot_history = self._get_spot_history( instance_type )
-        self._check_spot_bid( bid, spot_history )
+        self._check_spot_bid( spot_bid, spot_history )
         zones = self.ctx.ec2.get_all_zones( )
-        most_stable_zone = self._choose_spot_zone( zones, bid, spot_history )
-        kwargs[ "placement" ] = most_stable_zone
+        most_stable_zone = self._choose_spot_zone( zones, spot_bid, spot_history )
         log.info( "Requesting spot instances in zone %s", most_stable_zone )
+        return most_stable_zone
 
     @staticmethod
-    def _check_spot_bid( bid, spot_history ):
+    def _check_spot_bid( spot_bid, spot_history ):
         """
         Prevents users from potentially over-paying for instances
 
         Note: this checks over the whole region, not a particular zone
 
-        :param bid: Float
+        :param spot_bid: float
 
         :type spot_history: list[SpotPriceHistory]
 
@@ -504,9 +507,9 @@ class Box( object ):
         UserError: Your bid $ 2.000000 is more than double this instance type's average spot price ($ 0.300000) over the last week
         """
         average = mean( [ datum.price for datum in spot_history ] )
-        if bid > average * 2:
+        if spot_bid > average * 2:
             raise UserError( "Your bid $ %f is more than double this instance type's average "
-                             "spot price ($ %f) over the last week" % (bid, average) )
+                             "spot price ($ %f) over the last week" % (spot_bid, average) )
 
     def _get_spot_history( self, instance_type ):
         """
@@ -523,7 +526,7 @@ class Box( object ):
         spot_data.sort( key=attrgetter( "timestamp" ), reverse=True )
         return spot_data
 
-    def create( self, wait_ready=True, cluster_ordinal=0 ):
+    def create( self, spec, wait_ready=True, cluster_ordinal=0 ):
         """
         Create the EC2 instance represented by this box, and optionally waits for the instance to
         be ready. If the box was prepared to launch multiple instances, and multiple instances
@@ -536,12 +539,12 @@ class Box( object ):
         """
         # FIXME: we should be waiting for all instances in parallel, via threads
         cluster_ordinal = count( start=cluster_ordinal )
-        if 'price' in self.instance_creation_args:
-            reservations = self._create_spot_instances( )
+        if 'price' in spec:
+            reservations = self._create_spot_instances( spec )
             # Each spot market reservation contains only 1 instance each
             instances = list( chain.from_iterable( r.instances for r in reservations ) )
         else:
-            reservation = self._create_ondemand_instances( )
+            reservation = self._create_ondemand_instances( spec )
             instances = reservation.instances
         instances = iter( sorted( instances, key=attrgetter( 'id' ) ) )
         self._bind( next( instances ), next( cluster_ordinal ), wait_ready )
@@ -549,25 +552,34 @@ class Box( object ):
         try:
             while True:
                 box = copy( self )
+                # noinspection PyProtectedMember
                 box._bind( next( instances ), next( cluster_ordinal ), wait_ready )
                 result.append( box )
         except StopIteration:
             pass
         return result
 
-    def _create_spot_instances( self ):
+    def _create_spot_instances( self, spec ):
         """
         A request for multiple instances actually creates many requests for 1 instance each,
         which then become reservations with 1 instance each.
 
         :rtype: list[Reservation]
         """
-        requests = self.ctx.ec2.request_spot_instances( image_id=self.image_id,
-                                                        **self.instance_creation_args )
+        # There is no min/max count parameter for request_spot_instances, just count
+        spec = spec.copy( )
+        spec.count = spec.max_count
+        try:
+            del spec.max_count
+            del spec.min_count
+        except AttributeError:
+            pass
+        requests = self.ctx.ec2.request_spot_instances( self.image_id, **spec )
         # We would use a set but get_all_spot_instance_requests wants a list so its either O(n)
         # for lookup (the rock) or O(n) for converting a set to a list (the hard place).
         request_ids = [ request.id for request in requests ]
         instance_ids = [ ]
+        # noinspection PyBroadException
         try:
             while True:
                 for request in self.ctx.ec2.get_all_spot_instance_requests( request_ids ):
@@ -590,14 +602,14 @@ class Box( object ):
             if request_ids:
                 self.ctx.ec2.cancel_spot_instance_requests( request_ids )
 
-    def _create_ondemand_instances( self ):
+    def _create_ondemand_instances( self, spec ):
         """
         Requests the RunInstances EC2 API call but accounts for the race between recently created
         instance profiles, IAM roles and an instance creation that refers to them.
 
         :rtype: Reservation
         """
-        instance_type = self.instance_creation_args[ 'instance_type' ]
+        instance_type = spec[ 'instance_type' ]
         log.info( 'Creating %s instance(s) ... ', instance_type )
 
         def inconsistencies_detected( e ):
@@ -608,7 +620,7 @@ class Box( object ):
         for attempt in retry_ec2( retry_for=a_long_time,
                                   retry_while=inconsistencies_detected ):
             with attempt:
-                return self.ctx.ec2.run_instances( self.image_id, **self.instance_creation_args )
+                return self.ctx.ec2.run_instances( self.image_id, **spec )
 
     def _bind( self, instance, cluster_ordinal, wait_ready=True ):
         """
@@ -624,15 +636,29 @@ class Box( object ):
     def _set_instance_options( self, options ):
         """
         Initialize optional instance attributes from the given dictionary mapping option names to
-        option values. Both keys and values are strings.
+        option values. The keys in the dictionary must be strings, the values can be any type.
+        This method handles the conversion of values from string transparently. If a key is
+        missing this method will provide a default.
         """
-        self.generation = int( options.get( 'generation', '0' ) )
+        # Relies on idempotence of int
+        self.generation = int( options.get( 'generation' ) or 0 )
+        self.cluster_ordinal = int( options.get( 'cluster_ordinal' ) or 0 )
 
     def _get_instance_options( self ):
         """
-        Return a dictionary mapping option names to option values. Both keys and values are strings.
+        Return a dictionary specifying the tags an instance of this role should be tagged with.
+        Keys and values should be strings.
         """
-        return dict( generation=str( self.generation ) )
+        return dict( Name=(self.ctx.to_aws_name( self.role( ) )),
+                     generation=str( self.generation ),
+                     cluster_ordinal=str( self.cluster_ordinal ) )
+
+    def _get_image_options( self ):
+        """
+        Return a dictionary specifying the tags an image of an instance of this role should be
+        tagged with. Keys and values should be strings.
+        """
+        return dict( generation=str( self.generation + 1 ) )
 
     def _tag_object_persistently( self, tagged_ec2_object, tags_dict ):
         """
@@ -645,12 +671,6 @@ class Box( object ):
             with attempt:
                 tagged_ec2_object.add_tags( tags_dict )
 
-    def _populate_instance_tags( self, tags_dict ):
-        name = self.ctx.to_aws_name( self.role( ) )
-        tags_dict.update( dict( Name=name,
-                                cluster_ordinal=str( self.cluster_ordinal ) ) )
-        tags_dict.update( self._get_instance_options( ) )
-
     def _on_instance_created( self, instance ):
         """
         Invoked right after an instance was created.
@@ -658,8 +678,7 @@ class Box( object ):
         :type instance: boto.ec2.instance.Instance
         """
         log.info( 'Tagging instance ... ' )
-        tags_dict = { }
-        self._populate_instance_tags( tags_dict )
+        tags_dict = self._get_instance_options( )
         self._tag_object_persistently( instance, tags_dict )
         log.info( ' instance tagged %r.', tags_dict )
 
@@ -699,7 +718,7 @@ class Box( object ):
             instance = self.__get_instance_by_ordinal( ordinal )
             self.instance_id = instance.id
             self.image_id = instance.image_id
-            self.cluster_ordinal = int( instance.tags.get( 'cluster_ordinal', '0' ) )
+
             image = self.ctx.ec2.get_image( instance.image_id )
             if image is None:  # could already be deleted
                 log.warn( 'Could not get image details for %s.', instance.image_id )
@@ -735,7 +754,7 @@ class Box( object ):
         name = self.ctx.to_aws_name( self.role( ) )
         reservations = self.ctx.ec2.get_all_instances( filters={ 'tag:Name': name } )
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
-        instances.sort( key=lambda i: (i.launch_time, i.private_ip_address, i.id) )
+        instances.sort( key=lambda j: (j.launch_time, j.private_ip_address, j.id) )
         return name, instances
 
     def __get_instance_by_ordinal( self, ordinal ):
@@ -788,11 +807,7 @@ class Box( object ):
         while True:
             try:
                 image = self.ctx.ec2.get_image( image_id )
-                self.generation += 1
-                try:
-                    self._tag_object_persistently( image, self._get_instance_options( ) )
-                finally:
-                    self.generation -= 1
+                self._tag_object_persistently( image, self._get_image_options( ) )
                 wait_transition( image, { 'pending' }, 'available' )
                 log.info( "... created %s (%s).", image.id, image.name )
                 break
@@ -804,7 +819,7 @@ class Box( object ):
         # not be included in queries other than by AMI ID.
         log.info( 'Checking if image %s is discoverable ...' % image_id )
         while True:
-            if image_id in (_.id for _ in self.list_images( )):
+            if image_id in (_.id for _ in self.list_images()):
                 log.info( '... image now discoverable.' )
                 break
             log.info( '... image %s not yet discoverable, trying again in %is ...', image_id,
@@ -1099,7 +1114,7 @@ class Box( object ):
         """
         raise NotImplementedError( )
 
-    def _get_instance_profile_arn( self ):
+    def get_instance_profile_arn( self ):
         """
         Prepares the instance profile to be used for this box and returns its ARN
         """
