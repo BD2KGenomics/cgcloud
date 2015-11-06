@@ -1,3 +1,4 @@
+from abc import abstractmethod
 import logging
 import os
 from bd2k.util.iterables import concat
@@ -66,17 +67,23 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
     def __install_toil( self ):
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
 
+    @abstractmethod
     def _toil_pip_args( self ):
-        return [ os.environ.get( 'CGCLOUD_TOIL_REQUIREMENT', 'toil[aws,mesos]' ) ]
+        raise NotImplementedError( )
 
 
-class ToilPreReleaseBox( ToilBox ):
-    """
-    A ToilBox that enables installation of Toil pre-releases.
-    """
+class ToilStableBox( ToilBox ):
+    def _toil_pip_args( self ):
+        return [ 'toil[aws,mesos]' ]
+
+
+class ToilLatestBox( ToilBox ):
+    def _list_packages_to_install( self ):
+        return super( ToilLatestBox, self )._list_packages_to_install( ) + [
+            'libffi-dev' ]  # pynacl -> toil, Azure client-side encryption
 
     def _toil_pip_args( self ):
-        return concat( '--pre', super( ToilPreReleaseBox, self )._toil_pip_args( ) )
+        return [ '--pre', 'toil[aws,mesos,encryption]' ]
 
 
 class ToilLeader( ToilBox, ClusterLeader ):

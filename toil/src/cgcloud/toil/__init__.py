@@ -1,5 +1,5 @@
 def roles( ):
-    from cgcloud.toil.toil_box import ToilBox, ToilLeader, ToilWorker
+    from cgcloud.toil.toil_box import ToilStableBox, ToilLatestBox, ToilLeader, ToilWorker
     return sorted( locals( ).values( ), key=lambda cls: cls.__name__ )
 
 
