@@ -137,6 +137,9 @@ class BoxCommand( RoleCommand ):
 
 
 class InstanceCommand( BoxCommand ):
+    """
+    A command that runs on a box that has adopted a specific EC2 instance.
+    """
     def __init__( self, application, **kwargs ):
         super( InstanceCommand, self ).__init__( application, **kwargs )
         self.option( '--ordinal', '-o', default=-1, type=int,
@@ -248,6 +251,8 @@ class ImageCommand( InstanceCommand ):
     """
     Create an AMI image of a box performing a given role. The box must be stopped.
     """
+
+    wait_ready = False
 
     def run_on_instance( self, options, box ):
         box.image( )
