@@ -101,9 +101,8 @@ class RoleCommand( ContextCommand ):
         return [ role for role in self.application.roles.iterkeys( ) if role.startswith( prefix ) ]
 
     def run_in_ctx( self, options, ctx ):
-        role = options.role
-        role = self.application.roles.get( role )
-        if role is None: raise UserError( "No such role: '%s'" % role )
+        role = self.application.roles.get( options.role )
+        if role is None: raise UserError( "No such role: '%s'" % options.role )
         return self.run_on_role( options, ctx, role )
 
     @abstractmethod
