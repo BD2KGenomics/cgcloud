@@ -60,14 +60,8 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
         self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
 
-    @abstractmethod
     def _toil_pip_args( self ):
-        raise NotImplementedError( )
-
-
-class ToilStableBox( ToilBox ):
-    def _toil_pip_args( self ):
-        return [ 'toil[aws,mesos]' ]
+        return [ 'toil[aws,mesos]==3.0.6' ]
 
 
 class ToilLatestBox( ToilBox ):
@@ -76,7 +70,7 @@ class ToilLatestBox( ToilBox ):
             'libffi-dev' ]  # pynacl -> toil, Azure client-side encryption
 
     def _toil_pip_args( self ):
-        return [ '--pre', 'toil[aws,mesos,encryption]' ]
+        return [ '--pre', 'toil[aws,mesos,encryption]<=3.1.0' ]
 
 
 class ToilLeader( ToilBox, ClusterLeader ):
