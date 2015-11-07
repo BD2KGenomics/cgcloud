@@ -142,8 +142,16 @@ def camel_to_snake( s, separator='_' ):
 
     >>> camel_to_snake('R2D2')
     'r2_d2'
+
+    >>> camel_to_snake(Toil310PreBox,separator='-')
+    'toil-pre-310-box'
+
+    >>> camel_to_snake(ToilLatestBoxox',separator='-')
+    'toil-310-box'
     """
-    return re.sub( '([a-z0-9])([A-Z])', r'\1%s\2' % separator, s ).lower( )
+    s = re.sub( '([a-z0-9])([A-Z])', r'\1%s\2' % separator, s )
+    s = re.sub( '([a-z])([A-Z0-9])', r'\1%s\2' % separator, s )
+    return s.lower( )
 
 
 def snake_to_camel( s, separator='_' ):
