@@ -19,10 +19,6 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
     A box with Mesos, Toil and their dependencies installed.
     """
 
-    def __init__( self, *args, **kwargs ):
-        super( ToilBox, self ).__init__( *args, **kwargs )
-        self.lazy_dirs = set( )
-
     def _post_install_packages( self ):
         super( ToilBox, self )._post_install_packages( )
         self.__upgrade_pip( )
@@ -50,10 +46,6 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
                 dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
         return role_name, policies
 
-    def _setup_mesos( self ):
-        super( ToilBox, self )._setup_mesos( )
-        self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
-
     @fabric_task
     def __install_s3am( self ):
         pip( 'install --pre s3am', use_sudo=True )
@@ -66,6 +58,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
     @fabric_task
     def __install_toil( self ):
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
+        self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
 
     @abstractmethod
     def _toil_pip_args( self ):
