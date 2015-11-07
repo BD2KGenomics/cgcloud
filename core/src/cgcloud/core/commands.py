@@ -139,6 +139,7 @@ class InstanceCommand( BoxCommand ):
     """
     A command that runs on a box that has adopted a specific EC2 instance.
     """
+
     def __init__( self, application, **kwargs ):
         super( InstanceCommand, self ).__init__( application, **kwargs )
         self.option( '--ordinal', '-o', default=-1, type=int,
@@ -449,9 +450,10 @@ class CreationCommand( BoxCommand ):
             else:
                 raise
         else:
-            self.log_ssh_hint( options )
             if options.terminate is True:
                 box.terminate( )
+            else:
+                self.log_ssh_hint( options )
 
     def log_ssh_hint( self, options ):
         def opt( option, value, default_value ):
@@ -603,7 +605,6 @@ class RecreateCommand( ImageReferenceCommand, CreationCommand ):
     def run_on_creation( self, box, options ):
         pass
 
-
 class CreateCommand( CreationCommand ):
     """
     Create a box performing the specified role, install an OS and additional packages on it and
@@ -643,6 +644,7 @@ class CreateCommand( CreationCommand ):
             box.image( )
             if options.terminate is not True:
                 box.start( )
+
 
 
 class CleanupCommand( ContextCommand ):
