@@ -175,9 +175,10 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
         with settings( forward_agent=True ):
-            pip( use_sudo=True,
-                 path=tools_dir + '/bin/pip',
-                 args=concat( 'install', self._project_artifacts( 'spark-tools' ) ) )
+            with self._project_artifacts( 'spark-tools' ) as artifacts:
+                pip( use_sudo=True,
+                     path=tools_dir + '/bin/pip',
+                     args=concat( 'install', artifacts ) )
         sudo( fmt( 'chown -R root:root {tools_dir}' ) )
         spark_tools = "SparkTools(**%r)" % dict( user=user,
                                                  install_dir=install_dir,

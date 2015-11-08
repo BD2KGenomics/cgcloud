@@ -102,10 +102,11 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
         run( fmt( '{install_dir}/bin/easy_install pip==1.5.2' ) )
 
         with settings( forward_agent=True ):
-            pip( path=install_dir + '/bin/pip',
-                 args=concat( 'install',
-                              '--allow-external', 'argparse',  # needed on CentOS 5 and 6
-                              self._project_artifacts( 'agent' ) ) )
+            with self._project_artifacts( 'agent' ) as artifacts:
+                pip( path=install_dir + '/bin/pip',
+                     args=concat( 'install',
+                                  '--allow-external', 'argparse',  # needed on CentOS 5 and 6
+                                  artifacts ) )
         sudo( fmt( 'mkdir {run_dir}' ) )
         script = self.__gunzip_base64_decode( run( fmt(
             '{install_dir}/bin/cgcloudagent'

@@ -1,11 +1,12 @@
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
-from contextlib import closing
+from contextlib import closing, contextmanager
 from copy import copy
 from functools import partial, wraps
 from itertools import count, chain
 from operator import attrgetter
 from collections import namedtuple
+from pipes import quote
 import socket
 import subprocess
 import time
@@ -20,7 +21,7 @@ from boto.ec2.spotpricehistory import SpotPriceHistory
 from boto.ec2.instance import Reservation
 from fabric.context_managers import settings
 
-from fabric.operations import sudo, run, get, put
+from fabric.operations import sudo, run, get, put, os
 
 from fabric.api import execute
 
@@ -819,7 +820,7 @@ class Box( object ):
         # not be included in queries other than by AMI ID.
         log.info( 'Checking if image %s is discoverable ...' % image_id )
         while True:
-            if image_id in (_.id for _ in self.list_images()):
+            if image_id in (_.id for _ in self.list_images( )):
                 log.info( '... image now discoverable.' )
                 break
             log.info( '... image %s not yet discoverable, trying again in %is ...', image_id,
@@ -1355,6 +1356,7 @@ class Box( object ):
         self.ctx.register_ssh_pubkey( ec2_keypair_name, ssh_pubkey, force=overwrite_ec2 )
         return ssh_privkey, ssh_pubkey
 
+    @contextmanager
     def _project_artifacts( self, project_name ):
         """
         Like project.project_artifacts() but uploads any source distributions to the instance
@@ -1363,11 +1365,14 @@ class Box( object ):
         a list of artifacts references, each reference being either a remote path to a source
         distribution or a versioned dependency reference, typically referring to a package on PyPI.
         """
-
-        def upload_artifact( artifact ):
+        artifacts = [ ]
+        for artifact in project_artifacts( project_name ):
             if artifact.startswith( '/' ):
-                return put( local_path=artifact )[ 0 ]
-            else:
-                return artifact
+                artifact = put( local_path=artifact )[ 0 ]
+            artifacts.append( artifact )
 
-        return [ upload_artifact( _ ) for _ in project_artifacts( project_name ) ]
+        yield artifacts
+
+        for artifact in artifacts:
+            if artifact.startswith( '/' ):
+                run( 'rm %s' % quote( artifact ) )

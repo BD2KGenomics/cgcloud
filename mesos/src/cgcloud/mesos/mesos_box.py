@@ -143,9 +143,10 @@ class MesosBoxSupport( GenericUbuntuTrustyBox,
         sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
 
         with settings( forward_agent=True ):
-            pip( path=tools_dir + '/bin/pip',
-                 use_sudo=True,
-                 args=concat( 'install', self._project_artifacts( 'mesos-tools' ) ) )
+            with self._project_artifacts( 'mesos-tools' ) as artifacts:
+                pip( path=tools_dir + '/bin/pip',
+                     use_sudo=True,
+                     args=concat( 'install', artifacts ) )
 
         mesos_tools = "MesosTools(**%r)" % dict( user=user,
                                                  shared_dir=shared_dir,
