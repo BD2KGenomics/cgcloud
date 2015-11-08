@@ -143,10 +143,10 @@ def camel_to_snake( s, separator='_' ):
     >>> camel_to_snake('R2D2')
     'r2_d2'
 
-    >>> camel_to_snake(Toil310PreBox,separator='-')
+    >>> camel_to_snake('ToilPre310Box',separator='-')
     'toil-pre-310-box'
 
-    >>> camel_to_snake(ToilLatestBoxox',separator='-')
+    >>> camel_to_snake('Toil310Box',separator='-')
     'toil-310-box'
     """
     s = re.sub( '([a-z0-9])([A-Z])', r'\1%s\2' % separator, s )
