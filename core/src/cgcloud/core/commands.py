@@ -196,14 +196,14 @@ class UserCommandMixin( Command ):
     def __init__( self, application, **kwargs ):
         super( UserCommandMixin, self ).__init__( application, **kwargs )
         self.begin_mutex( )
-        self.option( '--login', '-l', default=None, metavar='USER',
+        self.option( '--login', '-l', default=None, metavar='USER', dest='user',
                      help=heredoc( """Name of user to login as. The default depends on the role,
                      for most roles the default is the administrative user. Roles that define a
                      second less privileged application user will default to that user. Can't be
                      used together with -a, --admin.""" ) )
         self.option( '--admin', '-a', default=False, action='store_true',
-                     help=heredoc("""Force logging in as the administrative user. Can't be used
-                     together with -l, --login.""" ))
+                     help=heredoc( """Force logging in as the administrative user. Can't be used
+                     together with -l, --login.""" ) )
         self.end_mutex( )
 
     @staticmethod
@@ -721,6 +721,7 @@ class ResetSecurityCommand( ContextCommand ):
     Delete security-related objects like IAM instance profiles or EC2 security groups in a
     namespace and its children.
     """
+
     def run_in_ctx( self, options, ctx ):
         message = ("Do you really want to delete all IAM instance profiles, IAM roles and EC2 "
                    "security groups in namespace %s and its children? Although these resources "
