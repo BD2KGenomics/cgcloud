@@ -12,6 +12,7 @@ import struct
 from textwrap import dedent
 
 from bd2k.util.strings import interpolate
+import subprocess
 
 log = logging.getLogger( __name__ )
 
@@ -49,6 +50,7 @@ def unpack_singleton( singleton ):
         raise RuntimeError( "Expected singleton, got iterable with more than one element" )
     except StopIteration:
         return result
+
 
 def mean( xs ):
     """
@@ -114,7 +116,7 @@ def std_dev( xs ):
     ...
     ValueError: Input can't be empty
     """
-    m = mean( xs ) # this checks our pre-conditions, too
+    m = mean( xs )  # this checks our pre-conditions, too
     return sqrt( sum( (x - m) ** 2 for x in xs ) / float( len( xs ) ) )
 
 
@@ -251,9 +253,8 @@ class Application( object ):
         Initializes the argument parser
         """
         super( Application, self ).__init__( )
-        self.parser = argparse.ArgumentParser(
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter
-        )
+        self.args = None
+        self.parser = argparse.ArgumentParser( formatter_class=ArgParseHelpFormatter )
         self.parser._positionals.title = 'Commands'
         self.parser._optionals.title = 'Global options'
         self.subparsers = self.parser.add_subparsers( help='Application commands',
@@ -292,6 +293,7 @@ class Application( object ):
             pass
         else:
             argcomplete.autocomplete( self.parser )
+        self.args = args
         options = self.parser.parse_args( args )
         self.prepare( options )
         command = self.commands[ options.command_name ]
@@ -327,19 +329,14 @@ class Command( object ):
         super( Command, self ).__init__( )
         self.application = application
         doc = self.__class__.__doc__
-        if doc:
-            doc = doc.split( '\n\n', 1 )
-            help_ = doc[ 0 ]
-            epilog = doc[ 1 ] if len( doc ) > 1 else None
-        else:
-            help_, epilog = None, None
+        help_ = doc.split( '\n\n', 1 )[ 0 ] if doc else None
         if not 'help' in kwargs:
             kwargs[ 'help' ] = help_
-        if not 'epilog' in kwargs:
-            kwargs[ 'epilog' ] = epilog
+        if not 'description' in kwargs:
+            kwargs[ 'description' ] = doc
         self.parser = application.subparsers.add_parser(
             self.name( ),
-            formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+            formatter_class=ArgParseHelpFormatter,
             **kwargs )
         self.parser._positionals.title = 'Command arguments'
         self.parser._optionals.title = 'Command options'
@@ -369,6 +366,19 @@ class Command( object ):
 
     def end_mutex( self ):
         self.group = None
+
+
+class ArgParseHelpFormatter( argparse.ArgumentDefaultsHelpFormatter ):
+    try:
+        rows, columns = map( int, subprocess.check_output( [ 'stty', 'size' ] ).split( ) )
+    except:
+        rows, columns = None, None
+
+    def __init__( self, *args, **kwargs ):
+        super( ArgParseHelpFormatter, self ).__init__( *args,
+                                                       width=min( 100, self.columns ),
+                                                       max_help_position=30,
+                                                       **kwargs )
 
 
 empty_line_re = re.compile( r'^\s*(#.*)$' )
