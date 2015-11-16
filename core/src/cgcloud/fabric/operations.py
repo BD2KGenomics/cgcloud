@@ -29,6 +29,14 @@ def sudo( command, sudo_args=None, **kwargs ):
             env.sudo_prefix = old_prefix
 
 
+def runv( *args, **kwargs ):
+    run( command=join_argv( args ), **kwargs )
+
+
+def sudov( *args, **kwargs ):
+    sudo( command=join_argv( args ), **kwargs )
+
+
 def pip( args, path='pip', use_sudo=False ):
     """
     Run pip.
@@ -41,10 +49,10 @@ def pip( args, path='pip', use_sudo=False ):
 
     :param use_sudo: whther to run pip as sudo
     """
-    if isinstance(args, (str,unicode)):
+    if isinstance( args, (str, unicode) ):
         command = path + ' ' + args
     else:
-        command = ' '.join( map( quote, concat( path, args ) ) )
+        command = join_argv( concat( path, args ) )
     # Disable pseudo terminal creation to prevent pip from spamming output with progress bar.
     kwargs = Expando( pty=False )
     if use_sudo:
@@ -56,6 +64,10 @@ def pip( args, path='pip', use_sudo=False ):
     else:
         f = run
     f( command, **kwargs )
+
+
+def join_argv( command ):
+    return ' '.join( map( quote, command ) )
 
 
 @contextmanager
