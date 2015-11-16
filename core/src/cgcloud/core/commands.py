@@ -16,7 +16,7 @@ from boto.ec2.group import Group
 from fabric.operations import prompt
 
 from cgcloud.core.instance_type import ec2_instance_types
-from cgcloud.lib.util import Application
+from cgcloud.lib.util import Application, heredoc
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, Command
 from cgcloud.core.box import Box
@@ -44,23 +44,25 @@ class ContextCommand( Command ):
         self.default_namespace = os.environ.get( 'CGCLOUD_NAMESPACE', '/__me__/' )
         self.default_zone = os.environ.get( 'CGCLOUD_ZONE', None )
         super( ContextCommand, self ).__init__( application, **kwargs )
-        self.option( '--zone', '-z', metavar='AVAILABILITY_ZONE',
+
+        self.option( '--zone', '-z', metavar='ZONE',
                      default=self.default_zone, dest='availability_zone',
                      required=not bool( self.default_zone ),
-                     help='The name of the EC2 availability zone to operate in, e.g. us-east-1b, '
-                          'us-west-1b or us-west-2c etc. This argument implies the AWS region to '
-                          'run in. The value of the environment variable CGCLOUD_ZONE, '
-                          'if that variable is present, determines the default.' )
+                     help=heredoc( """The name of the EC2 availability zone to operate in,
+                     e.g. us-east-1b, us-west-1b or us-west-2c etc. This argument implies the AWS
+                     region to run in. The value of the environment variable CGCLOUD_ZONE,
+                     if that variable is present, determines the default.""" ) )
+
         self.option( '--namespace', '-n', metavar='PREFIX', default=self.default_namespace,
-                     help='Optional prefix for naming EC2 resource like instances, images, '
-                          'volumes, etc. Use this option to create a separate namespace in order '
-                          'to avoid collisions, e.g. when running tests. The value of the '
-                          'environment variable CGCLOUD_NAMESPACE, if that variable is present, '
-                          'overrides the default. The string __me__ anywhere in the namespace '
-                          'will be replaced by the name of the IAM user whose credentials are '
-                          'used to issue requests to AWS. If the name of that IAM user contains '
-                          'the @ character, anything after the first occurrance of that character '
-                          'will be discarded before the substitution is done.' )
+                     help=heredoc( """Optional prefix for naming EC2 resource like instances,
+                     images, volumes, etc. Use this option to create a separate namespace in
+                     order to avoid collisions, e.g. when running tests. The value of the
+                     environment variable CGCLOUD_NAMESPACE, if that variable is present,
+                     overrides the default. The string __me__ anywhere in the namespace will be
+                     replaced by the name of the IAM user whose credentials are used to issue
+                     requests to AWS. If the name of that IAM user contains the @ character,
+                     anything after the first occurrance of that character will be discarded
+                     before the substitution is done.""" ) )
 
     def run( self, options ):
         zone = options.availability_zone
@@ -90,11 +92,9 @@ class RoleCommand( ContextCommand ):
 
     def __init__( self, application, **kwargs ):
         super( RoleCommand, self ).__init__( application, **kwargs )
-        self.option( 'role',
-                     metavar='ROLE',
-                     completer=self.completer,
-                     help="The name of the role. Use the list-roles command to show possible "
-                          "roles." )
+        self.option( 'role', metavar='ROLE', completer=self.completer,
+                     help=heredoc( """The name of the role. Use the list-roles command to show
+                     all available roles.""" ) )
 
     # noinspection PyUnusedLocal
     def completer( self, prefix, **kwargs ):
@@ -143,14 +143,14 @@ class InstanceCommand( BoxCommand ):
     def __init__( self, application, **kwargs ):
         super( InstanceCommand, self ).__init__( application, **kwargs )
         self.option( '--ordinal', '-o', default=-1, type=int,
-                     help='Selects an individual box from the list of boxes performing the '
-                          'specified role. The ordinal is a zero-based index into the list of all '
-                          'boxes performing the specified role, sorted by creation time. This '
-                          'means that the ordinal of a box is not fixed, it may change if another '
-                          'box performing the specified role is terminated. If the ordinal is '
-                          'negative, it will be converted to a positive ordinal by adding the '
-                          'number of boxes performing the specified role. Passing -1, for example, '
-                          'selects the most recently created box.' )
+                     help=heredoc( """Selects an individual box from the list of boxes performing
+                     the specified role in a cluster of the given name. The ordinal is a
+                     zero-based index into the list of all boxes performing the specified role,
+                     sorted by creation time. This means that the ordinal of a box is not fixed,
+                     it may change if another box performing the specified role is terminated. If
+                     the ordinal is negative, it will be converted to a positive ordinal by
+                     adding the number of boxes performing the specified role. Passing -1,
+                     for example, selects the most recently created box.""" ) )
 
     wait_ready = True
 
@@ -182,12 +182,14 @@ class UserCommand( InstanceCommand ):
     def __init__( self, application, **kwargs ):
         super( UserCommand, self ).__init__( application, **kwargs )
         self.begin_mutex( )
-        self.option( '--user', '--login', '-u', '-l', default=None,
-                     help="Name of user to login as. The default depends on the role, for most "
-                          "roles the default is the administrative user. Roles that define a "
-                          "second less privileged application user will default to that user." )
+        self.option( '--login', '-l', default=None, metavar='USER',
+                     help=heredoc( """Name of user to login as. The default depends on the role,
+                     for most roles the default is the administrative user. Roles that define a
+                     second less privileged application user will default to that user. Can't be
+                     used together with -a, --admin.""" ) )
         self.option( '--admin', '-a', default=False, action='store_true',
-                     help="Force logging in as the administrative user." )
+                     help=heredoc("""Force logging in as the administrative user. Can't be used
+                     together with -l, --login.""" ))
         self.end_mutex( )
 
     @staticmethod
@@ -337,8 +339,8 @@ class TerminateCommand( LifecycleCommand ):
     def __init__( self, application, **kwargs ):
         super( TerminateCommand, self ).__init__( application, **kwargs )
         self.option( '--quick', '-q', default=False, action='store_true',
-                     help="Exit immediately after termination request has been made, don't wait "
-                          "until the box is terminated." )
+                     help=heredoc( """Exit immediately after termination request has been made,
+                     don't wait until the box is terminated.""" ) )
 
     def run_on_instance( self, options, box ):
         box.terminate( wait=not options.quick )
@@ -359,65 +361,63 @@ class CreationCommand( BoxCommand ):
     def __init__( self, application ):
         super( CreationCommand, self ).__init__( application )
         default_ec2_keypairs = os.environ.get( 'CGCLOUD_KEYPAIRS', '__me__' ).split( )
-        self.option( '--keypairs', '-k', metavar='EC2_KEYPAIR_NAME',
+        self.option( '--keypairs', '-k', metavar='NAME',
                      dest='ec2_keypair_names', nargs='+',
                      default=default_ec2_keypairs,
-                     help="The names of EC2 key pairs whose public key is to be to injected into "
-                          "the box to facilitate SSH logins. For the first listed argument, "
-                          "the so called primary key pair, a matching private key needs to be "
-                          "present locally. All other arguments may use shell-style globs in "
-                          "which case every key pair whose name matches one of the globs will be "
-                          "deployed to the box. The cgcloudagent program that will typically be "
-                          "installed on a box, keeps the deployed list of authorized keys up to "
-                          "date in case matching keys are added or removed from EC2. The value of "
-                          "the environment variable CGCLOUD_KEYPAIRS, if that variable is "
-                          "present, overrides the default for this option. The string __me__ "
-                          "anywhere in an argument will be substituted with the name of the IAM "
-                          "user whose credentials are used to issue requests to AWS. An argument "
-                          "beginning with a single @ will be looked up as the name of an IAM "
-                          "user. If that user exists, the name will be used as the name of a key "
-                          "pair. Otherwise an exception is raised. An argument beginning with @@ "
-                          "will be looked up as an IAM group and the name of each user in that "
-                          "group will be used as the name of a keypair. Note that the @ and @@ "
-                          "substitutions depend on the convention that the user and the "
-                          "corresponding key pair have the same name. They only require the "
-                          "respective user or group to exist, while the key pair may be missing. "
-                          "If such a missing key pair is later added, cgcloudagent will "
-                          "automatically add that key pair's public to the list of SSH keys "
-                          "authorized to login to the box. Shell-style globs can not be combined "
-                          "with @ or @@ substitutions within one argument." )
+                     help=heredoc( """The names of EC2 key pairs whose public key is to be
+                     injected into the box to facilitate SSH logins. For the first listed
+                     argument, the so called primary key pair, a matching private key needs to be
+                     present locally. All other arguments may use shell-style globs in which case
+                     every key pair whose name matches one of the globs will be deployed to the
+                     box. The cgcloudagent program that will typically be installed on a box
+                     keeps the deployed list of authorized keys up to date in case matching keys
+                     are added or removed from EC2. The value of the environment variable
+                     CGCLOUD_KEYPAIRS, if that variable is present, overrides the default for
+                     this option. The string __me__ anywhere in an argument will be substituted
+                     with the name of the IAM user whose credentials are used to issue requests
+                     to AWS. An argument beginning with a single @ will be looked up as the name
+                     of an IAM user. If that user exists, the name will be used as the name of a
+                     key pair. Otherwise an exception is raised. An argument beginning with @@
+                     will be looked up as an IAM group and the name of each user in that group
+                     will be used as the name of a keypair. Note that the @ and @@ substitutions
+                     depend on the convention that the user and the corresponding key pair have
+                     the same name. They only require the respective user or group to exist,
+                     while the key pair may be missing. If such a missing key pair is later
+                     added, cgcloudagent will automatically add that key pair's public to the
+                     list of SSH keys authorized to login to the box. Shell-style globs can not
+                     be combined with @ or @@ substitutions within one argument.""" ) )
 
         self.option( '--instance-type', '-t', metavar='TYPE', choices=ec2_instance_types.keys( ),
                      default=os.environ.get( 'CGCLOUD_INSTANCE_TYPE', None ),
-                     help='The type of EC2 instance to launch for the box, e.g. t2.micro, m3.small, '
-                          'm3.medium, or m3.large etc. The value of the environment variable '
-                          'CGCLOUD_INSTANCE_TYPE, if that variable is present, overrides the '
-                          'default, an instance type appropriate for the role.' )
+                     help=heredoc( """The type of EC2 instance to launch for the box,
+                     e.g. t2.micro, m3.small, m3.medium, or m3.large etc. The value of the
+                     environment variable CGCLOUD_INSTANCE_TYPE, if that variable is present,
+                     overrides the default, an instance type appropriate for the role.""" ) )
 
         self.option( '--virtualization-type', metavar='TYPE', choices=Box.virtualization_types,
-                     help="The virtualization type to be used for the instance. This affects the "
-                          "choice of image (AMI) the instance is created from. The default depends "
-                          "on the instance type, but generally speaking, 'hvm' will be used for "
-                          "newer instance types." )
+                     help=heredoc( """The virtualization type to be used for the instance. This
+                     affects the choice of image (AMI) the instance is created from. The default
+                     depends on the instance type, but generally speaking, 'hvm' will be used for
+                     newer instance types.""" ) )
 
         self.option( '--spot-bid', metavar='AMOUNT', type=float,
-                     help="The maximum price to pay for the specified instance type, in dollars "
-                          "per hour as a floating point value, 1.23 for example. Only bids under "
-                          "double the instance type's average price for the past week will be "
-                          "accepted. By default on-demand instances are used. Note that some "
-                          "instance types are not available on the spot market!" )
+                     help=heredoc( """The maximum price to pay for the specified instance type,
+                     in dollars per hour as a floating point value, 1.23 for example. Only bids
+                     under double the instance type's average price for the past week will be
+                     accepted. By default on-demand instances are used. Note that some instance
+                     types are not available on the spot market!""" ) )
 
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
                      default=None, action='store_true',
-                     help='Terminate the box when setup is complete. The default is to leave the '
-                          'box running except when errors occur.' )
+                     help=heredoc( """Terminate the box when setup is complete. The default is to
+                     leave the box running except when errors occur.""" ) )
 
         self.option( '--never-terminate', '-N',
                      default=None, dest='terminate', action='store_false',
-                     help='Never terminate the box, even after errors. This may be useful for '
-                          'post-mortem analysis.' )
+                     help=heredoc( """Never terminate the box, even after errors. This may be
+                     useful for post-mortem analysis.""" ) )
 
         self.end_mutex( )
 
@@ -475,17 +475,17 @@ class RegisterKeyCommand( ContextCommand ):
     def __init__( self, application, **kwargs ):
         super( RegisterKeyCommand, self ).__init__( application, **kwargs )
         self.option( 'ssh_public_key', metavar='KEY_FILE',
-                     help='Path of file containing the SSH public key to upload to the EC2 '
-                          'keypair.' )
+                     help=heredoc( """Path of file containing the SSH public key to upload to the
+                     EC2 keypair.""" ) )
         self.option( '--force', '-F', default=False, action='store_true',
                      help='Overwrite potentially existing EC2 key pair' )
         self.option( '--keypair', '-k', metavar='NAME',
                      dest='ec2_keypair_name', default='__me__',
-                     help='The desired name of the EC2 key pair. The name should associate the '
-                          'key with you in a way that it is obvious to other users in your '
-                          'organization.  The string __me__ anywhere in the key pair name will be '
-                          'replaced with the name of the IAM user whose credentials are used to '
-                          'issue requests to AWS.' )
+                     help=heredoc( """The desired name of the EC2 key pair. The name should
+                     associate the key with you in a way that it is obvious to other users in
+                     your organization.  The string __me__ anywhere in the key pair name will be
+                     replaced with the name of the IAM user whose credentials are used to issue
+                     requests to AWS.""" ) )
 
     def run_in_ctx( self, options, ctx ):
         with open( options.ssh_public_key ) as f:
@@ -561,13 +561,13 @@ class ImageReferenceCommand( Command ):
         super( ImageReferenceCommand, self ).__init__( application )
         self.option( long_image_option, short_image_option, metavar='ORDINAL_OR_AMI_ID',
                      type=self.ordinal_or_ami_id, default=-1,  # default to the last one
-                     help="An image ordinal, i.e. the index of an image in the list of images for "
-                          "the given role, sorted by creation time. Use the list-images command "
-                          "to print a list of images for a given role. If the ordinal is "
-                          "negative, it will be converted to a positive ordinal by adding the "
-                          "total number of images for this role. Passing -1, for example, "
-                          "selects the most recently created image. Alternatively, an AMI ID, "
-                          "e.g. 'ami-4dcced7d' can be passed in as well." )
+                     help=heredoc( """An image ordinal, i.e. the index of an image in the list of
+                     images for the given role, sorted by creation time. Use the list-images
+                     command to print a list of images for a given role. If the ordinal is
+                     negative, it will be converted to a positive ordinal by adding the total
+                     number of images for this role. Passing -1, for example, selects the most
+                     recently created image. Alternatively, an AMI ID, e.g. 'ami-4dcced7d' can be
+                     passed in as well.""" ) )
 
 
 class DeleteImageCommand( ImageReferenceCommand, BoxCommand ):
@@ -576,12 +576,12 @@ class DeleteImageCommand( ImageReferenceCommand, BoxCommand ):
         self.begin_mutex( )
         self.option( '--keep-snapshot', '-K',
                      default=False, action='store_true',
-                     help="Do not delete the EBS volume snapshot associated with the given image. "
-                          "This will leave an orphaned snapshot which should be removed at a "
-                          "later time using the 'cgcloud cleanup' command." )
+                     help=heredoc( """Do not delete the EBS volume snapshot associated with the
+                     given image. This will leave an orphaned snapshot which should be removed at
+                     a later time using the 'cgcloud cleanup' command.""" ) )
         self.option( '--quick', '-q', default=False, action='store_true',
-                     help="Exit immediately after deregistration request has been made, "
-                          "don't wait until the image is deregistered. Implies --keep-snapshot." )
+                     help=heredoc( """Exit immediately after deregistration request has been made,
+                     don't wait until the image is deregistered. Implies --keep-snapshot.""" ) )
         self.end_mutex( )
 
     def run_on_box( self, options, box ):
@@ -614,23 +614,23 @@ class CreateCommand( CreationCommand ):
     def __init__( self, application ):
         super( CreateCommand, self ).__init__( application )
         self.option( '--boot-image', '-i', metavar='AMI_ID',
-                     help='The AMI ID of the image from which to create the box. This argument is '
-                          'optional and the default is determined automatically based on the '
-                          'role. Typically, this option does not need to be used.' )
+                     help=heredoc( """The AMI ID of the image from which to create the box. This
+                     argument is optional and the default is determined automatically based on
+                     the role. Typically, this option does not need to be used.""" ) )
         self.option( '--no-agent',
                      default=False, action='store_true',
-                     help="Don't install the cghub-cloud-agent package on the box. One "
-                          "note-worthy effect of using this option this is that the SSH keys will "
-                          "be installed initially, but not maintained over time." )
+                     help=heredoc( """Don't install the cghub-cloud-agent package on the box. One
+                     note-worthy effect of using this option this is that the SSH keys will be
+                     installed initially, but not maintained over time.""" ) )
         self.option( '--create-image', '-I',
                      default=False, action='store_true',
                      help='Create an image of the box as soon as setup completes.' )
         # FIXME: Take a second look at this: Does it work. Is it necessary?
         self.option( '--upgrade', '-U',
                      default=False, action='store_true',
-                     help="Bring the package repository as well as any installed packages up to "
-                          "date, i.e. do what on Ubuntu is achieved by doing "
-                          "'sudo apt-get update ; sudo apt-get upgrade'." )
+                     help=heredoc( """Bring the package repository as well as any installed
+                     packages up to date, i.e. do what on Ubuntu is achieved by doing 'sudo
+                     apt-get update ; sudo apt-get upgrade'.""" ) )
 
     def instance_options( self, options ):
         return dict( super( CreateCommand, self ).instance_options( options ),
@@ -644,7 +644,6 @@ class CreateCommand( CreationCommand ):
             box.image( )
             if options.terminate is not True:
                 box.start( )
-
 
 
 class CleanupCommand( ContextCommand ):
@@ -683,10 +682,10 @@ class CleanupCommand( ContextCommand ):
 
 class ResetSecurityCommand( ContextCommand ):
     def run_in_ctx( self, options, ctx ):
-        message = ('Do you really want to delete all IAM instance profiles, IAM roles and EC2 '
-                   'security groups in namespace %s and its children? Although these resources '
-                   'will be created on-the-fly for newly created boxes, existing boxes will '
-                   'likely be impacted negatively.' % ctx.namespace)
+        message = ("Do you really want to delete all IAM instance profiles, IAM roles and EC2 "
+                   "security groups in namespace %s and its children? Although these resources "
+                   "will; be created on-the-fly for newly created boxes, existing boxes will "
+                   "likely be impacted; negatively." % ctx.namespace)
         if 'yes' == prompt( message + ' (yes/no)', default='no' ):
             ctx.reset_namespace_security( )
 
