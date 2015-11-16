@@ -36,7 +36,7 @@ def main( args=None ):
     """
     This is the cgcloud entry point. It should be installed via setuptools.setup(entry_points=...)
     """
-    root_logger = setup_logging( )
+    root_logger = CGCloud.setup_logging( )
     try:
         plugins = os.environ.get( 'CGCLOUD_PLUGINS', '' ).strip( )
         plugins = concat( cgcloud.core,
@@ -51,18 +51,20 @@ def main( args=None ):
         sys.exit( 255 )
 
 
-def setup_logging( ):
-    root_logger = logging.getLogger( )
-    # Only setup logging if it hasn't been done already
-    if len( root_logger.handlers ) == 0:
-        root_logger.setLevel( logging.INFO )
-        stream_handler = logging.StreamHandler( sys.stderr )
-        stream_handler.setFormatter( logging.Formatter( "%(levelname)s: %(message)s" ) )
-        stream_handler.setLevel( logging.INFO )
-        root_logger.addHandler( stream_handler )
-        return root_logger
-    else:
-        return None
+class LoggingFormatter( logging.Formatter ):
+    """
+    A formatter that logs the thread name of secondary threads, but not the main thread.
+    """
+
+    def __init__( self ):
+        super( LoggingFormatter, self ).__init__( "%(threadName)s%(levelname)s: %(message)s" )
+
+    def format( self, record ):
+        if record.threadName == 'MainThread':
+            record.threadName = ''
+        elif record.threadName is not None:
+            record.threadName += ' '
+        return super( LoggingFormatter, self ).format( record )
 
 
 class CGCloud( Application ):
@@ -98,12 +100,30 @@ class CGCloud( Application ):
                     '%(asctime)s: %(levelname)s: %(name)s: %(message)s' ) )
                 self.root_logger.addHandler( file_handler )
             else:
+                self.silence_boto_and_paramiko( )
+        if options.script:
+            plugin = imp.load_source( os.path.splitext( os.path.basename( options.script ) )[ 0 ],
+                                      options.script )
+            self._import_plugin_roles( plugin )
+
+    @classmethod
+    def setup_logging( cls ):
+        root_logger = logging.getLogger( )
+        # Only setup logging if it hasn't been done already
+        if len( root_logger.handlers ) == 0:
+            root_logger.setLevel( logging.INFO )
+            stream_handler = logging.StreamHandler( sys.stderr )
+            stream_handler.setFormatter( LoggingFormatter( ) )
+            stream_handler.setLevel( logging.INFO )
+            root_logger.addHandler( stream_handler )
+            return root_logger
+        else:
+            return None
+
+    @classmethod
+    def silence_boto_and_paramiko( cls ):
                 # There are quite a few cases where we expect AWS requests to fail, but it seems
                 # that boto handles these by logging the error *and* raising an exception. We
                 # don't want to confuse the user with those error messages.
                 logging.getLogger( 'boto' ).setLevel( logging.CRITICAL )
                 logging.getLogger( 'paramiko' ).setLevel( logging.WARN )
-        if options.script:
-            plugin = imp.load_source( os.path.splitext( os.path.basename( options.script ) )[ 0 ],
-                                      options.script )
-            self._import_plugin_roles( plugin )
