@@ -11,9 +11,9 @@ from fabric.operations import run, put, os
 from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.box import fabric_task
-from cgcloud.core.cluster import ClusterLeader, ClusterWorker, ClusterBox
+from cgcloud.core.cluster import ClusterBox, ClusterLeader, ClusterWorker
 from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
-from cgcloud.fabric.operations import sudo, remote_open, pip
+from cgcloud.fabric.operations import sudo, remote_open, pip, sudov
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
@@ -103,6 +103,17 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
             dict( ip_protocol='udp', from_port=0, to_port=65535,
                   src_security_group_name=group_name ) ]
 
+    def _get_iam_ec2_role( self ):
+        role_name, policies = super( SparkBox, self )._get_iam_ec2_role( )
+        role_name += '--' + abreviated_snake_case_class_name( SparkBox )
+        policies.update( dict(
+            ec2_read_only=ec2_read_only_policy,
+            ec2_spark_box=dict( Version="2012-10-17", Statement=[
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
+                dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
+        return role_name, policies
+
     @fabric_task
     def _setup_package_repos( self ):
         super( SparkBox, self )._setup_package_repos( )
@@ -121,24 +132,6 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         super( SparkBox, self )._pre_install_packages( )
         self.__setup_application_user( )
 
-    def _post_install_packages( self ):
-        super( SparkBox, self )._post_install_packages( )
-        self._propagate_authorized_keys( user, user )
-        self.__setup_ssh_config( )
-        self.__create_spark_keypair( )
-        self.__install_hadoop( )
-        self.__install_spark( )
-        self.__install_sparkbox_tools( )
-        self.__setup_path( )
-
-    @fabric_task
-    def __setup_ssh_config( self ):
-        with remote_open( '/etc/ssh/ssh_config', use_sudo=True ) as f:
-            f.write( heredoc( """
-                Host spark-master
-                    CheckHostIP no
-                    HashKnownHosts no""" ) )
-
     @fabric_task
     def __setup_application_user( self ):
         sudo( fmt( 'useradd '
@@ -147,8 +140,31 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
                    '--user-group '
                    '--shell /bin/bash {user}' ) )
 
-    def __ec2_keypair_name( self, ctx ):
-        return user + '@' + ctx.to_aws_name( self.role( ) )
+    def _post_install_packages( self ):
+        super( SparkBox, self )._post_install_packages( )
+        self._propagate_authorized_keys( user, user )
+        self.__setup_shared_dir( )
+        self.__setup_ssh_config( )
+        self.__create_spark_keypair( )
+        self.__install_hadoop( )
+        self.__install_spark( )
+        self.__setup_path( )
+        self.__install_tools( )
+
+    def _shared_dir( self ):
+        return '/home/%s/shared' % self.default_account( )
+
+    @fabric_task
+    def __setup_shared_dir( self ):
+        sudov( 'install', '-d', self._shared_dir( ), '-m', '700', '-o', self.default_account( ) )
+
+    @fabric_task
+    def __setup_ssh_config( self ):
+        with remote_open( '/etc/ssh/ssh_config', use_sudo=True ) as f:
+            f.write( heredoc( """
+                Host spark-master
+                    CheckHostIP no
+                    HashKnownHosts no""" ) )
 
     @fabric_task( user=user )
     def __create_spark_keypair( self ):
@@ -161,110 +177,8 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         # defaulting to or being set to .ssh/autorized_keys and .ssh/autorized_keys2 in sshd_config
         run( "cd .ssh && cat id_rsa.pub >> authorized_keys2" )
 
-    @fabric_task
-    def __install_sparkbox_tools( self ):
-        """
-        Installs the spark-master-discovery init script and its companion spark-tools. The latter
-        is a Python package distribution that's included in cgcloud-spark as a resource. This is
-        in contrast to the cgcloud agent, which is a standalone distribution.
-        """
-        tools_dir = install_dir + '/tools'
-        admin = self.admin_account( )
-        sudo( fmt( 'mkdir -p {tools_dir} {persistent_dir} {ephemeral_dir}' ) )
-        sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) )
-        run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
-        run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
-        with settings( forward_agent=True ):
-            with self._project_artifacts( 'spark-tools' ) as artifacts:
-                pip( use_sudo=True,
-                     path=tools_dir + '/bin/pip',
-                     args=concat( 'install', artifacts ) )
-        sudo( fmt( 'chown -R root:root {tools_dir}' ) )
-        spark_tools = "SparkTools(**%r)" % dict( user=user,
-                                                 install_dir=install_dir,
-                                                 ephemeral_dir=ephemeral_dir,
-                                                 persistent_dir=persistent_dir,
-                                                 lazy_dirs=self.lazy_dirs )
-        self._register_init_script(
-            "sparkbox",
-            heredoc( """
-                description "Spark/HDFS master discovery"
-                console log
-                start on runlevel [2345]
-                stop on runlevel [016]
-                pre-start script
-                {tools_dir}/bin/python2.7 - <<END
-                import logging
-                logging.basicConfig( level=logging.INFO )
-                from cgcloud.spark_tools import SparkTools
-                spark_tools = {spark_tools}
-                spark_tools.start()
-                end script
-                post-stop script
-                {tools_dir}/bin/python2.7 - <<END
-                import logging
-                logging.basicConfig( level=logging.INFO )
-                from cgcloud.spark_tools import SparkTools
-                spark_tools = {spark_tools}
-                spark_tools.stop()
-                END
-                end script""" ) )
-        script_path = "/usr/local/bin/sparkbox-manage-slaves"
-        put( remote_path=script_path, use_sudo=True, local_path=StringIO( heredoc( """
-            #!{tools_dir}/bin/python2.7
-            import sys
-            import logging
-            # Prefix each log line to make it more obvious that it's the master logging when the
-            # slave calls this script via ssh.
-            logging.basicConfig( level=logging.INFO,
-                                 format="manage_slaves: " + logging.BASIC_FORMAT )
-            from cgcloud.spark_tools import SparkTools
-            spark_tools = {spark_tools}
-            spark_tools.manage_slaves( slaves_to_add=sys.argv[1:] )""" ) ) )
-        sudo( fmt( "chown root:root {script_path} && chmod 755 {script_path}" ) )
-
-    @fabric_task
-    def __setup_path( self ):
-        globally = True
-        if globally:
-            with remote_open( '/etc/environment', use_sudo=True ) as f:
-                new_path = [ fmt( '{install_dir}/{package}/bin' )
-                    for package in ('spark', 'hadoop') ]
-                self.__patch_etc_environment( f, new_path )
-        else:
-            for _user in (user, self.admin_account( )):
-                with settings( user=_user ):
-                    with remote_open( '~/.profile' ) as f:
-                        f.write( '\n' )
-                        for package in ('spark', 'hadoop'):
-                            # We don't include sbin here because too many file names collide in
-                            # Spark's and Hadoop's sbin
-                            f.write( fmt( 'PATH="$PATH:{install_dir}/{package}/bin"\n' ) )
-
-    env_entry_re = re.compile( r'^\s*([^=\s]+)\s*=\s*"?(.*?)"?\s*$' )
-
-    @classmethod
-    def __patch_etc_environment( cls, env_file, dirs ):
-        r"""
-        >>> f=StringIO('FOO = " BAR " \n  PATH =foo:bar\nBLA="FASEL"')
-        >>> f.seek(0,2) # seek to end as if file was opened with 'a'
-        >>> SparkBox._SparkBox__patch_etc_environment( f, [ "new" ] )
-        >>> f.getvalue()
-        'BLA="FASEL"\nFOO=" BAR "\nPATH="foo:bar:new"\n'
-        """
-
-        def parse_entry( s ):
-            m = cls.env_entry_re.match( s )
-            return m.group( 1 ), m.group( 2 )
-
-        env_file.seek( 0 )
-        env = dict( parse_entry( _ ) for _ in env_file.read( ).splitlines( ) )
-        path = env[ 'PATH' ].split( ':' )
-        path.extend( dirs )
-        env[ 'PATH' ] = ':'.join( path )
-        env_file.seek( 0 )
-        env_file.truncate( 0 )
-        for var in sorted( env.items( ) ): env_file.write( '%s="%s"\n' % var )
+    def __ec2_keypair_name( self, ctx ):
+        return user + '@' + ctx.to_aws_name( self.role( ) )
 
     @fabric_task
     def __install_hadoop( self ):
@@ -307,28 +221,33 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         # Install upstart jobs
         self.__register_upstart_jobs( hadoop_services )
 
-    @fabric_task( user=user )
-    def __format_hdfs( self ):
-        run( fmt( '{install_dir}/hadoop/bin/hadoop namenode -format -nonInteractive' ) )
-
-    def _lazy_mkdir( self, parent, name, persistent=False ):
+    @staticmethod
+    def __to_hadoop_xml_config( properties ):
         """
-        __lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
-        /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
-        Likewise, __lazy_mkdir( '/foo', 'dir', False) creates /foo/dir now and ensures that
-        /mnt/ephemeral/foo/dir is created and bind-mounted into /foo/dir when the box starts.
-        Note that at start-up time, /mnt/persistent may be reassigned  to /mnt/ephemeral if no
-        EBS volume is mounted at /mnt/persistent.
+        >>> print SparkBox._SparkBox__to_hadoop_xml_config( {'foo' : 'bar'} )
+        <?xml version='1.0' encoding='utf-8'?>
+        <?xml-stylesheet type='text/xsl' href='configuration.xsl'?>
+        <configuration>
+            <property>
+                <name>foo</name>
+                <value>bar</value>
+            </property>
+        </configuration>
+        <BLANKLINE>
         """
-        assert '/' not in name
-        assert parent.startswith( '/' )
-        for location in (persistent_dir, ephemeral_dir):
-            assert location.startswith( '/' )
-            assert not location.startswith( parent ) and not parent.startswith( location )
-        logical_path = parent + '/' + name
-        sudo( 'mkdir -p "%s"' % logical_path )
-        self.lazy_dirs.add( (parent, name, persistent) )
-        return logical_path
+        s = StringIO( )
+        s.write( heredoc( """
+            <?xml version='1.0' encoding='utf-8'?>
+            <?xml-stylesheet type='text/xsl' href='configuration.xsl'?>
+            <configuration>""" ) )
+        for name, value in properties.iteritems( ):
+            s.write( heredoc( """
+                <property>
+                    <name>{name}</name>
+                    <value>{value}</value>
+                </property>""", indent='    ' ) )
+        s.write( "</configuration>\n" )
+        return s.getvalue( )
 
     @fabric_task
     def __install_spark( self ):
@@ -370,24 +289,6 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
 
         # Install upstart jobs
         self.__register_upstart_jobs( spark_services )
-
-    def __register_upstart_jobs( self, service_map ):
-        for node_type, services in service_map.iteritems( ):
-            start_on = "sparkbox-start-" + node_type
-            for service in services:
-                self._register_init_script(
-                    service.init_name,
-                    heredoc( """
-                        description "{service.description}"
-                        console log
-                        start on {start_on}
-                        stop on runlevel [016]
-                        setuid {user}
-                        setgid {user}
-                        env USER={user}
-                        pre-start exec {service.start_script}
-                        post-stop exec {service.stop_script}""" ) )
-                start_on = "started " + service.init_name
 
     def __install_apache_package( self, path ):
         """
@@ -431,44 +332,156 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         file_name = os.path.basename( path )
         return 'https://s3-us-west-2.amazonaws.com/bd2k-artifacts/cgcloud/' + file_name
 
-    @staticmethod
-    def __to_hadoop_xml_config( properties ):
+    @fabric_task
+    def __install_tools( self ):
         """
-        >>> print SparkBox._SparkBox__to_hadoop_xml_config( {'foo' : 'bar'} )
-        <?xml version='1.0' encoding='utf-8'?>
-        <?xml-stylesheet type='text/xsl' href='configuration.xsl'?>
-        <configuration>
-            <property>
-                <name>foo</name>
-                <value>bar</value>
-            </property>
-        </configuration>
-        <BLANKLINE>
+        Installs the spark-master-discovery init script and its companion spark-tools. The latter
+        is a Python package distribution that's included in cgcloud-spark as a resource. This is
+        in contrast to the cgcloud agent, which is a standalone distribution.
         """
-        s = StringIO( )
-        s.write( heredoc( """
-            <?xml version='1.0' encoding='utf-8'?>
-            <?xml-stylesheet type='text/xsl' href='configuration.xsl'?>
-            <configuration>""" ) )
-        for name, value in properties.iteritems( ):
-            s.write( heredoc( """
-                <property>
-                    <name>{name}</name>
-                    <value>{value}</value>
-                </property>""", indent='    ' ) )
-        s.write( "</configuration>\n" )
-        return s.getvalue( )
+        tools_dir = install_dir + '/tools'
+        admin = self.admin_account( )
+        sudo( fmt( 'mkdir -p {tools_dir} {persistent_dir} {ephemeral_dir}' ) )
+        sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) )
+        run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
+        run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+        with settings( forward_agent=True ):
+            with self._project_artifacts( 'spark-tools' ) as artifacts:
+                pip( use_sudo=True,
+                     path=tools_dir + '/bin/pip',
+                     args=concat( 'install', artifacts ) )
+        sudo( fmt( 'chown -R root:root {tools_dir}' ) )
 
-    def _get_iam_ec2_role( self ):
-        role_name, policies = super( SparkBox, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( SparkBox )
-        policies.update( dict(
-            ec2_read_only=ec2_read_only_policy,
-            ec2_spark_box=dict( Version="2012-10-17", Statement=[
-                dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
-                dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
-                dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
-        return role_name, policies
+        spark_tools = "SparkTools(**%r)" % dict( user=user,
+                                                 shared_dir=self._shared_dir( ),
+                                                 install_dir=install_dir,
+                                                 ephemeral_dir=ephemeral_dir,
+                                                 persistent_dir=persistent_dir,
+                                                 lazy_dirs=self.lazy_dirs )
+
+        self.lazy_dirs = None  # make sure it can't be used anymore once we are done with it
+
+        self._register_init_script(
+            "sparkbox",
+            heredoc( """
+                description "Spark/HDFS master discovery"
+                console log
+                start on runlevel [2345]
+                stop on runlevel [016]
+                pre-start script
+                {tools_dir}/bin/python2.7 - <<END
+                import logging
+                logging.basicConfig( level=logging.INFO )
+                from cgcloud.spark_tools import SparkTools
+                spark_tools = {spark_tools}
+                spark_tools.start()
+                END
+                end script
+                post-stop script
+                {tools_dir}/bin/python2.7 - <<END
+                import logging
+                logging.basicConfig( level=logging.INFO )
+                from cgcloud.spark_tools import SparkTools
+                spark_tools = {spark_tools}
+                spark_tools.stop()
+                END
+                end script""" ) )
+
+        script_path = "/usr/local/bin/sparkbox-manage-slaves"
+        put( remote_path=script_path, use_sudo=True, local_path=StringIO( heredoc( """
+            #!{tools_dir}/bin/python2.7
+            import sys
+            import logging
+            # Prefix each log line to make it more obvious that it's the master logging when the
+            # slave calls this script via ssh.
+            logging.basicConfig( level=logging.INFO,
+                                 format="manage_slaves: " + logging.BASIC_FORMAT )
+            from cgcloud.spark_tools import SparkTools
+            spark_tools = {spark_tools}
+            spark_tools.manage_slaves( slaves_to_add=sys.argv[1:] )""" ) ) )
+        sudo( fmt( "chown root:root {script_path} && chmod 755 {script_path}" ) )
+
+    @fabric_task
+    def _lazy_mkdir( self, parent, name, persistent=False ):
+        """
+        __lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
+        /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        Likewise, __lazy_mkdir( '/foo', 'dir', False) creates /foo/dir now and ensures that
+        /mnt/ephemeral/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+        Note that at start-up time, /mnt/persistent may be reassigned  to /mnt/ephemeral if no
+        EBS volume is mounted at /mnt/persistent.
+        """
+        assert self.lazy_dirs is not None
+        assert '/' not in name
+        assert parent.startswith( '/' )
+        for location in (persistent_dir, ephemeral_dir):
+            assert location.startswith( '/' )
+            assert not location.startswith( parent ) and not parent.startswith( location )
+        logical_path = parent + '/' + name
+        sudo( 'mkdir -p "%s"' % logical_path )
+        self.lazy_dirs.add( (parent, name, persistent) )
+        return logical_path
+
+    def __register_upstart_jobs( self, service_map ):
+        for node_type, services in service_map.iteritems( ):
+            start_on = "sparkbox-start-" + node_type
+            for service in services:
+                self._register_init_script(
+                    service.init_name,
+                    heredoc( """
+                        description "{service.description}"
+                        console log
+                        start on {start_on}
+                        stop on runlevel [016]
+                        setuid {user}
+                        setgid {user}
+                        env USER={user}
+                        pre-start exec {service.start_script}
+                        post-stop exec {service.stop_script}""" ) )
+                start_on = "started " + service.init_name
+
+    @fabric_task
+    def __setup_path( self ):
+        globally = True
+        if globally:
+            with remote_open( '/etc/environment', use_sudo=True ) as f:
+                new_path = [ fmt( '{install_dir}/{package}/bin' )
+                    for package in ('spark', 'hadoop') ]
+                self.__patch_etc_environment( f, new_path )
+        else:
+            for _user in (user, self.admin_account( )):
+                with settings( user=_user ):
+                    with remote_open( '~/.profile' ) as f:
+                        f.write( '\n' )
+                        for package in ('spark', 'hadoop'):
+                            # We don't include sbin here because too many file names collide in
+                            # Spark's and Hadoop's sbin
+                            f.write( fmt( 'PATH="$PATH:{install_dir}/{package}/bin"\n' ) )
+
+    env_entry_re = re.compile( r'^\s*([^=\s]+)\s*=\s*"?(.*?)"?\s*$' )
+
+    @classmethod
+    def __patch_etc_environment( cls, env_file, dirs ):
+        r"""
+        >>> f=StringIO('FOO = " BAR " \n  PATH =foo:bar\nBLA="FASEL"')
+        >>> f.seek(0,2) # seek to end as if file was opened with 'a'
+        >>> SparkBox._SparkBox__patch_etc_environment( f, [ "new" ] )
+        >>> f.getvalue()
+        'BLA="FASEL"\nFOO=" BAR "\nPATH="foo:bar:new"\n'
+        """
+
+        def parse_entry( s ):
+            m = cls.env_entry_re.match( s )
+            return m.group( 1 ), m.group( 2 )
+
+        env_file.seek( 0 )
+        env = dict( parse_entry( _ ) for _ in env_file.read( ).splitlines( ) )
+        path = env[ 'PATH' ].split( ':' )
+        path.extend( dirs )
+        env[ 'PATH' ] = ':'.join( path )
+        env_file.seek( 0 )
+        env_file.truncate( 0 )
+        for var in sorted( env.items( ) ): env_file.write( '%s="%s"\n' % var )
 
 
 class SparkMaster( SparkBox, ClusterLeader ):

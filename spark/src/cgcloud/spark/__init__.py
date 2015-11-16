@@ -3,6 +3,6 @@ def roles( ):
     return sorted( locals( ).values( ), key=lambda cls: cls.__name__ )
 
 
-def command_classes( ):
-    from cgcloud.spark.spark_cluster import CreateSparkCluster
+def cluster_types( ):
+    from cgcloud.spark.spark_cluster import SparkCluster
     return sorted( locals( ).values( ), key=lambda cls: cls.__name__ )

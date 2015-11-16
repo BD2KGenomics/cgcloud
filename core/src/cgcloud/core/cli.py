@@ -43,8 +43,9 @@ def main( args=None ):
                           [ plugin_module( plugin ) for plugin in plugins.split( ":" ) if plugin ] )
         app = CGCloud( plugins, root_logger )
         for plugin in plugins:
-            for command_class in plugin.command_classes( ):
-                app.add( command_class )
+            if hasattr( plugin, 'command_classes' ):
+                for command_class in plugin.command_classes( ):
+                    app.add( command_class )
         app.run( args )
     except UserError as e:
         log.error( e.message )
@@ -82,12 +83,17 @@ class CGCloud( Application ):
         self.option( '--script', '-s', metavar='PATH',
                      help='The path to a Python script with additional role definitions.' )
         self.roles = OrderedDict( )
+        self.cluster_types = OrderedDict( )
         for plugin in plugins:
             self._import_plugin_roles( plugin )
 
     def _import_plugin_roles( self, plugin ):
-        for role in plugin.roles( ):
-            self.roles[ role.role( ) ] = role
+        if hasattr( plugin, 'roles' ):
+            for role in plugin.roles( ):
+                self.roles[ role.role( ) ] = role
+        if hasattr( plugin, 'cluster_types' ):
+            for cluster_type in plugin.cluster_types( ):
+                self.cluster_types[ cluster_type.name( ) ] = cluster_type
 
     def prepare( self, options ):
         if self.root_logger:
@@ -122,8 +128,8 @@ class CGCloud( Application ):
 
     @classmethod
     def silence_boto_and_paramiko( cls ):
-                # There are quite a few cases where we expect AWS requests to fail, but it seems
-                # that boto handles these by logging the error *and* raising an exception. We
-                # don't want to confuse the user with those error messages.
-                logging.getLogger( 'boto' ).setLevel( logging.CRITICAL )
-                logging.getLogger( 'paramiko' ).setLevel( logging.WARN )
+        # There are quite a few cases where we expect AWS requests to fail, but it seems
+        # that boto handles these by logging the error *and* raising an exception. We
+        # don't want to confuse the user with those error messages.
+        logging.getLogger( 'boto' ).setLevel( logging.CRITICAL )
+        logging.getLogger( 'paramiko' ).setLevel( logging.WARN )

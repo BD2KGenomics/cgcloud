@@ -3,6 +3,6 @@ def roles( ):
     return sorted( locals( ).values( ), key=lambda cls: cls.__name__ )
 
 
-def command_classes( ):
-    from cgcloud.toil.toil_cluster import CreateToilCluster
+def cluster_types( ):
+    from cgcloud.toil.toil_cluster import ToilCluster
     return sorted( locals( ).values( ), key=lambda cls: cls.__name__ )

@@ -3,6 +3,6 @@ def roles( ):
     return sorted( locals( ).values( ), key=lambda cls: cls.__name__ )
 
 
-def command_classes( ):
-    from cgcloud.mesos.mesos_cluster import CreateMesosCluster
+def cluster_types( ):
+    from cgcloud.mesos.mesos_cluster import MesosCluster
     return sorted( locals( ).values( ), key=lambda cls: cls.__name__ )

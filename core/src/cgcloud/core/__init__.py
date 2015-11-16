@@ -37,6 +37,12 @@ def command_classes( ):
                                        CleanupCommand,
                                        UpdateInstanceProfile,
                                        ResetSecurityCommand)
+    from cgcloud.core.cluster_commands import (CreateClusterCommand,
+                                               StartClusterCommand,
+                                               StopClusterCommand,
+                                               TerminateClusterCommand,
+                                               SshClusterCommand,
+                                               RsyncClusterCommand)
     return __fail_deprecated( sorted( locals( ).values( ), key=lambda cls: cls.__name__ ) )
 
 

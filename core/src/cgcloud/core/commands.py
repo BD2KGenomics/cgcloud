@@ -1,5 +1,5 @@
 from __future__ import print_function
-from abc import abstractmethod, ABCMeta
+from abc import abstractmethod
 import argparse
 import functools
 import logging
@@ -9,6 +9,9 @@ import re
 import sys
 
 from bd2k.util.exceptions import panic
+from bd2k.util.expando import Expando
+from bd2k.util.iterables import concat
+
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
@@ -137,11 +140,15 @@ class BoxCommand( RoleCommand ):
 
 class InstanceCommand( BoxCommand ):
     """
-    A command that runs on a box that has adopted a specific EC2 instance.
+    A command that runs on a box bound to a specific EC2 instance.
     """
 
     def __init__( self, application, **kwargs ):
         super( InstanceCommand, self ).__init__( application, **kwargs )
+        self.option( '--cluster-name', '-c', metavar='NAME',
+                     help=heredoc( """This option can be used to restrict the selection to boxes
+                     that are part of a cluster of the given name. Boxes that are not part of a
+                     cluster use their own instance id as the cluster name.""" ) )
         self.option( '--ordinal', '-o', default=-1, type=int,
                      help=heredoc( """Selects an individual box from the list of boxes performing
                      the specified role in a cluster of the given name. The ordinal is a
@@ -155,7 +162,9 @@ class InstanceCommand( BoxCommand ):
     wait_ready = True
 
     def run_on_box( self, options, box ):
-        box.adopt( ordinal=options.ordinal, wait_ready=self.wait_ready )
+        box.bind( ordinal=options.ordinal,
+                  cluster_name=options.cluster_name,
+                  wait_ready=self.wait_ready )
         self.run_on_instance( options, box )
 
     @abstractmethod
@@ -168,19 +177,24 @@ class ListCommand( BoxCommand ):
     List the boxes performing a particular role.
     """
 
+    def __init__( self, application ):
+        super( ListCommand, self ).__init__( application )
+        self.option( '--cluster-name', '-c', metavar='NAME',
+                     help='Only list boxes belonging to a cluster of the given name.' )
+
     def run_on_box( self, options, box ):
-        for row in box.list( ):
-            columns = 'role ordinal private_ip ip id created_at state'.split( )
+        for row in box.list( cluster_name=options.cluster_name ):
+            columns = 'cluster_name role ordinal private_ip ip id created_at state'.split( )
             print( '\t'.join( map( str, map( row.get, columns ) ) ) )
 
 
-class UserCommand( InstanceCommand ):
+class UserCommandMixin( Command ):
     """
     A command that runs as a given user
     """
 
     def __init__( self, application, **kwargs ):
-        super( UserCommand, self ).__init__( application, **kwargs )
+        super( UserCommandMixin, self ).__init__( application, **kwargs )
         self.begin_mutex( )
         self.option( '--login', '-l', default=None, metavar='USER',
                      help=heredoc( """Name of user to login as. The default depends on the role,
@@ -197,56 +211,60 @@ class UserCommand( InstanceCommand ):
         return box.admin_account( ) if options.admin else options.user or box.default_account( )
 
 
-class SshCommand( UserCommand ):
-    """
-    Start an interactive SSH session on a box.
-    """
-
+class SshCommandMixin( UserCommandMixin ):
     def __init__( self, application ):
-        super( SshCommand, self ).__init__( application )
-        # FIXME: Create bug report about the following:
-        # cgcloud.py ssh generic-ubuntu-saucy-box --zone us-east-1b
-        # doesn't work since argparse puts '--zone us-east-1b' into the 'command' positional. This
-        # is bad because ignoring the --zone option will cause cgcloud.py to use the default zone and
-        # either use the wrong instance or complain about a missing instance. In either case it is
-        # not apparent that --zone needs to precede the ROLE argument.
-        # Changing nargs=argparse.REMAINDER to nargs='*' and invoking with
-        # cgcloud.py ssh generic-ubuntu-saucy-box --zone us-east-1b -- ls -l
-        # doesn't work for some other reason (probably a bug in argparse). It will complain about
-        # cgcloud.py: error: unrecognized arguments: -- ls -l
+        super( SshCommandMixin, self ).__init__( application )
         self.option( 'command', metavar='...', nargs=argparse.REMAINDER, default=[ ],
-                     help="Additional arguments to pass to ssh. This can be anything that one "
-                          "would normally pass to the ssh program excluding user name and host "
-                          "but including, for example, the remote command to execute." )
+                     help=heredoc( """Additional arguments to pass to ssh. This can be anything
+                     that one would normally pass to the ssh program excluding user name and host
+                     but including, for example, the remote command to execute.""" ) )
 
-    def run_on_instance( self, options, box ):
+    def ssh( self, options, box ):
         status = box.ssh( user=self._user( box, options ), command=options.command )
         if status != 0:
             sys.exit( status )
 
 
-class RsyncCommand( UserCommand ):
+# NB: The ordering of bases affects ordering of positionals
+
+class SshCommand( SshCommandMixin, InstanceCommand ):
+    """
+    Start an interactive SSH session on a box.
+    """
+
+    def run_on_instance( self, options, box ):
+        self.ssh( options, box )
+
+
+class RsyncCommandMixin( UserCommandMixin ):
     """
     Rsync to or from the box
     """
 
     def __init__( self, application ):
-        super( RsyncCommand, self ).__init__( application )
-        self.option( '--ssh-opts', '-e', default=None, metavar='OPTS',
-                     help="Additional options to pass to ssh. Note that if OPTS starts with a "
-                          "dash you must use the long option followed by an equal sign. For "
-                          "example, to run ssh in verbose mode, use --ssh-opt=-v. If OPTS is to "
-                          "include spaces, it must be quoted to prevent the shell from breaking "
-                          "it up. So to run ssh in verbose mode and log to syslog, you would use "
-                          "--ssh-opt='-v -y'." )
+        super( RsyncCommandMixin, self ).__init__( application )
+        self.option( '--ssh-opts', '-e', metavar='OPTS', default=None,
+                     help=heredoc( """Additional options to pass to ssh. Note that if OPTS starts
+                     with a dash you must use the long option followed by an equal sign. For
+                     example, to run ssh in verbose mode, use --ssh-opt=-v. If OPTS is to include
+                     spaces, it must be quoted to prevent the shell from breaking it up. So to
+                     run ssh in verbose mode and log to syslog, you would use --ssh-opt='-v
+                     -y'.""" ) )
         self.option( 'args', metavar='...', nargs=argparse.REMAINDER, default=[ ],
-                     help="Command line options for rsync(1). The remote path argument must be "
-                          "prefixed with a colon. For example, 'cgcloud.py rsync foo -av "
-                          ":bar .' would copy the file 'bar' from the home directory of the admin "
-                          "user on the box 'foo' to the current directory on the local machine." )
+                     help=heredoc( """Command line options for rsync(1). The remote path argument
+                     must be prefixed with a colon. For example, 'cgcloud.py rsync foo -av :bar
+                     .' would copy the file 'bar' from the home directory of the admin user on
+                     the box 'foo' to the current directory on the local machine.""" ) )
 
-    def run_on_instance( self, options, box ):
+    def rsync( self, options, box ):
         box.rsync( options.args, user=self._user( box, options ), ssh_opts=options.ssh_opts )
+
+
+# NB: The ordering of bases affects ordering of positionals
+
+class RsyncCommand( RsyncCommandMixin, InstanceCommand ):
+    def run_on_instance( self, options, box ):
+        self.rsync( options, box )
 
 
 class ImageCommand( InstanceCommand ):
@@ -456,14 +474,26 @@ class CreationCommand( BoxCommand ):
                 self.log_ssh_hint( options )
 
     def log_ssh_hint( self, options ):
-        def opt( option, value, default_value ):
-            return option + ' ' + value if value != default_value else None
+        hint = self.ssh_hint( options )
 
-        log.info( "Run '%s' to start using this box.", ' '.join( filter( None, (
-            os.path.basename( sys.argv[ 0 ] ), 'ssh',
-            opt( '-n', options.namespace, self.default_namespace ),
-            opt( '-z', options.availability_zone, self.default_zone ),
-            options.role) ) ) )
+        def opt( name, value, default ):
+            return name + ' ' + value if value != default else None
+
+        # noinspection PyUnresolvedReferences
+        hint = concat( hint.executable,
+                       hint.command,
+                       (opt( **option ) for option in hint.options),
+                       hint.args )
+        log.info( "Run '%s' to start using this box.", ' '.join( filter( None, hint ) ) )
+
+    def ssh_hint( self, options ):
+        x = Expando
+        return x( executable=os.path.basename( sys.argv[ 0 ] ),
+                  command='ssh',
+                  options=[
+                      x( name='-n', value=options.namespace, default=self.default_namespace ),
+                      x( name='-z', value=options.availability_zone, default=self.default_zone ) ],
+                  args=[ options.role ] )
 
 
 class RegisterKeyCommand( ContextCommand ):
@@ -557,9 +587,12 @@ class ImageReferenceCommand( Command ):
             else:
                 raise ValueError( )
 
-    def __init__( self, application, long_image_option, short_image_option ):
+    long_image_option = None
+    short_image_option = None
+
+    def __init__( self, application ):
         super( ImageReferenceCommand, self ).__init__( application )
-        self.option( long_image_option, short_image_option, metavar='ORDINAL_OR_AMI_ID',
+        self.option( self.long_image_option, self.short_image_option, metavar='IMAGE',
                      type=self.ordinal_or_ami_id, default=-1,  # default to the last one
                      help=heredoc( """An image ordinal, i.e. the index of an image in the list of
                      images for the given role, sorted by creation time. Use the list-images
@@ -571,8 +604,11 @@ class ImageReferenceCommand( Command ):
 
 
 class DeleteImageCommand( ImageReferenceCommand, BoxCommand ):
+    long_image_option = '--image'
+    short_image_option = '-i'
+
     def __init__( self, application ):
-        super( DeleteImageCommand, self ).__init__( application, '--image', '-i' )
+        super( DeleteImageCommand, self ).__init__( application )
         self.begin_mutex( )
         self.option( '--keep-snapshot', '-K',
                      default=False, action='store_true',
@@ -594,9 +630,8 @@ class RecreateCommand( ImageReferenceCommand, CreationCommand ):
     """
     Recreate a box from an image that was taken from an earlier incarnation of the box
     """
-
-    def __init__( self, application ):
-        super( RecreateCommand, self ).__init__( application, '--boot-image', '-i' )
+    long_image_option = '--boot-image'
+    short_image_option = '-i'
 
     def instance_options( self, options ):
         return dict( super( RecreateCommand, self ).instance_options( options ),
@@ -604,6 +639,7 @@ class RecreateCommand( ImageReferenceCommand, CreationCommand ):
 
     def run_on_creation( self, box, options ):
         pass
+
 
 class CreateCommand( CreationCommand ):
     """
@@ -681,6 +717,10 @@ class CleanupCommand( ContextCommand ):
 
 
 class ResetSecurityCommand( ContextCommand ):
+    """
+    Delete security-related objects like IAM instance profiles or EC2 security groups in a
+    namespace and its children.
+    """
     def run_in_ctx( self, options, ctx ):
         message = ("Do you really want to delete all IAM instance profiles, IAM roles and EC2 "
                    "security groups in namespace %s and its children? Although these resources "

@@ -18,7 +18,7 @@ class MesosBox( UbuntuBox ):
     def _setup_package_repos( self ):
         super( MesosBox, self )._setup_package_repos( )
         sudo( 'apt-key adv --keyserver keyserver.ubuntu.com --recv E56151BF' )
-        codename = self.release().codename
+        codename = self.release( ).codename
         sudo( fmt( 'echo "deb http://repos.mesosphere.io/ubuntu {codename} main" '
                    '> /etc/apt/sources.list.d/mesosphere.list' ) )
 

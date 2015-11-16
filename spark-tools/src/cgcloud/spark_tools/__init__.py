@@ -50,13 +50,14 @@ class SparkTools( object ):
     Optionally, a persistent EBS volume is attached, formmatted (if needed) and mounted.
     """
 
-    def __init__( self, user, install_dir, ephemeral_dir, persistent_dir, lazy_dirs ):
+    def __init__( self, user, shared_dir, install_dir, ephemeral_dir, persistent_dir, lazy_dirs ):
         """
         :param user: the user the services run as
         :param install_dir: root installation directory, e.g. /opt
         """
         super( SparkTools, self ).__init__( )
         self.user = user
+        self.shared_dir = shared_dir
         self.install_dir = install_dir
         self.ephemeral_dir = ephemeral_dir
         self.persistent_dir = persistent_dir
@@ -86,6 +87,8 @@ class SparkTools( object ):
             self.__get_master_host_key( )
             self.__wait_for_master_ssh( )
             self.__register_with_master( )
+            if self.shared_dir:
+                self._copy_dir_from_master( self.shared_dir )
 
         log.info( "Starting %s services" % node_type )
         check_call( [ initctl, 'emit', 'sparkbox-start-%s' % node_type ] )
@@ -312,6 +315,20 @@ class SparkTools( object ):
                 pass
             finally:
                 s.close( )
+
+    def _copy_dir_from_master( self, path ):
+        log.info( "Copying %s from master" % path )
+        if not path.endswith('/'):
+            path += '/'
+        for tries in range( 5 ):
+            try:
+                check_call( [ sudo, '-u', self.user, 'rsync', '-av', 'spark-master:' + path, path ] )
+            except CalledProcessError as e:
+                log.warn( "rsync returned %i, retrying in 5s", e.returncode )
+                time.sleep( 5 )
+            else:
+                return
+        raise RuntimeError( "Failed to copy %s from master" )
 
     def __register_with_master( self ):
         log.info( "Registering with master" )

@@ -1,14 +1,12 @@
-import logging
-from cgcloud.core.cluster import ClusterCommand
+from cgcloud.core.cluster import Cluster
 from cgcloud.toil.toil_box import ToilLeader, ToilWorker
 
-log = logging.getLogger( __name__ )
 
+class ToilCluster( Cluster ):
+    @property
+    def worker_role( self ):
+        return ToilWorker
 
-class CreateToilCluster( ClusterCommand ):
-
-    def __init__( self, application ):
-        super( CreateToilCluster, self ).__init__( application,
-                                                   leader_role=ToilLeader,
-                                                   worker_role=ToilWorker )
-
+    @property
+    def leader_role( self ):
+        return ToilLeader

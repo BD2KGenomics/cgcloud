@@ -19,16 +19,15 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
     A box with Mesos, Toil and their dependencies installed.
     """
 
-    def _post_install_packages( self ):
-        super( ToilBox, self )._post_install_packages( )
-        self.__upgrade_pip( )
-        self.__install_toil( )
-        self.__install_s3am( )
-
     def _list_packages_to_install( self ):
         return super( ToilBox, self )._list_packages_to_install( ) + [
             'python-dev', 'gcc', 'make',
             'libcurl4-openssl-dev' ]  # Only for S3AM
+
+    def _post_install_mesos( self ):
+        super( ToilBox, self )._post_install_mesos( )
+        # Override this method instead of _post_install_packages() such that this is run before
+        self.__install_toil( )
 
     def _docker_users( self ):
         return super( ToilBox, self )._docker_users( ) + [ user ]
@@ -47,21 +46,15 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
         return role_name, policies
 
     @fabric_task
-    def __install_s3am( self ):
-        pip( 'install --pre s3am', use_sudo=True )
-
-    @fabric_task
-    def __upgrade_pip( self ):
+    def __install_toil( self ):
         # Older versions of pip don't support the 'extra' mechanism used by Toil's setup.py
         pip( 'install --upgrade pip', use_sudo=True )
-
-    @fabric_task
-    def __install_toil( self ):
+        pip( 'install --pre s3am', use_sudo=True )
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
         self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
 
     def _toil_pip_args( self ):
-        return [ 'toil[aws,mesos]==3.0.6' ]
+        return [ 'toil[aws,mesos]==3.0.7' ]
 
 
 class ToilLatestBox( ToilBox ):

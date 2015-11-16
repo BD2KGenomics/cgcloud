@@ -1,85 +1,97 @@
+from abc import ABCMeta, abstractproperty
+from contextlib import contextmanager
+from copy import copy
 import logging
+import multiprocessing
+import multiprocessing.pool
 
 from bd2k.util.iterables import concat
 
 from cgcloud.core.box import Box
-from cgcloud.core.commands import RecreateCommand
+from cgcloud.lib.util import abreviated_snake_case_class_name
 
 log = logging.getLogger( __name__ )
 
 
-class ClusterCommand( RecreateCommand ):
+class Cluster( object ):
     """
-    A command that creates a cluster with one leader and one or more workers. Both leader and
-    workers are launched from the same AMI.
+    A cluster consists of one leader box and N worker boxes. A box that is part of a cluster is
+    referred to as "node". There is one role (subclass of Box) describing the leader node and
+    another one describing the workers. Leader and worker roles are siblings and their common
+    ancestor--the node role--describes the software deployed on them, which is identical for both
+    leader and workers. The node role is used to create the single image from which the actual
+    nodes will be booted from when the cluster is created. In other words, the specialization
+    into leader and workers happens at cluster creation time, not earlier.
     """
+    __metaclass__ = ABCMeta
 
-    def __init__( self, application, leader_role, worker_role, leader='leader', worker='worker' ):
-        self.leader_role = leader_role
-        self.worker_role = worker_role
-        self.leader = leader
-        self.worker = worker
-        self.workers = self.worker + 's'
+    def __init__( self, ctx ):
+        super( Cluster, self ).__init__( )
+        self.ctx = ctx
 
-        super( ClusterCommand, self ).__init__( application )
-
-        self.option( '--num-%s' % self.workers, '-s', metavar='NUM',
-                     type=int, default=1, dest='num_workers',
-                     help='The number of %s to start.' % self.workers )
-
-        self.option( '--ebs-volume-size', metavar='GB',
-                     help='The size in GB of an EBS volume to be attached to each node for '
-                          'persistent data. The volume will be mounted at /mnt/persistent.' )
-
-        self.option( '--%s-on-demand' % self.leader, dest='leader_on_demand',
-                     default=False,
-                     action='store_true',
-                     help='Use this option to insure that the %s will be an on-demand '
-                          'instance, even if --spot-bid is given.' % self.leader )
-
-    def instance_options( self, options ):
-        return dict( super( ClusterCommand, self ).instance_options( options ),
-                     leader_on_demand=options.leader_on_demand,
-                     ebs_volume_size=options.ebs_volume_size )
-
-    def option( self, option_name, *args, **kwargs ):
-        _super = super( ClusterCommand, self )
-        if option_name == 'role':
-            # Suppress the role positional argument since the role is hard-wired by subclasses.
-            return
-        if option_name == '--instance-type':
-            # We want --instance-type to apply to the workers and --leader-instance-type to the
-            # leader. Furthermore, we want --leader-instance-type to default to the value of
-            # --leader-instance-type.
-            kwargs[ 'dest' ] = 'instance_type'
-            kwargs[ 'help' ] = kwargs[ 'help' ].replace( 'for the box',
-                                                         'for the %s' % self.workers )
-            assert args[ 0 ] == '-t'
-            kwargs[ 'dest' ] = 'instance_type'
-            _super.option( '--%s-instance-type' % self.leader, *args[ 1: ], **kwargs )
-            kwargs[ 'help' ] = kwargs[ 'help' ].replace( self.workers, self.leader )
-            kwargs[ 'dest' ] = 'worker_instance_type'
-        _super.option( option_name, *args, **kwargs )
-
-    def run_in_ctx( self, options, ctx ):
-        log.info( '=== Launching master ===' )
-        if options.instance_type is None:
-            # --leader-instance-type should default to the value of --instance-type
-            options.instance_type = options.worker_instance_type
-        options.role = self.leader_role.role( )
-        super( ClusterCommand, self ).run_in_ctx( options, ctx )
-
-    def run_on_creation( self, leader, options ):
+    @abstractproperty
+    def leader_role( self ):
         """
-        :type leader: ClusterLeader
+        :return: The Box subclass to use for the leader
         """
-        log.info( '=== Launching %s ===', self.workers )
-        leader.clone( worker_role=self.worker_role,
-                      num_workers=options.num_workers,
-                      worker_instance_type=options.worker_instance_type )
+        raise NotImplementedError( )
+
+    @abstractproperty
+    def worker_role( self ):
+        """
+        :return: The Box subclass to use for the workers
+        """
+        raise NotImplementedError( )
+
+    @classmethod
+    def name( cls ):
+        return abreviated_snake_case_class_name( cls, Cluster )
+
+    def apply( self, f, cluster_name=None, ordinal=None, leader_first=True, wait_ready=True,
+               operation='operation', pool_size=None ):
+        """
+        Apply a callable to the leader and each worker. The callable may be applied to multiple
+        workers concurrently.
+        """
+        # Look up the leader first, even if leader_first is False, that way we fail early if the
+        # cluster doesn't exist.
+        leader = self.leader_role( self.ctx )
+        leader.bind( cluster_name=cluster_name, ordinal=ordinal, wait_ready=wait_ready )
+        first_worker = self.worker_role( self.ctx )
+
+        def apply_leader( ):
+            log.info( '=== Performing %s on leader ===', operation )
+            f( leader )
+
+        def clones( ):
+            while True:
+                yield copy( first_worker )
+
+        def apply_workers( ):
+            log.info( '=== Performing %s on workers ===', operation )
+            instances = first_worker.list( leader_instance_id=leader.instance_id )
+            papply( apply_worker,
+                    pool_size=pool_size,
+                    seq=zip( concat( first_worker, clones( ) ),
+                             (i.id for i in instances) ) )
+
+        def apply_worker( worker, instance_id ):
+            worker.bind( instance_id=instance_id, wait_ready=wait_ready )
+            f( worker )
+
+        if leader_first:
+            apply_leader( )
+            apply_workers( )
+        else:
+            apply_workers( )
+            apply_leader( )
 
 
 class ClusterBox( Box ):
+    """
+    A mixin for a box that is part of a cluster
+    """
+
     def _set_instance_options( self, options ):
         super( ClusterBox, self )._set_instance_options( options )
         self.ebs_volume_size = int( options.get( 'ebs_volume_size' ) or 0 )
@@ -140,7 +152,7 @@ class ClusterLeader( ClusterBox ):
         return dict( super( ClusterLeader, self )._get_instance_options( ),
                      leader_instance_id=self.instance_id )
 
-    def clone( self, worker_role, num_workers, worker_instance_type ):
+    def clone( self, worker_role, num_workers, worker_instance_type, wait_ready=True ):
         """
         Create a number of worker boxes that are connected to this leader.
         """
@@ -152,10 +164,11 @@ class ClusterLeader( ClusterBox ):
         spec = dict( first_worker.prepare( *args, **kwargs ),
                      min_count=num_workers,
                      max_count=num_workers )
-        other_workers = first_worker.create( spec,
-                                             wait_ready=False,
-                                             cluster_ordinal=self.cluster_ordinal + 1 )
-        return concat( first_worker, other_workers )
+        with thread_pool( size=default_pool_size( num_workers ) ) as pool:
+            first_worker.create( spec,
+                                 wait_ready=wait_ready,
+                                 cluster_ordinal=self.cluster_ordinal + 1,
+                                 executor=pool.apply_async )
 
 
 class ClusterWorker( ClusterBox ):
@@ -176,4 +189,63 @@ class ClusterWorker( ClusterBox ):
 
     def _get_instance_options( self ):
         return dict( super( ClusterWorker, self )._get_instance_options( ),
-                     leader_instance_id=self.leader_instance_id )
+                     leader_instance_id=self.leader_instance_id,
+                     cluster_name=self.cluster_name or self.leader_instance_id )
+
+
+@contextmanager
+def thread_pool( size ):
+    pool = multiprocessing.pool.ThreadPool( processes=size )
+    try:
+        yield pool
+    except:
+        pool.terminate( )
+        raise
+    else:
+        pool.close( )
+        pool.join( )
+
+
+def pmap( f, seq, pool_size=None ):
+    """
+    >>> pmap( lambda (a, b): a + b, [] )
+    []
+    >>> pmap( lambda (a, b): a + b, [ (1, 2) ] )
+    [3]
+    >>> pmap( lambda (a, b): a + b, [ (1, 2), (3, 4) ] )
+    [3, 7]
+    >>> pmap( lambda a, b: a + b, [ (1, 2), (3, 4) ] )
+    Traceback (most recent call last):
+    ...
+    TypeError: <lambda>() takes exactly 2 arguments (1 given)
+    """
+    if pool_size is None:
+        pool_size = default_pool_size( len( seq ) )
+    with thread_pool( pool_size ) as pool:
+        return pool.apply( f, seq )
+
+
+def papply( f, seq, pool_size=None, callback=None ):
+    """
+    >>> l=[]; papply( lambda a, b: a + b, [], 1, callback=l.append ); l
+    []
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2) ], 1, callback=l.append); l
+    [3]
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], 1, callback=l.append ); l
+    [3, 7]
+    """
+    if pool_size is None:
+        pool_size = default_pool_size( len( seq ) )
+    if pool_size == 1:
+        for args in seq:
+            result = apply( f, args )
+            if callback is not None:
+                callback( result )
+    else:
+        with thread_pool( pool_size ) as pool:
+            for args in seq:
+                pool.apply_async( f, args, callback=callback )
+
+
+def default_pool_size( num_tasks ):
+    return max( 1, min( num_tasks, multiprocessing.cpu_count( ) * 10 ) )

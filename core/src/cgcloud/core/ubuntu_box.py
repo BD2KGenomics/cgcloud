@@ -9,7 +9,7 @@ from StringIO import StringIO
 
 from fabric.operations import sudo, put, run
 
-from box import fabric_task
+from cgcloud.core.box import fabric_task
 from cgcloud.core.init_box import UpstartBox, SystemdBox
 from cgcloud.core.agent_box import AgentBox
 from cgcloud.core.cloud_init_box import CloudInitBox

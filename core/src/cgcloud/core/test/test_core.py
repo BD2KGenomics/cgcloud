@@ -18,7 +18,7 @@ class CoreTests( CgcloudTestCase ):
     """
     _multiprocess_shared_ = True
 
-    roles = roles()
+    roles = roles( )
 
     @classmethod
     def __box_test( cls, box ):
@@ -47,21 +47,6 @@ class CoreTests( CgcloudTestCase ):
                     self._cgcloud( 'terminate', '-q', role )
 
         return box_test
-
-    def _cgcloud( self, *args ):
-        log.info( "Running %r" % (args,) )
-        if os.environ.get( 'CGCLOUD_TEST_EXEC', "" ):
-            check_call( ('cgcloud',) + args )
-        else:
-            main( args )
-
-    ssh_opts = [ '-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no' ]
-
-    def _ssh( self, role, *args ):
-        self._cgcloud( 'ssh', role, *(itertools.chain( self.ssh_opts, args )) )
-
-    def _rsync( self, role, *args ):
-        self._cgcloud( 'rsync', '--ssh-opts=' + ' '.join( self.ssh_opts ), role, *args )
 
     @classmethod
     def make_tests( cls ):

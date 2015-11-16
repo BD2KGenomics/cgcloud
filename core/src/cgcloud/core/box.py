@@ -9,20 +9,20 @@ from collections import namedtuple
 from pipes import quote
 import socket
 import subprocess
+import threading
 import time
 import datetime
 
 from bd2k.util.collections import OrderedSet
 from bd2k.util.expando import Expando
+from bd2k.util.iterables import concat
 from boto import logging
 from boto.exception import BotoServerError, EC2ResponseError
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from boto.ec2.spotpricehistory import SpotPriceHistory
 from boto.ec2.instance import Reservation
 from fabric.context_managers import settings
-
-from fabric.operations import sudo, run, get, put, os
-
+from fabric.operations import sudo, run, get, put
 from fabric.api import execute
 
 from paramiko import SSHClient
@@ -41,9 +41,10 @@ log = logging.getLogger( __name__ )
 
 # noinspection PyPep8Naming
 class fabric_task( object ):
-    # FIXME: not thread-safe
-
+    # A stack to stash the current fabric user before a new one is set via this decorator
     user_stack = [ ]
+    # A reentrant lock to prevent multiple concurrent uses of fabric, which is not thread-safe
+    lock = threading.RLock( )
 
     def __new__( cls, user=None ):
         if callable( user ):
@@ -57,18 +58,20 @@ class fabric_task( object ):
     def __call__( self, function ):
         @wraps( function )
         def wrapper( box, *args, **kwargs ):
-            user = box.admin_account( ) if self.user is None else self.user
-            if self.user_stack and self.user_stack[ -1 ] == user:
-                return function( box, *args, **kwargs )
-            else:
-                self.user_stack.append( user )
-                try:
-                    task = partial( function, box, *args, **kwargs )
-                    task.name = function.__name__
-                    # noinspection PyProtectedMember
-                    return box._execute_task( task, user )
-                finally:
-                    assert self.user_stack.pop( ) == user
+            with self.lock:
+                user = box.admin_account( ) if self.user is None else self.user
+                user_stack = self.user_stack
+                if user_stack and user_stack[ -1 ] == user:
+                    return function( box, *args, **kwargs )
+                else:
+                    user_stack.append( user )
+                    try:
+                        task = partial( function, box, *args, **kwargs )
+                        task.name = function.__name__
+                        # noinspection PyProtectedMember
+                        return box._execute_task( task, user )
+                    finally:
+                        assert user_stack.pop( ) == user
 
         return wrapper
 
@@ -166,7 +169,7 @@ class Box( object ):
         you must ensure that a corresponding EC2 instance exists by calling either
 
          * prepare() and create()
-         * adopt()
+         * bind()
 
         :type ctx: Context
         """
@@ -174,28 +177,28 @@ class Box( object ):
         # The context to be used by the instance
         self.ctx = ctx
 
-        # Set by adopt() and create(), the ID of the instance represented by this box
+        # Set by bind() and create(), the ID of the instance represented by this box
         self.instance_id = None
 
-        # Set by adopt() and prepare(), the number of previous generations of this box. When an
+        # Set by bind() and prepare(), the number of previous generations of this box. When an
         # instance is booted from a stock AMI, generation is 0. After that instance is set up and
         # imaged and another instance is booted from the resulting AMI, generation will be 1.
         self.generation = None
 
-        # Set by adopt() and create(), the ordinal of this box within a cluster of boxes. For
+        # Set by bind() and create(), the ordinal of this box within a cluster of boxes. For
         # boxes that don't join a cluster, this will be 0
         self.cluster_ordinal = None
 
-        # Set by adopt() and create(), the public IP of the instance
+        # Set by bind() and create(), the public IP of the instance
         self.ip_address = None
 
-        # Set by adopt() and create(), the hostname mapping to the public IP
+        # Set by bind() and create(), the hostname mapping to the public IP
         self.host_name = None
 
-        # Set by adopt() and create(), the private IP address of this instance
+        # Set by bind() and create(), the private IP address of this instance
         self.private_ip_address = None
 
-        # Set by adopt() and prepare(), the ID of the AMI the instance was booted from
+        # Set by bind() and prepare(), the ID of the AMI the instance was booted from
         self.image_id = None
 
         # Set by prepare() only, the SSH key pairs to be injected into the instance'
@@ -342,10 +345,10 @@ class Box( object ):
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
 
         :type ec2_keypair_globs: list of strings
-        :param ec2_keypair_globs: The names of EC2 keypairs whose public key is to be to injected
-         into the instance to facilitate SSH logins. For the first listed keypair a matching
-         private key needs to be present locally. Note that after the agent is installed on the
-         box it will
+        :param ec2_keypair_globs: The names of EC2 keypairs whose public key is to be injected
+        into the instance to facilitate SSH logins. For the first listed keypair a matching
+        private key needs to be present locally. Note that after the agent is installed on the
+        box it will
 
         :type instance_type: str
         :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
@@ -365,7 +368,7 @@ class Box( object ):
         associated with the givem image.
         """
         if self.instance_id is not None:
-            raise AssertionError( 'Instance already adopted or created' )
+            raise AssertionError( 'Instance already bound or created' )
 
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
@@ -527,19 +530,28 @@ class Box( object ):
         spot_data.sort( key=attrgetter( "timestamp" ), reverse=True )
         return spot_data
 
-    def create( self, spec, wait_ready=True, cluster_ordinal=0 ):
+    def create( self, spec, wait_ready=True, cluster_ordinal=0, executor=None ):
         """
         Create the EC2 instance represented by this box, and optionally waits for the instance to
         be ready. If the box was prepared to launch multiple instances, and multiple instances
-        were indeed launched by EC2, clones of this box will be create, one clone for each
-        additional instances. This box will represent the first instance while the clones will
-        represent the subsequent instances. Note that if multiple instances are created,
-        each instance will be waited on in sequence.
+        were indeed launched by EC2, clones of this box will be created, one clone for each
+        additional instance. This box will represent the first instance while the clones will
+        represent the subsequent instances. The given executor will be used to handle
+        post-creation activity on each instance.
 
-        :return: the list of clones of this box, if any
+        :param spec: a dictionary with keyword arguments to request_spot_instances,
+        if the 'price' key is present, or run_instances otherwise.
+
+        :param wait_ready: whether to wait for all instances to be ready. The waiting for an
+        instance will be handled as a task that is submitted to the given executor.
+
+        :param cluster_ordinal: the cluster ordinal to be assigned to the first instance
+
+        :param executor: a callable that accepts two arguments: a task function and a sequence of
+        task arguments. The executor applies the task function to the given sequence of
+        arguments. It may choose to do so immediately, i.e. synchronously or at a later time,
+        i.e asynchronously. If None, a synchronous executor will be used by default.
         """
-        # FIXME: we should be waiting for all instances in parallel, via threads
-        cluster_ordinal = count( start=cluster_ordinal )
         if 'price' in spec:
             reservations = self._create_spot_instances( spec )
             # Each spot market reservation contains only 1 instance each
@@ -547,18 +559,27 @@ class Box( object ):
         else:
             reservation = self._create_ondemand_instances( spec )
             instances = reservation.instances
-        instances = iter( sorted( instances, key=attrgetter( 'id' ) ) )
-        self._bind( next( instances ), next( cluster_ordinal ), wait_ready )
-        result = [ ]
-        try:
+
+        instances = sorted( instances, key=attrgetter( 'id' ) )
+
+        def clones( ):
             while True:
-                box = copy( self )
-                # noinspection PyProtectedMember
-                box._bind( next( instances ), next( cluster_ordinal ), wait_ready )
-                result.append( box )
-        except StopIteration:
-            pass
-        return result
+                yield copy( self )
+
+        if executor is None:
+            def executor( f, _args ):
+                f( *_args )
+
+        def adopt( box, instance, _cluster_ordinal ):
+            """
+            :type box: Box
+            """
+            box._adopt( instance, _cluster_ordinal, wait_ready )
+
+        for args in zip( concat( self, clones( ) ),
+                         instances,
+                         count( start=cluster_ordinal ) ):
+            executor( adopt, args )
 
     def _create_spot_instances( self, spec ):
         """
@@ -623,16 +644,16 @@ class Box( object ):
             with attempt:
                 return self.ctx.ec2.run_instances( self.image_id, **spec )
 
-    def _bind( self, instance, cluster_ordinal, wait_ready=True ):
+    def _adopt( self, instance, cluster_ordinal, wait_ready=True ):
         """
-        Link the given newly created instance with this box.
+        Link the given newly created EC2 instance with this box.
         """
         log.info( '... created %s.', instance.id )
         self.instance_id = instance.id
         self.cluster_ordinal = cluster_ordinal
         self._on_instance_created( instance )
         if wait_ready:
-            self.__wait_ready( instance, { 'pending' }, first_boot=True )
+            self._wait_ready( instance, { 'pending' }, first_boot=True )
 
     def _set_instance_options( self, options ):
         """
@@ -644,6 +665,7 @@ class Box( object ):
         # Relies on idempotence of int
         self.generation = int( options.get( 'generation' ) or 0 )
         self.cluster_ordinal = int( options.get( 'cluster_ordinal' ) or 0 )
+        self.cluster_name = options.get( 'cluster_name' )
 
     def _get_instance_options( self ):
         """
@@ -652,7 +674,8 @@ class Box( object ):
         """
         return dict( Name=(self.ctx.to_aws_name( self.role( ) )),
                      generation=str( self.generation ),
-                     cluster_ordinal=str( self.cluster_ordinal ) )
+                     cluster_ordinal=str( self.cluster_ordinal ),
+                     cluster_name=self.cluster_name or self.instance_id )
 
     def _get_image_options( self ):
         """
@@ -681,11 +704,11 @@ class Box( object ):
         log.info( 'Tagging instance ... ' )
         tags_dict = self._get_instance_options( )
         self._tag_object_persistently( instance, tags_dict )
-        log.info( ' instance tagged %r.', tags_dict )
+        log.info( '... instance tagged %r.', tags_dict )
 
     def _on_instance_running( self, instance, first_boot ):
         """
-        Invoked while creating, adopting or starting an instance, right after the instance
+        Invoked while creating, binding or starting an instance, right after the instance
         entered the running state.
 
         :param first_boot: True if this is the first time the instance enters the running state
@@ -695,18 +718,18 @@ class Box( object ):
 
     def _on_instance_ready( self, first_boot ):
         """
-        Invoked while creating, adopting or starting an instance, right after the instance was
+        Invoked while creating, binding or starting an instance, right after the instance was
         found to be ready.
 
         :param first_boot: True if the instance was booted for the first time, i.e. if this is
         the first time the instance becomes ready since its creation, False if the instance was
         booted but not for the first time, None if it is not clear whether the instance was
-        booted, e.g. after adoption.
+        booted, e.g. after binding.
         """
         if first_boot and not self._manages_keys_internally( ):
             self.__inject_authorized_keys( self.ec2_keypairs[ 1: ] )
 
-    def adopt( self, ordinal=None, wait_ready=True ):
+    def bind( self, ordinal=None, instance_id=None, wait_ready=True, cluster_name=None ):
         """
         Verify that the EC instance represented by this box exists and, optionally,
         wait until it is ready, i.e. that it is is running, has a public host name and can be
@@ -715,50 +738,54 @@ class Box( object ):
         :param wait_ready: if True, wait for the instance to be ready
         """
         if self.instance_id is None:
-            log.info( 'Adopting instance ... ' )
-            instance = self.__get_instance_by_ordinal( ordinal )
-            self.instance_id = instance.id
+            log.info( 'Binding to instance ... ' )
+            if instance_id is None:
+                instance = self.__get_instance_by_ordinal( ordinal=ordinal,
+                                                           cluster_name=cluster_name )
+                self.instance_id = instance.id
+            else:
+                assert ordinal is None
+                assert cluster_name is None
+                self.instance_id = instance_id
+                instance = self.get_instance( )
             self.image_id = instance.image_id
-
-            image = self.ctx.ec2.get_image( instance.image_id )
-            if image is None:  # could already be deleted
-                log.warn( 'Could not get image details for %s.', instance.image_id )
-                options = dict( instance.tags )
-            else:
-                options = dict( image.tags )
-                options.update( instance.tags )
+            options = dict( instance.tags )
             self._set_instance_options( options )
-
             if wait_ready:
-                self.__wait_ready( instance, from_states={ 'pending' }, first_boot=None )
+                self._wait_ready( instance, from_states={ 'pending' }, first_boot=None )
             else:
-                log.info( '... adopted %s.', instance.id )
+                log.info( '... bound to %s.', instance.id )
 
-    def list( self ):
-        role, instances = self.__list_instances( )
-        return [ dict( role=role,
-                       ordinal=ordinal,
-                       id=instance.id,
-                       ip=instance.ip_address,
-                       private_ip=instance.private_ip_address,
-                       created_at=instance.launch_time,
-                       state=instance.state )
+    def list( self, **tags ):
+        role, instances = self.__list_instances( **tags )
+        return [ Expando( role=role,
+                          ordinal=ordinal,
+                          id=instance.id,
+                          ip=instance.ip_address,
+                          private_ip=instance.private_ip_address,
+                          created_at=instance.launch_time,
+                          state=instance.state,
+                          cluster_name=instance.tags.get( 'cluster_name' ) )
             for ordinal, instance in enumerate( instances ) ]
 
-    def __list_instances( self ):
+    def __list_instances( self, **tags ):
         """
         Lookup and return a list of instance performing this box' role
 
         :return tuple of role name and list of instances
-        :rtype: string, list of boto.ec2.instance.Instance
+        :rtype: (str, list[boto.ec2.instance.Instance])
         """
         name = self.ctx.to_aws_name( self.role( ) )
-        reservations = self.ctx.ec2.get_all_instances( filters={ 'tag:Name': name } )
+        filters = { 'tag:Name': name }
+        for k,v in tags.iteritems():
+            if v is not None:
+                filters[ 'tag:' + k ] = v
+        reservations = self.ctx.ec2.get_all_instances( filters=filters )
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
         instances.sort( key=lambda j: (j.launch_time, j.private_ip_address, j.id) )
         return name, instances
 
-    def __get_instance_by_ordinal( self, ordinal ):
+    def __get_instance_by_ordinal( self, ordinal=None, cluster_name=None ):
         """
         Get the n-th instance that performs this box' role
 
@@ -766,13 +793,15 @@ class Box( object ):
 
         :rtype: boto.ec2.instance.Instance
         """
-        role, instances = self.__list_instances( )
+        role, instances = self.__list_instances( cluster_name=cluster_name )
         if not instances:
-            raise UserError( "No instance performing role '%s'" % role )
+            raise UserError(
+                "No instance performing role '%s'" % role if cluster_name is None
+                else "No instance performing role '%s' in cluster '%s'" % (role, cluster_name) )
         if ordinal is None:
             if len( instances ) > 1:
-                raise UserError( "More than one instance performing role '%s'. "
-                                 "Please specify an ordinal." % role )
+                raise UserError( "More than one instance performing role '%s'. Please specify an "
+                                 "ordinal, a cluster name or both to disambiguate." % role )
             ordinal = 0
         try:
             return instances[ ordinal ]
@@ -851,7 +880,7 @@ class Box( object ):
         # Not 100% sure why from_states includes 'stopped' but I think I noticed that there is a
         # short interval after start_instances returns during which the instance is still in
         # stopped before it goes into pending
-        self.__wait_ready( instance, from_states={ 'stopped', 'pending' }, first_boot=False )
+        self._wait_ready( instance, from_states={ 'stopped', 'pending' }, first_boot=False )
 
     def reboot( self ):
         """
@@ -917,7 +946,7 @@ class Box( object ):
         reservations = self.ctx.ec2.get_all_instances( self.instance_id )
         return unpack_singleton( unpack_singleton( reservations ).instances )
 
-    def __wait_ready( self, instance, from_states, first_boot ):
+    def _wait_ready( self, instance, from_states, first_boot ):
         """
         Wait until the given instance transistions from stopped or pending state to being fully
         running and accessible via SSH.
