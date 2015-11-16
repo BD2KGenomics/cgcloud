@@ -2,8 +2,8 @@ from inspect import getsource
 import logging
 import os
 import tempfile
-from tempfile import mkstemp
 from textwrap import dedent
+import unittest
 
 from bd2k.util.exceptions import panic
 
@@ -25,8 +25,8 @@ class ToilClusterTests( MesosTestCase ):
     Covers the creation of a Toil cluster from scratch and running a simple Toil job that invokes
     Docker on it.
     """
-    cleanup = False
-    create_image = False
+    cleanup = True
+    create_image = True
 
     @classmethod
     def setUpClass( cls ):
@@ -53,7 +53,7 @@ class ToilClusterTests( MesosTestCase ):
             if self.cleanup:
                 self._terminate_cluster( )
 
-    # @unittest.skip( 'Only for interactive invocation' )
+    @unittest.skip( 'Only for interactive invocation' )
     def test_hello_world_only( self ):
         self._hello_world( )
 
