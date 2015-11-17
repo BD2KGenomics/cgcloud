@@ -109,9 +109,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                   # from different namespaces:
                   E.description( self.role( ) ),
                   E.zone( self.ctx.availability_zone ),
-                  # Using E.foo('') instead of just E.foo() yields <foo></foo> instead of <foo/>,
-                  # consistent with how Jenkins serializes its config:
-                  E.securityGroups( '' ),
+                  E.securityGroups( self.ctx.to_aws_name( self._security_group_name( ) ) ),
                   E.remoteFS( build_dir ),
                   E.sshPort( '22' ),
                   E.type( snake_to_camel( instance_type, separator='.' ) ),
@@ -121,6 +119,8 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                   E.userData( creation_kwargs.get( 'user_data', '' ) ),
                   E.numExecutors( '1' ),
                   E.remoteAdmin( Jenkins.user ),
+                  # Using E.foo('') instead of just E.foo() yields <foo></foo> instead of <foo/>,
+                  # consistent with how Jenkins serializes its config:
                   E.rootCommandPrefix( '' ),
                   E.jvmopts( '' ),
                   E.subnetId( '' ),
@@ -131,6 +131,5 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                   E.tags(
                       E( 'hudson.plugins.ec2.EC2Tag',
                          E.name( 'Name' ),
-                         E.value( self.ctx.to_aws_name( self.role( ) ) )
-                         ) ),
+                         E.value( self.ctx.to_aws_name( self.role( ) ) ) ) ),
                   E.usePrivateDnsName( 'false' ) )
