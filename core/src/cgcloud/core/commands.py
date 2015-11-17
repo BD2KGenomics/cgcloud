@@ -546,32 +546,34 @@ class ImageReferenceCommand( Command ):
 
     >>> app = Application()
     >>> class FooCmd( ImageReferenceCommand ):
+    ...     long_image_option = '--foo'
+    ...     short_image_option = '-f'
     ...     def run(self, options):
     ...         pass
-    >>> cmd = FooCmd( app, '--foo', '-f' )
-    >>> cmd.ordinal_or_ami_id( "bar" )
+    >>> cmd = FooCmd( app )
+    >>> cmd.ordinal_or_ami_id( 'bar' )
     Traceback (most recent call last):
     ...
     ValueError
-    >>> cmd.ordinal_or_ami_id( "" )
+    >>> cmd.ordinal_or_ami_id( '' )
     Traceback (most recent call last):
     ...
     ValueError
-    >>> cmd.ordinal_or_ami_id( "-1")
+    >>> cmd.ordinal_or_ami_id( '-1')
     -1
-    >>> cmd.ordinal_or_ami_id( "ami-4dcced7d")
+    >>> cmd.ordinal_or_ami_id( 'ami-4dcced7d')
     'ami-4dcced7d'
-    >>> cmd.ordinal_or_ami_id( "ami-4dCCED7D")
+    >>> cmd.ordinal_or_ami_id( 'ami-4dCCED7D')
     'ami-4dcced7d'
-    >>> cmd.ordinal_or_ami_id( "amI-4dCCED7D")
+    >>> cmd.ordinal_or_ami_id( 'amI-4dCCED7D')
     Traceback (most recent call last):
     ...
     ValueError
-    >>> cmd.ordinal_or_ami_id( "ami-4dcced7")
+    >>> cmd.ordinal_or_ami_id( 'ami-4dcced7')
     Traceback (most recent call last):
     ...
     ValueError
-    >>> cmd.ordinal_or_ami_id( "ami-4dCCED7DD")
+    >>> cmd.ordinal_or_ami_id( 'ami-4dCCED7DD')
     Traceback (most recent call last):
     ...
     ValueError

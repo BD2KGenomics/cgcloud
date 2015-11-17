@@ -222,7 +222,7 @@ def pmap( f, seq, pool_size=None ):
     if pool_size is None:
         pool_size = default_pool_size( len( seq ) )
     with thread_pool( pool_size ) as pool:
-        return pool.apply( f, seq )
+        return pool.map( f, seq )
 
 
 def papply( f, seq, pool_size=None, callback=None ):
