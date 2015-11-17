@@ -370,7 +370,9 @@ class Command( object ):
 
 class ArgParseHelpFormatter( argparse.ArgumentDefaultsHelpFormatter ):
     try:
-        rows, columns = map( int, subprocess.check_output( [ 'stty', 'size' ] ).split( ) )
+        with open(os.devnull, 'a') as devnull:
+            rows, columns = map( int, subprocess.check_output( [ 'stty', 'size' ],
+                                                               stderr=devnull ).split( ) )
     except:
         rows, columns = None, None
 
