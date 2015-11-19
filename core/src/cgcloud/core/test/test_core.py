@@ -4,9 +4,10 @@ import itertools
 from subprocess import check_call
 
 from bd2k.util.exceptions import panic
+import sys
 
 from cgcloud.core import roles
-from cgcloud.core.test import CgcloudTestCase
+from cgcloud.core.test import CgcloudTestCase, out_stderr
 from cgcloud.core.cli import main
 
 log = logging.getLogger( __name__ )
@@ -20,47 +21,40 @@ class CoreTests( CgcloudTestCase ):
 
     roles = roles( )
 
-    @classmethod
-    def __box_test( cls, box ):
-        def box_test( self ):
-            """
-            :type self: CoreTests
-            """
-            role = box.role( )
-            self._cgcloud( 'create', role )
+    def _test( self, box_cls ):
+        # return
+        role = box_cls.role( )
+        self._cgcloud( 'create', role )
+        try:
+            self._cgcloud( 'stop', role )
+            self._cgcloud( 'image', role )
             try:
-                self._cgcloud( 'stop', role )
-                self._cgcloud( 'image', role )
-                try:
-                    self._cgcloud( 'terminate', role )
-                    self._cgcloud( 'recreate', role )
-                    file_name = 'foo-' + role
-                    self._ssh( role, 'touch', file_name )
-                    self._rsync( role, ':' + file_name, '.' )
-                    self.assertTrue( os.path.exists( file_name ) )
-                    os.unlink( file_name )
-                    self._cgcloud( 'terminate', role )
-                finally:
-                    self._cgcloud( 'delete-image', role )
-            except:
-                with panic( log ):
-                    self._cgcloud( 'terminate', '-q', role )
-
-        return box_test
+                self._cgcloud( 'terminate', role )
+                self._cgcloud( 'recreate', role )
+                file_name = 'foo-' + role
+                self._ssh( role, 'touch', file_name )
+                self._rsync( role, ':' + file_name, '.' )
+                self.assertTrue( os.path.exists( file_name ) )
+                os.unlink( file_name )
+                self._cgcloud( 'terminate', role )
+            finally:
+                self._cgcloud( 'delete-image', role )
+        except:
+            with panic( log ):
+                self._cgcloud( 'terminate', '-q', role )
 
     @classmethod
     def make_tests( cls ):
-        for box in cls.roles:
-            test_method = cls.__box_test( box )
-            test_method.__name__ = 'test_%s' % box.role( ).replace( '-', '_' )
+        for box_cls in cls.roles:
+            test_method = lambda self: cls._test( self, box_cls )
+            test_method.__name__ = 'test_%s' % box_cls.role( ).replace( '-', '_' )
             setattr( cls, test_method.__name__, test_method )
 
     def test_illegal_argument( self ):
-        try:
-            self._cgcloud( 'delete-image', self.roles[ 0 ].role( ), '-1' )
-            self.fail( )
-        except SystemExit:
-            pass
+        # Capture sys.stderr so we don't pollute the log of a successful run with an error message
+        with out_stderr( ):
+            self.assertRaises( SystemExit,
+                               self._cgcloud, 'delete-image', self.roles[ 0 ].role( ), '-1' )
 
 
 CoreTests.make_tests( )

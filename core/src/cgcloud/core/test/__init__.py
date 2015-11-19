@@ -97,6 +97,15 @@ class CgcloudTestCase( TestCase ):
         else:
             main( args )
 
+@contextmanager
+def out_stderr():
+    with open( os.devnull, 'a' ) as f:
+        f, sys.stderr = sys.stderr, f
+        try:
+            yield
+        finally:
+            f, sys.stderr = sys.stderr, f
+
 
 def dict_to_opts( d=None, **kwargs ):
     """
@@ -114,6 +123,6 @@ def dict_to_opts( d=None, **kwargs ):
 
     def to_opt( k, v ):
         s = '--' + k.replace( '_', '-' ) if len( k ) > 1 else '-' + k
-        return s if  v is None else s + '=' + str( v )
+        return s if v is None else s + '=' + str( v )
 
     return (to_opt( k, v ) for k, v in d.iteritems( ))
