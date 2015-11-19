@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import os
 from subprocess import check_call
 from tempfile import mkstemp
@@ -7,6 +8,7 @@ from unittest import TestCase
 from boto.utils import get_instance_metadata, logging
 
 from bd2k.util.iterables import flatten, concat
+import sys
 
 from cgcloud.core import test_namespace_suffix_length
 from cgcloud.lib.context import Context
