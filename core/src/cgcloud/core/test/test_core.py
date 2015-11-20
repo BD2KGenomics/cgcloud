@@ -22,7 +22,6 @@ class CoreTests( CgcloudTestCase ):
     roles = roles( )
 
     def _test( self, box_cls ):
-        # return
         role = box_cls.role( )
         self._cgcloud( 'create', role )
         try:
@@ -46,7 +45,7 @@ class CoreTests( CgcloudTestCase ):
     @classmethod
     def make_tests( cls ):
         for box_cls in cls.roles:
-            test_method = lambda self: cls._test( self, box_cls )
+            test_method = (lambda _box_cls: lambda self: cls._test( self, _box_cls ))( box_cls )
             test_method.__name__ = 'test_%s' % box_cls.role( ).replace( '-', '_' )
             setattr( cls, test_method.__name__, test_method )
 
