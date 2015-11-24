@@ -46,7 +46,7 @@ class ToilClusterTests( MesosTestCase ):
         self._create_cluster( '--share', shared_dir )
         try:
             self._assert_remote_failure( leader )
-            self._wait_for_mesos_slaves( leader, num_workers )
+            self._wait_for_workers( )
             self._assert_shared_dir( )
             self._hello_world( )
         finally:
@@ -112,3 +112,31 @@ class ToilClusterTests( MesosTestCase ):
             with panic( ):
                 self._ssh( leader, 'toil', 'clean', job_store )
 
+    def test_persistence( self ):
+        """
+        Check that /var/lib/docker is on the persistent volume
+        """
+        volume_size_gb = 1
+        self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
+        try:
+            try:
+                self._wait_for_workers( )
+                self._ssh( worker, 'sudo touch /var/lib/docker/foo', admin=True )
+            finally:
+                self._terminate_cluster( )
+            self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
+            try:
+                self._wait_for_workers( )
+                self._ssh( worker, 'sudo test -f /var/lib/docker/foo', admin=True )
+            finally:
+                if self.cleanup:
+                    self._terminate_cluster( )
+        finally:
+            if self.cleanup:
+                self._delete_volumes( )
+
+    def _wait_for_workers( self ):
+        self._wait_for_mesos_slaves( leader, num_workers )
+
+    def _delete_volumes( self ):
+        pass

@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from itertools import ifilter
 import os
 from subprocess import check_call
 from tempfile import mkstemp
@@ -111,9 +112,11 @@ def out_stderr():
 
 def dict_to_opts( d=None, **kwargs ):
     """
-    >>> list( dict_to_opts( dict( foo=None ) ) )
+    >>> list( dict_to_opts( dict( foo=True ) ) )
     ['--foo']
-    >>> list( dict_to_opts( foo=None ) )
+    >>> list( dict_to_opts( dict( foo=False) ) )
+    []
+    >>> list( dict_to_opts( foo=True ) )
     ['--foo']
     >>> list( dict_to_opts( dict( foo_bar=1 ), x=3 ) )
     ['--foo-bar=1', '-x=3']
@@ -125,6 +128,11 @@ def dict_to_opts( d=None, **kwargs ):
 
     def to_opt( k, v ):
         s = '--' + k.replace( '_', '-' ) if len( k ) > 1 else '-' + k
-        return s if v is None else s + '=' + str( v )
+        if v is True:
+            return s
+        elif v is False:
+            return None
+        else:
+            return s + '=' + str( v )
 
-    return (to_opt( k, v ) for k, v in d.iteritems( ))
+    return ifilter( None, (to_opt( k, v ) for k, v in d.iteritems( )) )
