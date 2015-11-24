@@ -1,4 +1,5 @@
 import logging
+from pipes import quote
 
 from fabric.operations import run
 
@@ -27,7 +28,7 @@ class DockerBox( UbuntuBox ):
         sudo( ' '.join( [ 'apt-key', 'adv',
                             '--keyserver', 'hkp://p80.pool.sks-keyservers.net:80',
                             '--recv-keys', '58118E89F3A912897C070ADBF76221572C52609D' ] ) )
-        codename = self.release().codename
+        codename = self.release( ).codename
         sudo( fmt( 'echo deb https://apt.dockerproject.org/repo ubuntu-{codename} main '
                    '> /etc/apt/sources.list.d/docker.list' ) )
 
@@ -53,46 +54,50 @@ class DockerBox( UbuntuBox ):
     def _docker_users( self ):
         return [ self.admin_account( ) ]
 
-    def docker_data_prefix( self ):
-        return self._ephemeral_mount_point( 0 )
+    def _docker_data_prefixes( self ):
+        return [ self._ephemeral_mount_point( 0 ) ]
 
     @fabric_task
     def __setup_docker( self ):
         for docker_user in set( self._docker_users( ) ):
             sudo( "usermod -aG docker " + docker_user )
-        prefix = self.docker_data_prefix( )
-        if prefix is not None:
+        prefixes = self._docker_data_prefixes( )
+        if prefixes:
+            prefixes = ' '.join( map( quote, prefixes ) )
             self._run_init_script( 'docker', 'stop' )
             # Backup initial state of data directory so we can initialize an empty ephemeral volume
             sudo( 'tar -czC /var/lib docker > /var/lib/docker.tar.gz' )
             # Then delete it and recreate it as an empty directory to serve as the bind mount point
             sudo( 'rm -rf /var/lib/docker && mkdir /var/lib/docker' )
             self._register_init_script(
-                "dockerbox",
+                'dockerbox',
                 heredoc( """
                     description "Placement of /var/lib/docker"
                     console log
                     start on starting docker
                     stop on stopped docker
                     pre-start script
-                        # Make script idempotent
-                        if ! mountpoint -q {prefix}/var/lib/docker; then
-                            # Prefix must refer to a separate volume, e.g. ephemeral or EBS
-                            if mountpoint -q {prefix}; then
-                                mkdir -p {prefix}/var/lib
-                                # If /var/lib/docker has files ...
-                                if python -c 'import os, sys; sys.exit( 0 if os.listdir( sys.argv[1] ) else 1 )' /var/lib/docker; then
-                                    # ... move it to prefix ...
-                                    mv /var/lib/docker {prefix}/var/lib
-                                    # ... and recreate it as an empty mount point, ...
-                                    mkdir -p /var/lib/docker
-                                else
-                                    # ... otherwise untar the initial backup.
-                                    tar -xzC {prefix}/var/lib < /var/lib/docker.tar.gz
+                        # If it's already mounted, we're done.
+                        if ! mountpoint -q /var/lib/docker; then
+                            for prefix in {prefixes}; do
+                                # Prefix must refer to a separate volume, e.g. ephemeral or EBS
+                                if mountpoint -q "$prefix"; then
+                                    mkdir -p "$prefix/var/lib"
+                                    # If /var/lib/docker contains files ...
+                                    if python -c 'import os, sys; sys.exit( 1 if os.listdir( sys.argv[1] ) else 0 )' /var/lib/docker; then
+                                        # ... move it to prefix ...
+                                        mv /var/lib/docker "$prefix/var/lib"
+                                        # ... and recreate it as an empty mount point, ...
+                                        mkdir -p /var/lib/docker
+                                    else
+                                        # ... otherwise untar the initial backup.
+                                        tar -xzC "$prefix/var/lib" < /var/lib/docker.tar.gz
+                                    fi
+                                    # Now bind-mount it into /var/lib/docker
+                                    mount --bind "$prefix/var/lib/docker" /var/lib/docker
+                                    break
                                 fi
-                                # Now bind mount it into /var/lib/docker
-                                mount --bind {prefix}/var/lib/docker /var/lib/docker
-                            fi
+                            done
                         fi
                     end script""" ) )
             self._run_init_script( 'docker', 'start' )

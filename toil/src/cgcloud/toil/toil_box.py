@@ -6,7 +6,7 @@ from bd2k.util.iterables import concat
 from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterWorker, ClusterLeader
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.mesos.mesos_box import MesosBoxSupport, user
+from cgcloud.mesos.mesos_box import MesosBoxSupport, user, persistent_dir
 from cgcloud.fabric.operations import pip
 from cgcloud.lib.util import abreviated_snake_case_class_name
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
@@ -31,6 +31,10 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
 
     def _docker_users( self ):
         return super( ToilBox, self )._docker_users( ) + [ user ]
+
+    def _docker_data_prefixes( self ):
+        # We prefer Docker to be stored on the persistent volume if there is one
+        return concat( persistent_dir, super( ToilBox, self )._docker_data_prefixes( ) )
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilBox, self )._get_iam_ec2_role( )
