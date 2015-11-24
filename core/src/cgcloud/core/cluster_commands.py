@@ -190,7 +190,7 @@ class ClusterLifecycleCommand( ClusterCommand ):
         getattr( node, self.operation( ) )( )
 
     def operation( self ):
-        return abreviated_snake_case_class_name( self.__class__, ClusterTypeCommand )
+        return abreviated_snake_case_class_name( self.__class__, ClusterCommand)
 
 
 class StopClusterCommand( ClusterLifecycleCommand ):
