@@ -96,14 +96,14 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
         if option_name == '--instance-type':
             # We want --instance-type to apply to the workers and --leader-instance-type to the
             # leader. Furthermore, we want --leader-instance-type to default to the value of
-            # --leader-instance-type.
-            kwargs[ 'dest' ] = 'instance_type'
-            kwargs[ 'help' ] = kwargs[ 'help' ].replace( 'for the box',
-                                                         'for the workers' )
+            # --instance-type.
+            assert 'dest' not in kwargs
             assert args[ 0 ] == '-t'
-            kwargs[ 'dest' ] = 'instance_type'
-            _super.option( '--leader-instance-type', '-T', *args[ 1: ], **kwargs )
-            kwargs[ 'help' ] = kwargs[ 'help' ].replace( 'workers', 'leader' )
+            kwargs[ 'help' ] = kwargs[ 'help' ].replace( 'for the box',
+                                                         'for the leader' )
+            _super.option( '--leader-instance-type', '-T',
+                           *args[ 1: ], dest='instance_type', **kwargs )
+            kwargs[ 'help' ] = kwargs[ 'help' ].replace( 'leader', 'workers' )
             kwargs[ 'dest' ] = 'worker_instance_type'
         _super.option( option_name, *args, **kwargs )
 
