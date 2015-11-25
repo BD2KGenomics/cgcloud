@@ -2,11 +2,9 @@ from abc import abstractmethod
 from functools import partial
 import logging
 import os
-
 from bd2k.util.expando import Expando
-
-from cgcloud.core.commands import RecreateCommand, ContextCommand, SshCommand, SshCommandMixin, \
-    RsyncCommandMixin
+from cgcloud.core.commands import (RecreateCommand, ContextCommand, SshCommandMixin,
+                                   RsyncCommandMixin)
 from cgcloud.lib.util import abreviated_snake_case_class_name, UserError, heredoc
 
 log = logging.getLogger( __name__ )
@@ -190,7 +188,7 @@ class ClusterLifecycleCommand( ClusterCommand ):
         getattr( node, self.operation( ) )( )
 
     def operation( self ):
-        return abreviated_snake_case_class_name( self.__class__, ClusterCommand)
+        return abreviated_snake_case_class_name( self.__class__, ClusterCommand )
 
 
 class StopClusterCommand( ClusterLifecycleCommand ):
@@ -255,6 +253,7 @@ class RsyncClusterCommand( RsyncCommandMixin, ClusterCommand ):
     followed by all workers in parallel. To avoid being prompted for confirmation of the host
     key, use --ssh-opts="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no".
     """
+
     def run_on_cluster( self, options, ctx, cluster ):
         cluster.apply( partial( self.rsync, options ),
                        cluster_name=options.cluster_name,

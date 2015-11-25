@@ -560,7 +560,7 @@ class Box( object ):
             reservation = self._create_ondemand_instances( spec )
             instances = reservation.instances
 
-        instances = sorted( instances, key=attrgetter( 'id' ) )
+        instances = sorted( instances, key=self.__ordinal_sort_key )
 
         def clones( ):
             while True:
@@ -782,8 +782,11 @@ class Box( object ):
                 filters[ 'tag:' + k ] = v
         reservations = self.ctx.ec2.get_all_instances( filters=filters )
         instances = [ i for r in reservations for i in r.instances if i.state != 'terminated' ]
-        instances.sort( key=lambda j: (j.launch_time, j.private_ip_address, j.id) )
+        instances.sort( key=self.__ordinal_sort_key )
         return name, instances
+
+    def __ordinal_sort_key( self, instance ):
+        return instance.launch_time, instance.private_ip_address, instance.id
 
     def __get_instance_by_ordinal( self, ordinal=None, cluster_name=None ):
         """
