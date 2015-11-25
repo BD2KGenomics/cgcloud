@@ -8,15 +8,12 @@ from pwd import getpwnam
 import socket
 import stat
 from urllib2 import urlopen
-from subprocess import check_call, check_output, CalledProcessError
+from subprocess import check_call, check_output, CalledProcessError, call
 import time
 import itertools
-
 import boto.ec2
 from bd2k.util import memoize
-
 from bd2k.util.files import mkdir_p
-
 from cgcloud.lib.util import volume_label_hash
 from cgcloud.lib.ec2 import EC2VolumeHelper
 
@@ -76,6 +73,7 @@ class MesosTools( object ):
             if self.shared_dir:
                 self._copy_dir_from_master( self.shared_dir )
 
+        self.__restart_docker( )
         log.info( "Starting %s services" % node_type )
         check_call( [ initctl, 'emit', 'mesosbox-start-%s' % node_type ] )
 
@@ -265,11 +263,12 @@ class MesosTools( object ):
 
     def _copy_dir_from_master( self, path ):
         log.info( "Copying %s from master" % path )
-        if not path.endswith('/'):
+        if not path.endswith( '/' ):
             path += '/'
         for tries in range( 5 ):
             try:
-                check_call( [ sudo, '-u', self.user, 'rsync', '-av', 'mesos-master:' + path, path ] )
+                check_call( [ sudo, '-u', self.user,
+                                'rsync', '-av', 'mesos-master:' + path, path ] )
             except CalledProcessError as e:
                 log.warn( "rsync returned %i, retrying in 5s", e.returncode )
                 time.sleep( 5 )
@@ -323,3 +322,13 @@ class MesosTools( object ):
                 if line[ 0 ] == device:
                     return line[ 1 ]
         return None
+
+    def __restart_docker( self ):
+        """
+        This is a hack to give ToilBox instances a chance to remount /var/lib/docker on
+        /mnt/ephemeral or /mnt/persistent
+        """
+        if os.path.isfile( '/etc/init/dockerbox.conf' ):
+            # This should trigger a restart of the dockerbox upstart job
+            call( [ 'initctl', 'stop', 'docker' ] )
+            check_call( [ 'initctl', 'start', 'docker' ] )

@@ -65,6 +65,8 @@ class DockerBox( UbuntuBox ):
         if prefixes:
             prefixes = ' '.join( map( quote, prefixes ) )
             self._run_init_script( 'docker', 'stop' )
+            # Make sure Docker's aufs backend isn't mounted anymore
+            sudo( 'umount /var/lib/docker/aufs', warn_only=True )
             # Backup initial state of data directory so we can initialize an empty ephemeral volume
             sudo( 'tar -czC /var/lib docker > /var/lib/docker.tar.gz' )
             # Then delete it and recreate it as an empty directory to serve as the bind mount point
@@ -77,25 +79,37 @@ class DockerBox( UbuntuBox ):
                     start on starting docker
                     stop on stopped docker
                     pre-start script
-                        # If it's already mounted, we're done.
-                        if ! mountpoint -q /var/lib/docker; then
+                        echo
+                        echo "This is the dockerbox pre-start script"
+                        set -ex
+                        if mountpoint -q /var/lib/docker; then
+                            echo "The directory '/var/lib/docker' is already mounted, exiting."
+                        else
                             for prefix in {prefixes}; do
                                 # Prefix must refer to a separate volume, e.g. ephemeral or EBS
                                 if mountpoint -q "$prefix"; then
-                                    mkdir -p "$prefix/var/lib"
-                                    # If /var/lib/docker contains files ...
-                                    if python -c 'import os, sys; sys.exit( 1 if os.listdir( sys.argv[1] ) else 0 )' /var/lib/docker; then
-                                        # ... move it to prefix ...
-                                        mv /var/lib/docker "$prefix/var/lib"
-                                        # ... and recreate it as an empty mount point, ...
-                                        mkdir -p /var/lib/docker
+                                    # Make sure Docker's aufs backend isn't mounted anymore
+                                    umount /var/lib/docker/aufs || true
+                                    if test -d "$prefix/var/lib/docker"; then
+                                        echo "The directory '$prefix/var/lib/docker' already exists, using it."
                                     else
-                                        # ... otherwise untar the initial backup.
-                                        tar -xzC "$prefix/var/lib" < /var/lib/docker.tar.gz
+                                        mkdir -p "$prefix/var/lib"
+                                        # If /var/lib/docker contains files ...
+                                        if python -c 'import os, sys; sys.exit( 0 if os.listdir( sys.argv[1] ) else 1 )' /var/lib/docker; then
+                                            # ... move it to prefix ...
+                                            mv /var/lib/docker "$prefix/var/lib"
+                                            # ... and recreate it as an empty mount point, ...
+                                            mkdir -p /var/lib/docker
+                                        else
+                                            # ... otherwise untar the initial backup.
+                                            tar -xzC "$prefix/var/lib" < /var/lib/docker.tar.gz
+                                        fi
                                     fi
-                                    # Now bind-mount it into /var/lib/docker
+                                    # Now bind-mount into /var/lib/docker
                                     mount --bind "$prefix/var/lib/docker" /var/lib/docker
                                     break
+                                else
+                                    echo "The prefix directory '$prefix' is not a mount point, skipping."
                                 fi
                             done
                         fi
