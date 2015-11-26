@@ -90,10 +90,11 @@ class CloudInitBox( Box ):
         elif instance_type.disk_type == 'HDD':
             # For HDDs we assume the disk is formatted and we mount each disk separately
             for i in range( num_disks ):
-                mount = self._ephemeral_mount_point( i )
-                if mount is not None:
-                    commands.append( [ 'mkdir', '-p', mount ] )
-                    commands.append( [ 'mount', device_name( i ), mount ] )
+                mount_point = self._ephemeral_mount_point( i )
+                if mount_point is not None:
+                    commands.extend( [
+                        [ 'mkdir', '-p', mount_point ],
+                        [ 'mount', device_name( i ), mount_point ] ] )
         elif num_disks == 1:
             # The r3 family does not format the ephemeral SSD volume so will have to do it
             # manually. Other families may also exhibit that behavior so we will format every SSD
@@ -102,7 +103,10 @@ class CloudInitBox( Box ):
             # this at runtime) named so we simply try all possible names.
             if instance_type.disk_type == 'SSD':
                 commands.append( [ 'mkfs.ext4', '-E', 'nodiscard', device_name( 0 ) ] )
-            commands.append( [ 'mount', device_name( 0 ), self._ephemeral_mount_point( 0 ) ] )
+            mount_point = self._ephemeral_mount_point( 0 )
+            commands.extend( [
+                [ 'mkdir', '-p', mount_point ],
+                [ 'mount', device_name( 0 ), mount_point ] ] )
         elif num_disks > 1:
             # RAID multiple SSDs into one, then format and mount it.
             devices = [ device_name( i ) for i in range( num_disks ) ]
