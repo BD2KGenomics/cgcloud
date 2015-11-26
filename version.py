@@ -1,4 +1,4 @@
-cgcloud_version = '1.2'
+cgcloud_version = '1.2.1a1'
 bd2k_python_lib_version = '1.10.dev5'
 
 if __name__ == '__main__':
