@@ -86,6 +86,10 @@ clean_$1: _check_venv $1/version.py
 	cd $1 && $(python) setup.py clean --all && rm -rf dist src/*.egg-info MANIFEST.in version.py version.pyc
 endef
 $(foreach project,$(all_projects),$(eval $(call _clean,$(project))))
+.PHONY: clean
+clean: $(foreach project,$(all_projects),clean_$(project))
+
+
 define _undevelop
 .PHONY: undevelop_$1
 # develop depends on version.py since it invokes setup.py
@@ -93,8 +97,8 @@ undevelop_$1: _check_venv $1/version.py
 	cd $1 && $(python) setup.py develop -u
 endef
 $(foreach project,$(all_projects),$(eval $(call _undevelop,$(project))))
-.PHONY: clean
-clean: $(foreach project,$(develop_projects),undevelop_$(project)) $(foreach project,$(all_projects),clean_$(project))
+.PHONY: undevelop
+undevelop: $(foreach project,$(develop_projects),undevelop_$(project))
 
 
 define _test
