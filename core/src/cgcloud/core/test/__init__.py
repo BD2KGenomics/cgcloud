@@ -1,22 +1,25 @@
+import os
+import sys
+import time
 from contextlib import contextmanager
 from itertools import ifilter
-import os
+from struct import pack
 from subprocess import check_call
 from tempfile import mkstemp
-import time
 from unittest import TestCase
 
+from bd2k.util.d64 import D64
+from bd2k.util.iterables import concat
 from boto.utils import get_instance_metadata, logging
 
-from bd2k.util.iterables import flatten, concat
-import sys
-
 from cgcloud.core import test_namespace_suffix_length
+from cgcloud.core.cli import main, CGCloud
 from cgcloud.lib.context import Context
 from cgcloud.lib.ec2 import running_on_ec2
-from cgcloud.core.cli import main, CGCloud
 
 log = logging.getLogger( __name__ )
+
+d64 = D64( '.-' )  # hopefully the dot is supported for all AWS resource names
 
 
 class CgcloudTestCase( TestCase ):
@@ -37,7 +40,11 @@ class CgcloudTestCase( TestCase ):
         if running_on_ec2( ):
             os.environ.setdefault( 'CGCLOUD_ZONE',
                                    get_instance_metadata( )[ 'placement' ][ 'availability-zone' ] )
-        suffix = hex( int( time.time( ) ) )[ 2: ]
+        # Using the d64 of a binary string that starts with a 4-byte, big-endian time stamp
+        # yields compact names whose lexicographical sorting is consistent with the historical
+        # order. We add the process ID so we can run tests concurrently in child processes using
+        # the pytest-xdist plugin.
+        suffix = d64.encode( pack( '>II', int( time.time( ) ), os.getpid( ) ) )
         assert len( suffix ) == test_namespace_suffix_length
         cls.__namespace = '/test/%s/' % suffix
         os.environ.setdefault( 'CGCLOUD_NAMESPACE', cls.__namespace )
