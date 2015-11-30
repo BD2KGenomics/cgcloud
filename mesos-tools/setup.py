@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version, bd2k_python_lib_version
+from version import cgcloud_version, bd2k_python_lib_version, boto_version
 
 setup(
     name="cgcloud-mesos-tools",
@@ -19,4 +19,4 @@ setup(
     install_requires=[
         'bd2k-python-lib==' + bd2k_python_lib_version,
         'cgcloud-lib==' + cgcloud_version,
-        'boto>=2.36.0' ] )
+        'boto==' + boto_version ] )

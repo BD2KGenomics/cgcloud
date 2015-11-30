@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version, bd2k_python_lib_version
+from version import cgcloud_version, bd2k_python_lib_version, boto_version, fabric_version
 
 setup(
     name='cgcloud-core',
@@ -22,7 +22,7 @@ setup(
     install_requires=[
         'bd2k-python-lib==' + bd2k_python_lib_version,
         'cgcloud-lib==' + cgcloud_version,
-        'boto>=2.36.0',
-        'Fabric>=1.7.0',
-        'PyYAML>=3.10' ],
+        'boto==' + boto_version,
+        'Fabric==' + fabric_version,
+        'PyYAML==3.11' ],
     test_suite='cgcloud.core.test' )
