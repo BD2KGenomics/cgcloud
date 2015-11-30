@@ -46,4 +46,4 @@ def command_classes( ):
     return __fail_deprecated( sorted( locals( ).values( ), key=lambda cls: cls.__name__ ) )
 
 
-test_namespace_suffix_length = 8
+test_namespace_suffix_length = 11
