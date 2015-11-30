@@ -4,3 +4,4 @@
 *.pyc
 MANIFEST.in
 version.py
+_setup.py

@@ -1,11 +1,7 @@
 virtualenv venv
 . venv/bin/activate
 
-pip install nose
-# https://github.com/nose-devs/nose/issues/2
-pip install git+https://github.com/rberrelleza/nose-xunitmp.git
-export NOSE_WITH_XUNITMP=1
-export NOSE_XUNIT_FILE=nosetests.xml
+export PYTEST_ADDOPTS="--junitxml=test-report.xml"
 
 export CGCLOUD_ME=jenkins@jenkins-master
 # We want to use -k/--keep-going such that make doesn't fail the build on the first subproject for

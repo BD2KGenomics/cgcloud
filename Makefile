@@ -51,7 +51,7 @@ red=\033[0;31m
 
 define _develop
 .PHONY: develop_$1
-develop_$1: _check_venv $1/version.py $1/MANIFEST.in
+develop_$1: _check_venv $1/version.py $1/_setup.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py egg_info develop
 endef
 $(foreach project,$(develop_projects),$(eval $(call _develop,$(project))))
@@ -61,7 +61,7 @@ develop: $(foreach project,$(develop_projects),develop_$(project))
 
 define _sdist
 .PHONY: sdist_$1
-sdist_$1: _check_venv $1/version.py $1/MANIFEST.in
+sdist_$1: _check_venv $1/version.py $1/_setup.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py sdist
 endef
 $(foreach project,$(sdist_projects),$(eval $(call _sdist,$(project))))
@@ -71,7 +71,7 @@ sdist: $(foreach project,$(sdist_projects),sdist_$(project))
 
 define _pypi
 .PHONY: pypi_$1
-pypi_$1: _check_venv _check_running_on_jenkins _check_clean_working_copy $1/version.py $1/MANIFEST.in
+pypi_$1: _check_venv _check_running_on_jenkins _check_clean_working_copy $1/version.py $1/_setup.py $1/MANIFEST.in
 	cd $1 && $(python) setup.py egg_info sdist bdist_egg upload
 endef
 $(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
@@ -82,7 +82,7 @@ pypi: $(foreach project,$(all_projects),pypi_$(project))
 define _clean
 .PHONY: clean_$1
 # clean depends on version.py since it invokes setup.py
-clean_$1: _check_venv $1/version.py
+clean_$1: _check_venv $1/version.py $1/_setup.py
 	cd $1 && $(python) setup.py clean --all && rm -rf dist src/*.egg-info MANIFEST.in version.py version.pyc
 endef
 $(foreach project,$(all_projects),$(eval $(call _clean,$(project))))
@@ -93,7 +93,7 @@ clean: $(foreach project,$(all_projects),clean_$(project))
 define _undevelop
 .PHONY: undevelop_$1
 # develop depends on version.py since it invokes setup.py
-undevelop_$1: _check_venv $1/version.py
+undevelop_$1: _check_venv $1/version.py $1/_setup.py
 	cd $1 && $(python) setup.py develop -u
 endef
 $(foreach project,$(all_projects),$(eval $(call _undevelop,$(project))))
@@ -103,8 +103,8 @@ undevelop: $(foreach project,$(develop_projects),undevelop_$(project))
 
 define _test
 .PHONY: test_$1
-test_$1: _check_venv _check_nose sdist develop_$1
-	cd $1 && $(python) -m nose --verbose
+test_$1: _check_venv sdist develop_$1
+	cd $1 && $(python) setup.py test --pytest-args="-vv src"
 	@echo "$(green)Tests succeeded.$(normal)"
 endef
 $(foreach project,$(develop_projects),$(eval $(call _test,$(project))))
@@ -115,12 +115,6 @@ test: $(foreach project,$(develop_projects),test_$(project))
 .PHONY: _check_venv
 _check_venv:
 	@$(python) -c 'import sys; sys.exit( int( not hasattr(sys, "real_prefix") ) )' \
-		|| ( echo "$(red)A virtualenv must be active.$(normal)" ; false )
-
-
-.PHONY: _check_nose
-_check_nose: _check_venv
-	$(python) -c 'import nose' \
 		|| ( echo "$(red)A virtualenv must be active.$(normal)" ; false )
 
 
@@ -149,4 +143,8 @@ _check_running_on_jenkins:
 
 
 %/MANIFEST.in: MANIFEST.in
+	cp $< $@
+
+
+%/_setup.py: _setup.py
 	cp $< $@

@@ -1,10 +1,11 @@
 from __future__ import absolute_import
 
-from setuptools import setup, find_packages
+from setuptools import find_packages
 
+from _setup import _setup
 from version import cgcloud_version, bd2k_python_lib_version, boto_version, fabric_version
 
-setup(
+_setup(
     name='cgcloud-core',
     version=cgcloud_version,
 
@@ -25,4 +26,9 @@ setup(
         'boto==' + boto_version,
         'Fabric==' + fabric_version,
         'PyYAML==3.11' ],
-    test_suite='cgcloud.core.test' )
+    tests_require=[
+        'pytest-xdist==1.13.1',
+        'pytest-timeout==0.5',
+        # https://github.com/pytest-dev/pytest/issues/707
+        'execnet==1.2.0'
+    ] )

@@ -1,10 +1,11 @@
 from __future__ import absolute_import
 
-from setuptools import setup, find_packages
+from setuptools import find_packages
 
+from _setup import _setup
 from version import cgcloud_version, bd2k_python_lib_version, fabric_version
 
-setup(
+_setup(
     name='cgcloud-spark',
     version=cgcloud_version,
 

@@ -2,11 +2,12 @@ from __future__ import absolute_import
 
 import sys
 
-from setuptools import setup, find_packages
+from setuptools import find_packages
 
+from _setup import _setup
 from version import cgcloud_version, bd2k_python_lib_version, boto_version
 
-setup(
+_setup(
     name='cgcloud-agent',
     version=cgcloud_version,
 
