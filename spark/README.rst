@@ -1,8 +1,8 @@
-The CGCloud Spark project lets you setup a fully configured Apache Spark
-cluster in EC2 in just minutes, regardless of the number of nodes. It is a
-plugin to CGCloud. While Apache Spark already comes with a script called
-``spark-ec2`` that lets you build a cluster in EC2, CGCloud Spark differs from
-``spark-ec2`` in the following ways (bad news first):
+The CGCloud plugin for Spark lets you setup a fully configured Apache
+Spark cluster in EC2 in just minutes, regardless of the number of nodes. While
+Apache Spark already comes with a script called ``spark-ec2`` that lets you
+build a cluster in EC2, CGCloud Spark differs from ``spark-ec2`` in the
+following ways:
 
 * Tachyon or Yarn are not included
 
@@ -10,7 +10,7 @@ plugin to CGCloud. While Apache Spark already comes with a script called
   node cluster takes just as long as setting up a 10 node cluster (2-3 min, as
   opposed to 45min with ``spark-ec2``). This is made possible by baking all
   required software into a single AMI. All slave nodes boot up concurrently and
-  autonomously in just a few minutes.
+  join the cluster autonomously in just a few minutes.
   
 * Unlike with ``spark-ec2``, the cluster can be stopped and started via the EC2
   API or the EC2 console, without involvement of cgcloud.
@@ -49,27 +49,25 @@ Installation
 ============
 
 Read the entire section before pasting any commands and ensure that all
-prerequisites are installed. It is recommended to install cgcloud into a
-virtualenv. Create a virtualenv and use ``pip`` to install
-cgcloud-spark::
+prerequisites are installed. It is recommended to install this plugin into the 
+virtualenv you created for CGCloud::
 
-   cd
-   virtualenv cgcloud
-   source cgcloud/bin/activate
+   source ~/cgcloud/bin/activate
    pip install cgcloud-spark
-   export CGCLOUD_PLUGINS="cgcloud.spark:$CGCLOUD_PLUGINS"
 
 If you get ``DistributionNotFound: No distributions matching the version for
 cgcloud-spark``, try running ``pip install --pre cgcloud-spark``.
 
 Be sure to configure_ ``cgcloud-core`` before proceeding.
 
+.. _configure: https://github.com/BD2KGenomics/cgcloud-core#configuration
+
 Configuration
 =============
 
 Modify your ``.profile`` or ``.bash_profile`` by adding the following line::
 
-   export CGCLOUD_PLUGINS=cgcloud.spark
+   export CGCLOUD_PLUGINS="cgcloud.spark:$CGCLOUD_PLUGINS"
 
 Login and out (or, on OS X, start a new Terminal tab/window).
 
@@ -79,22 +77,20 @@ Verify the installation by running::
 
 The output should include the ``spark-box`` role.
 
-.. _configure: https://github.com/BD2KGenomics/cgcloud-core#configuration
-
 Usage
 =====
 
 Create a single ``t2.micro`` box to serve as the template for the cluster
 nodes::
 
-   cgcloud create spark-box -I -T
+   cgcloud create -IT spark-box
 
-The ``-I`` switch stops the box once it is fully set up and takes an AMI of it.
-The ``-T`` switch terminates it after that.
+The ``I`` option stops the box once it is fully set up and takes an image (AMI)
+of it. The ``T`` option terminates the box after that.
 
-Create a cluster by booting a master and the slaves from that AMI::
+Now create a cluster by booting a master and the slaves from that AMI::
 
-   cgcloud create-spark-cluster -s 2 -t m3.large
+   cgcloud create-cluster spark -s 2 -t m3.large
    
 This will launch a master and two slaves using the ``m3.large`` instance type.
 
