@@ -30,5 +30,5 @@ _setup(
         'pytest-xdist==1.13.1',
         'pytest-timeout==0.5',
         # https://github.com/pytest-dev/pytest/issues/707
-        'execnet==1.2.0'
+        'execnet==1.4.1'
     ] )
