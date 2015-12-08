@@ -477,18 +477,19 @@ class CreationCommand( BoxCommand ):
             else:
                 self.log_ssh_hint( options )
 
+    # noinspection PyUnresolvedReferences
     def log_ssh_hint( self, options ):
         hint = self.ssh_hint( options )
 
         def opt( name, value, default ):
             return name + ' ' + value if value != default else None
 
-        # noinspection PyUnresolvedReferences
-        hint = concat( hint.executable,
-                       hint.command,
-                       (opt( **option ) for option in hint.options),
-                       hint.args )
-        log.info( "Run '%s' to start using this box.", ' '.join( filter( None, hint ) ) )
+        cmd = concat( hint.executable,
+                      hint.command,
+                      (opt( **option ) for option in hint.options),
+                      hint.args )
+        cmd = ' '.join( filter( None, cmd ) )
+        log.info( "Run '%s' to start using this %s.", cmd, hint.object )
 
     def ssh_hint( self, options ):
         x = Expando
@@ -497,7 +498,8 @@ class CreationCommand( BoxCommand ):
                   options=[
                       x( name='-n', value=options.namespace, default=self.default_namespace ),
                       x( name='-z', value=options.availability_zone, default=self.default_zone ) ],
-                  args=[ options.role ] )
+                  args=[ options.role ],
+                  object='box' )
 
 
 class RegisterKeyCommand( ContextCommand ):

@@ -134,6 +134,7 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
     def ssh_hint( self, options ):
         hint = super( CreateClusterCommand, self ).ssh_hint( options )
         hint.options.append( Expando( name='-c', value=options.cluster_name, default=None ) )
+        hint.object = 'cluster'
         return hint
 
 
