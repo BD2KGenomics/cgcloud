@@ -1,9 +1,9 @@
-from abc import ABCMeta, abstractproperty
-from contextlib import contextmanager
-from copy import copy
 import logging
 import multiprocessing
 import multiprocessing.pool
+from abc import ABCMeta, abstractproperty
+from contextlib import contextmanager
+from copy import copy
 
 from bd2k.util.iterables import concat
 
@@ -161,9 +161,9 @@ class ClusterLeader( ClusterBox ):
         kwargs = dict( self.preparation_kwargs,
                        instance_type=worker_instance_type,
                        leader_instance_id=self.instance_id )
-        spec = dict( first_worker.prepare( *args, **kwargs ),
-                     min_count=num_workers,
-                     max_count=num_workers )
+        spec = first_worker.prepare( *args, **kwargs )
+        spec.min_count = num_workers
+        spec.max_count = num_workers
         with thread_pool( size=default_pool_size( num_workers ) ) as pool:
             first_worker.create( spec,
                                  wait_ready=wait_ready,

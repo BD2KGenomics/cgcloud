@@ -590,13 +590,16 @@ class Box( object ):
         """
         # There is no min/max count parameter for request_spot_instances, just count
         spec = spec.copy( )
-        spec.count = spec.max_count
         try:
+            spec.count = spec.max_count
             del spec.max_count
             del spec.min_count
         except AttributeError:
             pass
-        requests = self.ctx.ec2.request_spot_instances( self.image_id, **spec )
+        # price is a positional argument, so we need to extract it
+        price = spec.price
+        del spec.price
+        requests = self.ctx.ec2.request_spot_instances( price, self.image_id, **spec )
         # We would use a set but get_all_spot_instance_requests wants a list so its either O(n)
         # for lookup (the rock) or O(n) for converting a set to a list (the hard place).
         request_ids = [ request.id for request in requests ]
