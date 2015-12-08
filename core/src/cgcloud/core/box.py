@@ -352,17 +352,18 @@ class Box( object ):
 
         :type image_ref: int|str
         :param image_ref: the ordinal or AMI ID of the image to boot from. If None,
-        the return value of self._base_image() will be used.
+               the return value of self._base_image() will be used.
 
         :type virtualization_type: str
         :param virtualization_type: The desired virtualization type to use for the instance
 
         :type spot_bid: float
         :param spot_bid: dollar amount to bid for spot instances. If None, and on-demand instance
-        will be created
+               will be created
 
-        Additional, role-specific options can be specified. These options augment the options
-        associated with the givem image.
+        :type options: dict
+        :param options: Additional, role-specific options can be specified. These options augment
+               the options associated with the givem image.
         """
         if launch_group is not None and spot_bid is None:
             raise UserError( 'Need spot bid for launch group' )
@@ -778,7 +779,7 @@ class Box( object ):
         """
         name = self.ctx.to_aws_name( self.role( ) )
         filters = { 'tag:Name': name }
-        for k,v in tags.iteritems():
+        for k, v in tags.iteritems( ):
             if v is not None:
                 filters[ 'tag:' + k ] = v
         reservations = self.ctx.ec2.get_all_instances( filters=filters )

@@ -7,17 +7,13 @@ from operator import itemgetter
 import os
 import re
 import sys
-
 from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
-
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
-
 from fabric.operations import prompt
-
 from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.util import Application, heredoc
 from cgcloud.lib.context import Context
@@ -442,7 +438,7 @@ class CreationCommand( BoxCommand ):
         self.option( '--never-terminate', '-N',
                      default=None, dest='terminate', action='store_false',
                      help=heredoc( """Never terminate the box, even after errors. This may be
-                     useful for post-mortem analysis.""" ) )
+                     useful for a post-mortem diagnosis.""" ) )
 
         self.end_mutex( )
 
