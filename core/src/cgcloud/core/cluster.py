@@ -145,7 +145,8 @@ class ClusterLeader( ClusterBox ):
         self.preparation_args = args
         self.preparation_kwargs = dict( kwargs )
         if kwargs[ 'leader_on_demand' ]:
-            kwargs[ 'spot_bid' ] = None
+            del kwargs[ 'spot_bid' ]
+            del kwargs[ 'launch_group' ]
         return super( ClusterLeader, self ).prepare( *args, **kwargs )
 
     def _get_instance_options( self ):

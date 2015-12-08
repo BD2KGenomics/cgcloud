@@ -425,6 +425,13 @@ class CreationCommand( BoxCommand ):
                      accepted. By default on-demand instances are used. Note that some instance
                      types are not available on the spot market!""" ) )
 
+        self.option( '--launch-group', metavar='NAME',
+                     help=heredoc( """The name of an EC2 spot instance launch group. If
+                     specified, the spot request will only be fullfilled once all instances in
+                     the group can be launched. Furthermore, if any instance in the group needs
+                     to be terminated by Amazon, so will the remaining ones, even if their bid is
+                     higher than the market price.""" ) )
+
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -450,7 +457,8 @@ class CreationCommand( BoxCommand ):
         """
         Return dict with instance options to be passed box.create()
         """
-        return dict( spot_bid=options.spot_bid )
+        return dict( spot_bid=options.spot_bid,
+                     launch_group=options.launch_group)
 
     def run_on_box( self, options, box ):
         try:
