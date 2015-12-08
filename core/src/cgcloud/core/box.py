@@ -12,7 +12,6 @@ import subprocess
 import threading
 import time
 import datetime
-
 from bd2k.util.collections import OrderedSet
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
@@ -24,11 +23,8 @@ from boto.ec2.instance import Reservation
 from fabric.context_managers import settings
 from fabric.operations import sudo, run, get, put
 from fabric.api import execute
-
 from paramiko import SSHClient
-
 from paramiko.client import MissingHostKeyPolicy
-
 from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
@@ -339,7 +335,8 @@ class Box( object ):
             return image
 
     def prepare( self, ec2_keypair_globs,
-                 instance_type=None, image_ref=None, virtualization_type=None, spot_bid=None,
+                 instance_type=None, image_ref=None, virtualization_type=None,
+                 spot_bid=None, launch_group=None,
                  **options ):
         """
         Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
@@ -355,18 +352,22 @@ class Box( object ):
 
         :type image_ref: int|str
         :param image_ref: the ordinal or AMI ID of the image to boot from. If None,
-        the return value of self._base_image() will be used.
+               the return value of self._base_image() will be used.
 
         :type virtualization_type: str
         :param virtualization_type: The desired virtualization type to use for the instance
 
         :type spot_bid: float
         :param spot_bid: dollar amount to bid for spot instances. If None, and on-demand instance
-        will be created
+               will be created
 
-        Additional, role-specific options can be specified. These options augment the options
-        associated with the givem image.
+        :type options: dict
+        :param options: Additional, role-specific options can be specified. These options augment
+               the options associated with the givem image.
         """
+        if launch_group is not None and spot_bid is None:
+            raise UserError( 'Need spot bid for launch group' )
+
         if self.instance_id is not None:
             raise AssertionError( 'Instance already bound or created' )
 
@@ -398,18 +399,16 @@ class Box( object ):
                         security_groups=security_groups,
                         instance_profile_arn=self.get_instance_profile_arn( ) )
         self._populate_instance_spec( image, spec )
-        self.__add_spot_instance_spec( spec, spot_bid )
+        self.__add_spot_instance_spec( spec, spot_bid, launch_group )
         return spec
 
-    def __add_spot_instance_spec( self, spec, spot_bid ):
+    def __add_spot_instance_spec( self, spec, spot_bid, launch_group ):
         if spot_bid is not None:
             assert ec2_instance_types[ spec.instance_type ].spot_availability is True
             spec.placement = self._optimize_spot_bid( spec.instance_type, spot_bid )
             spec.price = spot_bid
-            # FIXME: we have to allow more than one launch group per namespace. The launchgroup
-            # name should be configurable with the default being derived from the role name and
-            # maybe the bid.
-            spec.launch_group = self.ctx.namespace.replace( "/", "" ) + '_launch_group'
+            if launch_group is not None:
+                spec.launch_group = self.ctx.to_aws_name( launch_group )
 
     ZoneTuple = namedtuple( 'ZoneTuple', [ 'name', 'price_deviation' ] )
 
@@ -590,13 +589,16 @@ class Box( object ):
         """
         # There is no min/max count parameter for request_spot_instances, just count
         spec = spec.copy( )
-        spec.count = spec.max_count
         try:
+            spec.count = spec.max_count
             del spec.max_count
             del spec.min_count
         except AttributeError:
             pass
-        requests = self.ctx.ec2.request_spot_instances( self.image_id, **spec )
+        # price is a positional argument, so we need to extract it
+        price = spec.price
+        del spec.price
+        requests = self.ctx.ec2.request_spot_instances( price, self.image_id, **spec )
         # We would use a set but get_all_spot_instance_requests wants a list so its either O(n)
         # for lookup (the rock) or O(n) for converting a set to a list (the hard place).
         request_ids = [ request.id for request in requests ]
@@ -777,7 +779,7 @@ class Box( object ):
         """
         name = self.ctx.to_aws_name( self.role( ) )
         filters = { 'tag:Name': name }
-        for k,v in tags.iteritems():
+        for k, v in tags.iteritems( ):
             if v is not None:
                 filters[ 'tag:' + k ] = v
         reservations = self.ctx.ec2.get_all_instances( filters=filters )

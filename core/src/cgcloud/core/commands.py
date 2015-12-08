@@ -7,17 +7,13 @@ from operator import itemgetter
 import os
 import re
 import sys
-
 from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
-
 from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
-
 from fabric.operations import prompt
-
 from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.util import Application, heredoc
 from cgcloud.lib.context import Context
@@ -425,6 +421,13 @@ class CreationCommand( BoxCommand ):
                      accepted. By default on-demand instances are used. Note that some instance
                      types are not available on the spot market!""" ) )
 
+        self.option( '--launch-group', metavar='NAME',
+                     help=heredoc( """The name of an EC2 spot instance launch group. If
+                     specified, the spot request will only be fullfilled once all instances in
+                     the group can be launched. Furthermore, if any instance in the group needs
+                     to be terminated by Amazon, so will the remaining ones, even if their bid is
+                     higher than the market price.""" ) )
+
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -435,7 +438,7 @@ class CreationCommand( BoxCommand ):
         self.option( '--never-terminate', '-N',
                      default=None, dest='terminate', action='store_false',
                      help=heredoc( """Never terminate the box, even after errors. This may be
-                     useful for post-mortem analysis.""" ) )
+                     useful for a post-mortem diagnosis.""" ) )
 
         self.end_mutex( )
 
@@ -450,7 +453,8 @@ class CreationCommand( BoxCommand ):
         """
         Return dict with instance options to be passed box.create()
         """
-        return dict( spot_bid=options.spot_bid )
+        return dict( spot_bid=options.spot_bid,
+                     launch_group=options.launch_group)
 
     def run_on_box( self, options, box ):
         try:
@@ -473,18 +477,19 @@ class CreationCommand( BoxCommand ):
             else:
                 self.log_ssh_hint( options )
 
+    # noinspection PyUnresolvedReferences
     def log_ssh_hint( self, options ):
         hint = self.ssh_hint( options )
 
         def opt( name, value, default ):
             return name + ' ' + value if value != default else None
 
-        # noinspection PyUnresolvedReferences
-        hint = concat( hint.executable,
-                       hint.command,
-                       (opt( **option ) for option in hint.options),
-                       hint.args )
-        log.info( "Run '%s' to start using this box.", ' '.join( filter( None, hint ) ) )
+        cmd = concat( hint.executable,
+                      hint.command,
+                      (opt( **option ) for option in hint.options),
+                      hint.args )
+        cmd = ' '.join( filter( None, cmd ) )
+        log.info( "Run '%s' to start using this %s.", cmd, hint.object )
 
     def ssh_hint( self, options ):
         x = Expando
@@ -493,7 +498,8 @@ class CreationCommand( BoxCommand ):
                   options=[
                       x( name='-n', value=options.namespace, default=self.default_namespace ),
                       x( name='-z', value=options.availability_zone, default=self.default_zone ) ],
-                  args=[ options.role ] )
+                  args=[ options.role ],
+                  object='box' )
 
 
 class RegisterKeyCommand( ContextCommand ):
