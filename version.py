@@ -5,7 +5,8 @@ fabric_version = '1.10.2'
 
 if __name__ == '__main__':
     import os
-    is_release_build = os.environ.get('is_release_build') == 'true'
+    from pkg_resources import parse_version
+    is_release_build = parse_version(cgcloud_version).is_prerelease
     suffix = '' if is_release_build else '.dev' + os.environ.get( 'BUILD_NUMBER', '0' )
     for name, value in globals().items():
         if name.startswith('cgcloud_'):
