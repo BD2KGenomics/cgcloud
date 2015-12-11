@@ -12,6 +12,7 @@ from subprocess import check_call, check_output, CalledProcessError, call
 import time
 import itertools
 import boto.ec2
+from boto.ec2.instance import Instance
 from bd2k.util import memoize
 from bd2k.util.files import mkdir_p
 from cgcloud.lib.util import volume_label_hash
@@ -72,6 +73,7 @@ class MesosTools( object ):
             self.__wait_for_master_ssh( )
             if self.shared_dir:
                 self._copy_dir_from_master( self.shared_dir )
+            self.__prepare_slave_args( )
 
         self.__restart_docker( )
         log.info( "Starting %s services" % node_type )
@@ -152,13 +154,15 @@ class MesosTools( object ):
             log.info( "I am the master" )
         else:
             log.info( "I am a slave" )
-            reservations = self.ec2.get_all_reservations( instance_ids=[ self.master_id ] )
-            instances = (i for r in reservations for i in r.instances if i.id == self.master_id)
-            master_instance = next( instances )
-            assert next( instances, None ) is None
+            master_instance = self.__get_instance( self.master_id )
             master_ip = master_instance.private_ip_address
         log.info( "Master IP is '%s'", master_ip )
         return master_ip
+
+    @property
+    @memoize
+    def is_spot_instance( self ):
+        return bool( self.__get_instance( instance_id=self.instance_id ).spot_instance_request_id )
 
     def __mount_ebs_volume( self ):
         """
@@ -198,7 +202,7 @@ class MesosTools( object ):
                 check_call( [ 'mkfs', '-t', 'ext4', device ] )
                 check_call( [ 'e2label', device, volume_label ] )
             else:
-                # if the volume is not empty, verify the file system label
+                # If the volume is not empty, verify the file system label
                 actual_label = check_output( [ 'e2label', device ] ).strip( )
                 if actual_label != volume_label:
                     raise AssertionError(
@@ -315,6 +319,16 @@ class MesosTools( object ):
         tags = self.ec2.get_all_tags( filters={ 'resource-id': instance_id, 'key': key } )
         return tags[ 0 ].value if tags else None
 
+    def __get_instance( self, instance_id ):
+        """
+        :rtype: Instance
+        """
+        reservations = self.ec2.get_all_reservations( instance_ids=[ instance_id ] )
+        instances = (i for r in reservations for i in r.instances if i.id == instance_id)
+        instance = next( instances )
+        assert next( instances, None ) is None
+        return instance
+
     def __mount_point( self, device ):
         with open( '/proc/mounts' ) as f:
             for line in f:
@@ -332,3 +346,10 @@ class MesosTools( object ):
             # This should trigger a restart of the dockerbox upstart job
             call( [ 'initctl', 'stop', 'docker' ] )
             check_call( [ 'initctl', 'start', 'docker' ] )
+
+    def __prepare_slave_args( self ):
+        attributes = dict( preemptable=self.is_spot_instance )
+        with open( '/var/lib/mesos/slave_args', 'w' ) as f:
+            if attributes:
+                attributes = ';'.join( '%s:%r' % i for i in attributes.items( ) )
+                f.write( "--attributes='%s'" % attributes )

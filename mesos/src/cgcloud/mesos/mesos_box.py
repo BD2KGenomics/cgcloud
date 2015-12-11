@@ -33,31 +33,28 @@ work_dir = '/var/lib/mesos'
 Service = namedtuple( 'Service', [
     'init_name',
     'description',
-    'start_script',
-    'command',
-    'stop_script' ] )
+    'command' ] )
 
 
 def mesos_service( name, *flags ):
-    command = concat('/usr/sbin/mesos-{name}', '--log_dir={log_dir}/mesos', flags )
+    command = concat( '/usr/sbin/mesos-{name}', '--log_dir={log_dir}/mesos', flags )
     return Service(
         init_name='mesosbox-' + name,
         description=fmt( 'Mesos {name} service' ),
-        start_script='',
-        command=fmt( ' '.join( command ) ),
-        stop_script='' )
+        command=fmt( ' '.join( command ) ) )
 
 
-mesos_services = {
-    'master': [ mesos_service( 'master',
-                               '--registry=in_memory',
-                               # would use "--ip mesos-master" here but that option only supports
-                               # IP addresses, not DNS names or /etc/hosts entries
-                               '--ip_discovery_command="hostname -i"') ],
-    'slave': [ mesos_service( 'slave',
-                              "--master=mesos-master:5050",
-                              "--no-switch_user",
-                              "--work_dir=" + work_dir ) ] }
+mesos_services = dict(
+    master=[ mesos_service( 'master',
+                            '--registry=in_memory',
+                            # would use "--ip mesos-master" here but that option only supports
+                            # IP addresses, not DNS names or /etc/hosts entries
+                            '--ip_discovery_command="hostname -i"' ) ],
+    slave=[ mesos_service( 'slave',
+                           '--master=mesos-master:5050',
+                           '--no-switch_user',
+                           '--work_dir=' + work_dir,
+                           '$(cat /var/lib/mesos/slave_args)' ) ] )
 
 
 class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMesosBox ):

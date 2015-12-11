@@ -13,6 +13,7 @@ import time
 import itertools
 
 import boto.ec2
+from boto.ec2.instance import Instance
 from bd2k.util import memoize
 from bd2k.util.files import mkdir_p
 
@@ -207,13 +208,15 @@ class SparkTools( object ):
             log.info( "I am the master" )
         else:
             log.info( "I am a slave" )
-            reservations = self.ec2.get_all_reservations( instance_ids=[ self.master_id ] )
-            instances = (i for r in reservations for i in r.instances if i.id == self.master_id)
-            master_instance = next( instances )
-            assert next( instances, None ) is None
+            master_instance = self.__get_instance( self.master_id )
             master_ip = master_instance.private_ip_address
         log.info( "Master IP is '%s'", master_ip )
         return master_ip
+
+    @property
+    @memoize
+    def is_spot_instance( self ):
+        return bool( self.__get_instance( instance_id=self.instance_id ).spot_instance_request_id )
 
     def __mount_ebs_volume( self ):
         """
@@ -253,7 +256,7 @@ class SparkTools( object ):
                 check_call( [ 'mkfs', '-t', 'ext4', device ] )
                 check_call( [ 'e2label', device, volume_label ] )
             else:
-                # if the volume is not empty, verify the file system label
+                # If the volume is not empty, verify the file system label
                 actual_label = check_output( [ 'e2label', device ] ).strip( )
                 if actual_label != volume_label:
                     raise AssertionError(
@@ -322,7 +325,8 @@ class SparkTools( object ):
             path += '/'
         for tries in range( 5 ):
             try:
-                check_call( [ sudo, '-u', self.user, 'rsync', '-av', 'spark-master:' + path, path ] )
+                check_call( [ sudo, '-u', self.user,
+                                'rsync', '-av', 'spark-master:' + path, path ] )
             except CalledProcessError as e:
                 log.warn( "rsync returned %i, retrying in 5s", e.returncode )
                 time.sleep( 5 )
@@ -407,6 +411,16 @@ class SparkTools( object ):
         """
         tags = self.ec2.get_all_tags( filters={ 'resource-id': instance_id, 'key': key } )
         return tags[ 0 ].value if tags else None
+
+    def __get_instance( self, instance_id ):
+        """
+        :rtype: Instance
+        """
+        reservations = self.ec2.get_all_reservations( instance_ids=[ instance_id ] )
+        instances = (i for r in reservations for i in r.instances if i.id == instance_id)
+        instance = next( instances )
+        assert next( instances, None ) is None
+        return instance
 
     def __mount_point( self, device ):
         with open( '/proc/mounts' ) as f:
