@@ -1036,12 +1036,8 @@ class Box( object ):
 
     def __wait_ssh_working( self ):
         while True:
-            client = SSHClient( )
             try:
-                client.set_missing_host_key_policy( self.IgnorePolicy( ) )
-                client.connect( hostname=self.ip_address,
-                                username=self.admin_account( ),
-                                timeout=a_short_time )
+                client = self._ssh_client( )
                 stdin, stdout, stderr = client.exec_command( 'echo hi' )
                 try:
                     line = stdout.readline( )
@@ -1062,6 +1058,14 @@ class Box( object ):
             finally:
                 client.close( )
             time.sleep( a_short_time )
+
+    def _ssh_client( self ):
+        client = SSHClient( )
+        client.set_missing_host_key_policy( self.IgnorePolicy( ) )
+        client.connect( hostname=self.ip_address,
+                        username=self.admin_account( ),
+                        timeout=a_short_time )
+        return client
 
     def ssh( self, user=None, command=None ):
         if command is None: command = [ ]
