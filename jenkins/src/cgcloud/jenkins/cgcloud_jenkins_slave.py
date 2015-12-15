@@ -8,7 +8,7 @@ from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSla
 
 class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntuBox ):
     """
-    A Jenkins slave for runing Cgcloud unit tests
+    A Jenkins slave for runing CGCloud's unit tests
     """
 
     @classmethod
@@ -58,12 +58,14 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntu
                       Action=[ "sns:Publish", "sns:CreateTopic" ] ) ] ),
             iam_cgcloud_jenkins_slave=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="*", Action=[
+                    "iam:ListRoles",
                     "iam:CreateRole",
                     "iam:DeleteRole",
                     "iam:ListRolePolicies",
                     "iam:DeleteRolePolicy",
                     "iam:GetRolePolicy",
                     "iam:PutRolePolicy",
+                    "iam:ListInstanceProfiles",
                     "iam:GetInstanceProfile",
                     "iam:CreateInstanceProfile",
                     "iam:DeleteInstanceProfile",
