@@ -1175,13 +1175,15 @@ class Box( object ):
         aws_instance_profile_name = self.ctx.to_aws_name( self.role( ) )
         try:
             profile = self.ctx.iam.get_instance_profile( aws_instance_profile_name )
-            profile = profile.get_instance_profile_response.get_instance_profile_result
         except BotoServerError as e:
             if e.status == 404:
                 profile = self.ctx.iam.create_instance_profile( aws_instance_profile_name )
                 profile = profile.create_instance_profile_response.create_instance_profile_result
             else:
                 raise
+        else:
+            profile = profile.get_instance_profile_response.get_instance_profile_result
+
         profile = profile.instance_profile
         profile_arn = profile.arn
         # Note that Boto does not correctly parse the result from get/create_instance_profile.
