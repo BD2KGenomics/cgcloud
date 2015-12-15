@@ -381,9 +381,8 @@ class Box( object ):
 
         security_groups = self.__setup_security_groups( )
 
-        tags = dict( image.tags )
-        tags.update( options )
-        self._set_instance_options( tags )
+        options = dict( image.tags, **options )
+        self._set_instance_options( options )
 
         self._populate_ec2_keypair_globs( ec2_keypair_globs )
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
