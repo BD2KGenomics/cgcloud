@@ -46,10 +46,10 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
         Jenkins slave.
         """
         kwargs = dict(
-            user=Jenkins.user,
-            dir=build_dir,
-            ephemeral=self._ephemeral_mount_point( 0 ),
-            pubkey=self.__get_master_pubkey( ).strip( ) )
+                user=Jenkins.user,
+                dir=build_dir,
+                ephemeral=self._ephemeral_mount_point( 0 ),
+                pubkey=self.__get_master_pubkey( ).strip( ) )
 
         # Create the build user
         #
@@ -71,7 +71,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
         if sudo( 'test -d {ephemeral}'.format( **kwargs ), quiet=True ).failed:
             sudo( 'mkdir {ephemeral}'.format( **kwargs ) )
         chown_cmd = "mount {ephemeral} || true ; chown -R {user}:{user} {ephemeral}".format(
-            **kwargs )
+                **kwargs )
         # chown ephemeral storage now ...
         sudo( chown_cmd )
         # ... and every time instance boots. Note that command must work when set -e is in effect.
@@ -128,8 +128,10 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                   E.iamInstanceProfile( self.get_instance_profile_arn( ) ),
                   E.instanceCap( '1' ),
                   E.stopOnTerminate( 'false' ),
-                  E.tags(
+                  E.tags( *[
                       E( 'hudson.plugins.ec2.EC2Tag',
-                         E.name( 'Name' ),
-                         E.value( self.ctx.to_aws_name( self.role( ) ) ) ) ),
+                         E.name( k ),
+                         E.value( v ) )
+                      for k, v in self._get_instance_options( ).iteritems( )
+                      if v is not None ] ),
                   E.usePrivateDnsName( 'false' ) )

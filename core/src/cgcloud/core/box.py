@@ -13,6 +13,7 @@ import threading
 import time
 import datetime
 from bd2k.util.collections import OrderedSet
+from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
 from boto import logging
@@ -380,9 +381,8 @@ class Box( object ):
 
         security_groups = self.__setup_security_groups( )
 
-        tags = dict( image.tags )
-        tags.update( options )
-        self._set_instance_options( tags )
+        options = dict( image.tags, **options )
+        self._set_instance_options( options )
 
         self._populate_ec2_keypair_globs( ec2_keypair_globs )
         ec2_keypairs = self.ctx.expand_keypair_globs( ec2_keypair_globs )
@@ -603,28 +603,41 @@ class Box( object ):
         # for lookup (the rock) or O(n) for converting a set to a list (the hard place).
         request_ids = [ request.id for request in requests ]
         instance_ids = [ ]
+
+        def spot_request_not_found( e ):
+            error_code = 'InvalidSpotInstanceRequestID.NotFound'
+            return isinstance( e, EC2ResponseError ) and e.error_code == error_code
+
         # noinspection PyBroadException
         try:
-            while True:
-                for request in self.ctx.ec2.get_all_spot_instance_requests( request_ids ):
-                    if request.status.code == 'fulfilled':
-                        request_ids.remove( request.id )
-                        instance_ids.append( request.instance_id )
-                if request_ids:
-                    spot_sleep = 30
-                    log.info( '%d spot market requests still pending. Waiting for %ds',
-                              len( request_ids ), spot_sleep )
-                    time.sleep( spot_sleep )
-                else:
-                    log.info( 'All spot market requests have been fulfilled.' )
-                    return self.ctx.ec2.get_all_instances( instance_ids )
+            try:
+                while True:
+                    for attempt in retry_ec2( retry_while=spot_request_not_found ):
+                        with attempt:
+                            requests = self.ctx.ec2.get_all_spot_instance_requests( request_ids )
+                            for request in requests:
+                                if request.status.code == 'fulfilled':
+                                    log.info( 'Request %s was fulfilled.', request.id )
+                                    request_ids.remove( request.id )
+                                    instance_ids.append( request.instance_id )
+                    if request_ids:
+                        spot_sleep = 30
+                        log.info( '%d spot market requests still pending. Waiting for %ds',
+                                  len( request_ids ), spot_sleep )
+                        time.sleep( spot_sleep )
+                    else:
+                        log.info( 'All spot market requests have been fulfilled.' )
+                        return self.ctx.ec2.get_all_instances( instance_ids )
+            except:
+                with panic( log ):
+                    if instance_ids:
+                        log.warn( 'Terminating instances for already fulfilled requests.' )
+                        self.ctx.ec2.terminate_instances( instance_ids )
         except:
-            log.warn( 'Terminating running instances from partially fulfilled spot request.' )
-            if instance_ids:
-                self.ctx.ec2.terminate_instances( instance_ids )
-        finally:
-            if request_ids:
-                self.ctx.ec2.cancel_spot_instance_requests( request_ids )
+            with panic( log ):
+                if request_ids:
+                    log.warn( 'Cancelling remaining spot requests.' )
+                    self.ctx.ec2.cancel_spot_instance_requests( request_ids )
 
     def _create_ondemand_instances( self, spec ):
         """
@@ -1022,12 +1035,9 @@ class Box( object ):
 
     def __wait_ssh_working( self ):
         while True:
-            client = SSHClient( )
+            client = None
             try:
-                client.set_missing_host_key_policy( self.IgnorePolicy( ) )
-                client.connect( hostname=self.ip_address,
-                                username=self.admin_account( ),
-                                timeout=a_short_time )
+                client = self._ssh_client( )
                 stdin, stdout, stderr = client.exec_command( 'echo hi' )
                 try:
                     line = stdout.readline( )
@@ -1046,8 +1056,17 @@ class Box( object ):
             except Exception as e:
                 logging.info( e )
             finally:
-                client.close( )
+                if client is not None:
+                    client.close( )
             time.sleep( a_short_time )
+
+    def _ssh_client( self ):
+        client = SSHClient( )
+        client.set_missing_host_key_policy( self.IgnorePolicy( ) )
+        client.connect( hostname=self.ip_address,
+                        username=self.admin_account( ),
+                        timeout=a_short_time )
+        return client
 
     def ssh( self, user=None, command=None ):
         if command is None: command = [ ]
@@ -1158,13 +1177,15 @@ class Box( object ):
         aws_instance_profile_name = self.ctx.to_aws_name( self.role( ) )
         try:
             profile = self.ctx.iam.get_instance_profile( aws_instance_profile_name )
-            profile = profile.get_instance_profile_response.get_instance_profile_result
         except BotoServerError as e:
             if e.status == 404:
                 profile = self.ctx.iam.create_instance_profile( aws_instance_profile_name )
                 profile = profile.create_instance_profile_response.create_instance_profile_result
             else:
                 raise
+        else:
+            profile = profile.get_instance_profile_response.get_instance_profile_result
+
         profile = profile.instance_profile
         profile_arn = profile.arn
         # Note that Boto does not correctly parse the result from get/create_instance_profile.

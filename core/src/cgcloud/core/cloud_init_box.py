@@ -1,13 +1,19 @@
-from abc import abstractmethod
+import logging
+import time
 from StringIO import StringIO
+from abc import abstractmethod
+from functools import partial
 
-from fabric.context_managers import hide
-from fabric.operations import run, put
+import paramiko
 import yaml
+from fabric.operations import put
+from paramiko import Channel
 
 from cgcloud.core.box import Box, fabric_task
 from cgcloud.core.instance_type import ec2_instance_types
 from cgcloud.lib.util import heredoc
+
+log = logging.getLogger( __name__ )
 
 
 class CloudInitBox( Box ):
@@ -70,7 +76,7 @@ class CloudInitBox( Box ):
         #
         mounts = user_data.setdefault( 'mounts', [ ] )
         mounts.append(
-            [ 'ephemeral0', self._ephemeral_mount_point( 0 ), 'auto', 'defaults,noauto' ] )
+                [ 'ephemeral0', self._ephemeral_mount_point( 0 ), 'auto', 'defaults,noauto' ] )
 
         commands = [ ]
 
@@ -168,7 +174,6 @@ class CloudInitBox( Box ):
                     #!/bin/sh
                     touch /tmp/cloud-init.done""" ) ) )
 
-    @fabric_task
     def __wait_for_cloud_init_completion( self ):
         """
         Wait for cloud-init to finish its job such as to avoid getting in its way. Without this,
@@ -177,16 +182,60 @@ class CloudInitBox( Box ):
         Since this method belongs to a mixin, the author of a derived class is responsible for
         invoking this method before any other setup action.
         """
-        #
         # /var/lib/cloud/instance/boot-finished is only being written by newer cloud-init releases.
         # For example, it isn't being written by the cloud-init for Lucid. We must use our own file
         # created by a runcmd, see _populate_cloud_config()
         #
-        with hide( 'running' ):
-            run( ';'.join( [
-                'echo -n "Waiting for cloud-init to finish ..."',
-                'while [ ! -e /tmp/cloud-init.done ]',
-                'do echo -n "."',
-                'sleep 1 ',
-                'done ',
-                'echo ", done."' ] ), )
+        # This function is called on every node in a cluster during that cluster's creation. For
+        # that reason we want to avoid contention on the lock in @fabric_task that's protecting
+        # the thread-unsafe Fabric code. This contention is aggravated by the fact that,
+        # for some unkown reason, the first SSH connection to a node takes unusually long. With a
+        # lock serialising all calls to this method we have to wait for the delay for every node
+        # in sequence, in O(N) time. Paramiko, OTOH, is thread-safe allowing us to do the wait
+        # in concurrently, in O(1) time.
+
+        command = ';'.join( [
+            'echo -n "Waiting for cloud-init to finish ..."',
+            'while [ ! -e /tmp/cloud-init.done ]',
+            'do echo -n "."',
+            'sleep 1 ',
+            'done ',
+            'echo "... cloud-init done."' ] )
+
+        self._run( command )
+
+    def _run( self, cmd ):
+        def stream( name, recv_ready, recv, logger ):
+            i = 0
+            r = ''
+            try:
+                while recv_ready( ):
+                    s = recv( 1024 )
+                    if not s: break
+                    i += 1
+                    ls = s.splitlines( )
+                    # Prepend partial line from previous iteration to first line from this
+                    # iteration. Note that the first line may be a partial line, too.
+                    ls[ 0 ] = r + ls[ 0 ]
+                    # Log all complete lines
+                    for l in ls[ :-1 ]:
+                        logger( "%s: %s", name, l )
+                    r = ls[ -1 ]
+            finally:
+                # No chance to complete the partial line anytime soon, so log it.
+                if r: logger( r )
+            return i
+
+        client = self._ssh_client( )
+        try:
+            with client.get_transport( ).open_session( ) as chan:
+                assert isinstance( chan, Channel )
+                chan.exec_command( cmd )
+                streams = (
+                    partial( stream, 'stderr', chan.recv_stderr_ready, chan.recv_stderr, log.warn ),
+                    partial( stream, 'stdout', chan.recv_ready, chan.recv, log.info ))
+                while sum( stream( ) for stream in streams ) or not chan.exit_status_ready( ):
+                    time.sleep( paramiko.common.io_sleep )
+                assert 0 == chan.recv_exit_status( )
+        finally:
+            client.close( )

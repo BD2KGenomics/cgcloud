@@ -1,1 +1,3 @@
 include version.py
+# http://bugs.python.org/issue12885 (I think)
+include ./version.py
