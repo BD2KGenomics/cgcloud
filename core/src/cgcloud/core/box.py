@@ -1035,6 +1035,7 @@ class Box( object ):
 
     def __wait_ssh_working( self ):
         while True:
+            client = None
             try:
                 client = self._ssh_client( )
                 stdin, stdout, stderr = client.exec_command( 'echo hi' )
@@ -1055,7 +1056,8 @@ class Box( object ):
             except Exception as e:
                 logging.info( e )
             finally:
-                client.close( )
+                if client is not None:
+                    client.close( )
             time.sleep( a_short_time )
 
     def _ssh_client( self ):
