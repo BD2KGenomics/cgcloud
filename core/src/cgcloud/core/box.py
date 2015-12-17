@@ -253,9 +253,9 @@ class Box( object ):
         name = self.ctx.to_aws_name( self._security_group_name( ) )
         try:
             sg = self.ctx.ec2.create_security_group(
-                name=name,
-                description="Security group for box of role %s in namespace %s" % (
-                    self.role( ), self.ctx.namespace) )
+                    name=name,
+                    description="Security group for box of role %s in namespace %s" % (
+                        self.role( ), self.ctx.namespace) )
         except EC2ResponseError as e:
             if e.error_code == 'InvalidGroup.Duplicate':
                 sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
@@ -331,8 +331,8 @@ class Box( object ):
             image = self.__select_image( image_ref )
             if image.virtualization_type not in virtualization_types:
                 raise RuntimeError(
-                    "Role and type support virtualization types %s but image only supports %s" % (
-                        virtualization_types, image.virtualization_type) )
+                        "Role and type support virtualization types %s but image only supports %s" % (
+                            virtualization_types, image.virtualization_type) )
             return image
 
     def prepare( self, ec2_keypair_globs,
@@ -776,8 +776,8 @@ class Box( object ):
         role, instances = self.__list_instances( cluster_name=cluster_name )
         if not instances:
             raise UserError(
-                "No instance performing role '%s'" % role if cluster_name is None
-                else "No instance performing role '%s' in cluster '%s'" % (role, cluster_name) )
+                    "No instance performing role '%s'" % role if cluster_name is None
+                    else "No instance performing role '%s' in cluster '%s'" % (role, cluster_name) )
         if ordinal is None:
             if len( instances ) > 1:
                 raise UserError( "More than one instance performing role '%s'. Please specify an "
@@ -811,9 +811,9 @@ class Box( object ):
         timestamp = time.strftime( '%Y-%m-%d_%H-%M-%S' )
         image_name = self.ctx.to_aws_name( self._image_name_prefix( ) + "_" + timestamp )
         image_id = self.ctx.ec2.create_image(
-            instance_id=self.instance_id,
-            name=image_name,
-            block_device_mapping=self._image_block_device_mapping( ) )
+                instance_id=self.instance_id,
+                name=image_name,
+                block_device_mapping=self._image_block_device_mapping( ) )
         while True:
             try:
                 image = self.ctx.ec2.get_image( image_id )
@@ -1295,11 +1295,11 @@ class Box( object ):
                                                                        private_key_path )
                 else:
                     raise UserError(
-                        "The key pair {ec2_keypair.name} is registered in EC2 but the "
-                        "corresponding private key file {private_key_path} does not exist on the "
-                        "instance. In order to create the private key file, the key pair must be "
-                        "created at the same time. Please delete the key pair from EC2 before "
-                        "retrying.".format( **locals( ) ) )
+                            "The key pair {ec2_keypair.name} is registered in EC2 but the "
+                            "corresponding private key file {private_key_path} does not exist on the "
+                            "instance. In order to create the private key file, the key pair must be "
+                            "created at the same time. Please delete the key pair from EC2 before "
+                            "retrying.".format( **locals( ) ) )
 
         # Store public key
         put( local_path=StringIO( ssh_pubkey ), remote_path=private_key_path + '.pub' )
@@ -1333,10 +1333,10 @@ class Box( object ):
         fingerprint = ec2_keypair_fingerprint( ssh_privkey )
         if ec2_keypair.fingerprint != fingerprint:
             raise UserError(
-                "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} doesn't "
-                "match the fingerprint {fingerprint} of the private key file currently present on "
-                "the instance. Please delete the key pair from EC2 before retrying. "
-                    .format( **locals( ) ) )
+                    "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} doesn't "
+                    "match the fingerprint {fingerprint} of the private key file currently present on "
+                    "the instance. Please delete the key pair from EC2 before retrying. "
+                        .format( **locals( ) ) )
         ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
         if ssh_pubkey != private_to_public_key( ssh_privkey ):
             raise RuntimeError( "The private key on the data volume doesn't match the "

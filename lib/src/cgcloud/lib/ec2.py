@@ -101,8 +101,7 @@ def retry_ec2( retry_after=a_short_time,
                 yield
             except EC2ResponseError as e:
                 if time.time( ) + retry_after < expiration and retry_while( e ):
-                    log.info(
-                        '... got %s, trying again in %is ...' % ( e.error_code, retry_after ) )
+                    log.info( '... got %s, trying again in %is ...', e.error_code, retry_after )
                     time.sleep( retry_after )
                 else:
                     raise
@@ -183,13 +182,14 @@ class EC2VolumeHelper( object ):
         expected_zone = self.availability_zone
         if self.volume.zone != expected_zone:
             raise UserError( "Availability zone of EBS volume %s is %s but should be %s."
-                             % (self.name, self.volume.zone, expected_zone ) )
+                             % (self.name, self.volume.zone, expected_zone) )
 
 
-class UnexpectedResourceState(Exception):
-    def __init__(self, resource, to_state, state):
-        super(UnexpectedResourceState, self).__init__("Expected state of %s to be '%s' but got '%s'" %
-                                                      (resource, to_state, state ) )
+class UnexpectedResourceState( Exception ):
+    def __init__( self, resource, to_state, state ):
+        super( UnexpectedResourceState, self ).__init__(
+                "Expected state of %s to be '%s' but got '%s'" %
+                (resource, to_state, state) )
 
 
 def wait_transition( resource, from_states, to_state, state_getter=attrgetter( 'state' ) ):
@@ -213,10 +213,11 @@ def wait_transition( resource, from_states, to_state, state_getter=attrgetter( '
     if state != to_state:
         raise UnexpectedResourceState( resource, to_state, state )
 
-def running_on_ec2():
+
+def running_on_ec2( ):
     try:
         with open( '/sys/hypervisor/uuid' ) as f:
-            return f.read(3) == 'ec2'
+            return f.read( 3 ) == 'ec2'
     except IOError as e:
         if e.errno == errno.ENOENT:
             return False
