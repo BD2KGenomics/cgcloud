@@ -121,7 +121,7 @@ _check_venv:
 .PHONY: _check_nose
 _check_nose: _check_venv
 	$(python) -c 'import nose' \
-		|| ( echo "$(red)A virtualenv must be active.$(normal)" ; false )
+		|| ( echo "$(red)The 'nose' package must be installed.$(normal)" ; false )
 
 
 .PHONY: _check_clean_working_copy
