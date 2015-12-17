@@ -8,14 +8,14 @@ import unittest
 from bd2k.util.exceptions import panic
 
 from cgcloud.mesos.test import MesosTestCase
-from cgcloud.toil.toil_box import ToilLeader, ToilLatestBox
+from cgcloud.toil.toil_box import ToilLeader, ToilBox
 from cgcloud.toil.toil_box import ToilWorker
 
 log = logging.getLogger( __name__ )
 
 leader = ToilLeader.role( )
 worker = ToilWorker.role( )
-node = ToilLatestBox.role( )
+node = ToilBox.role( )
 
 num_workers = 2
 
