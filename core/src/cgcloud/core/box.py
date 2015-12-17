@@ -26,7 +26,7 @@ from fabric.operations import sudo, run, get, put
 from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
-from cgcloud.core.instance_type import ec2_instance_types
+from cgcloud.lib.ec2 import ec2_instance_types, wait_for_spot_instances
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition

@@ -14,7 +14,7 @@ from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
 from boto.ec2.group import Group
 from fabric.operations import prompt
-from cgcloud.core.instance_type import ec2_instance_types
+from cgcloud.lib.ec2 import ec2_instance_types
 from cgcloud.lib.util import Application, heredoc
 from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, Command

@@ -10,7 +10,7 @@ from fabric.operations import put
 from paramiko import Channel
 
 from cgcloud.core.box import Box, fabric_task
-from cgcloud.core.instance_type import ec2_instance_types
+from cgcloud.lib.ec2 import ec2_instance_types
 from cgcloud.lib.util import heredoc
 
 log = logging.getLogger( __name__ )
