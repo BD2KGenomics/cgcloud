@@ -58,6 +58,14 @@ $(foreach project,$(develop_projects),$(eval $(call _develop,$(project))))
 .PHONY: develop
 develop: $(foreach project,$(develop_projects),develop_$(project))
 
+# Mirrors the intra-project dependencies declared in each setup.py
+
+develop_agent: develop_lib
+develop_core: develop_lib
+develop_jenkins: develop_lib develop_core
+develop_mesos: develop_lib develop_core
+develop_spark: develop_lib develop_core
+develop_toil: develop_lib develop_core develop_mesos
 
 define _sdist
 .PHONY: sdist_$1
