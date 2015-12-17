@@ -1,9 +1,10 @@
-from inspect import getsource
 import logging
 import os
 import tempfile
-from textwrap import dedent
+import time
 import unittest
+from inspect import getsource
+from textwrap import dedent
 
 from bd2k.util.exceptions import panic
 
@@ -98,9 +99,11 @@ class ToilClusterTests( MesosTestCase ):
 
         body = dedent( '\n'.join( getsource( hello_world ).split( '\n' )[ 1: ] ) )
         self._send_file( leader, body, script )
-        job_store = os.environ[ 'CGCLOUD_NAMESPACE' ]
-        assert job_store[ 0 ] == '/' == job_store[ -1 ]
-        job_store = job_store[ 1:-1 ].replace( '/', '-' ) + '-toil-job-store'
+
+        def hex64( x ):
+            return hex( int( x ) )[ 2: ].zfill( 8 )
+        # Could use UUID but prefer historical ordering. Time in s plus PID is sufficiently unique.
+        job_store = 'test-%s%s-toil-job-store' % (hex64( time.time( ) ), hex64( os.getpid( ) ))
         job_store = ':'.join( ('aws', self.ctx.region, job_store) )
         self._ssh( leader, 'toil', 'clean', job_store )
         try:
