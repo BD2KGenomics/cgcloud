@@ -58,6 +58,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
     def __install_parasol( self ):
         run( "git clone git@github.com:BD2KGenomics/parasol-binaries.git" )
         sudo( "cp parasol-binaries/* /usr/local/bin" )
+        run( "rm -rf parasol-binaries" )
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
