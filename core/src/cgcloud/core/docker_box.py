@@ -49,7 +49,7 @@ class DockerBox( UbuntuBox ):
 
     def _post_install_packages( self ):
         super( DockerBox, self )._post_install_packages( )
-        self.__setup_docker( )
+        self._setup_docker( )
 
     def _docker_users( self ):
         return [ self.admin_account( ) ]
@@ -58,7 +58,7 @@ class DockerBox( UbuntuBox ):
         return [ self._ephemeral_mount_point( 0 ) ]
 
     @fabric_task
-    def __setup_docker( self ):
+    def _setup_docker( self ):
         for docker_user in set( self._docker_users( ) ):
             sudo( "usermod -aG docker " + docker_user )
         prefixes = self._docker_data_prefixes( )

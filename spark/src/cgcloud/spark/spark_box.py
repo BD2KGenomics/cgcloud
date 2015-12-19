@@ -366,8 +366,8 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
             heredoc( """
                 description "Spark/HDFS master discovery"
                 console log
-                start on runlevel [2345]
-                stop on runlevel [016]
+                start on (local-filesystems and net-device-up IFACE!=lo)
+                stop on runlevel [!2345]
                 pre-start script
                 {tools_dir}/bin/python2.7 - <<END
                 import logging

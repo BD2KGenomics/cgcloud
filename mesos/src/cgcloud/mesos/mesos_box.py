@@ -187,8 +187,8 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
             heredoc( """
                 description "Mesos master discovery"
                 console log
-                start on runlevel [2345]
-                stop on runlevel [016]
+                start on (local-filesystems and net-device-up IFACE!=lo)
+                stop on runlevel [!2345]
                 pre-start script
                 {tools_dir}/bin/python2.7 - <<END
                 import logging
@@ -232,22 +232,20 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
     def __register_upstart_jobs( self, service_map ):
         for node_type, services in service_map.iteritems( ):
             start_on = "mesosbox-start-" + node_type
-            # FIXME: Include chdir to logging directory in this script
             for service in services:
                 self._register_init_script(
                     service.init_name,
                     heredoc( """
                         description "{service.description}"
                         console log
+                        start on {start_on}
+                        stop on runlevel [016]
                         respawn
                         umask 022
                         limit nofile 8000 8192
                         setuid {user}
                         setgid {user}
                         env USER={user}
-                        env PYTHONPATH=/home/ubuntu/
-                        start on {start_on}
-                        stop on runlevel [016]
                         exec {service.command}""" ) )
                 start_on = "started " + service.init_name
 
