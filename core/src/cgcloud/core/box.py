@@ -1,34 +1,35 @@
+import datetime
+import socket
+import subprocess
+import threading
+import time
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
+from collections import namedtuple
 from contextlib import closing, contextmanager
 from copy import copy
 from functools import partial, wraps
 from itertools import count, chain
 from operator import attrgetter
-from collections import namedtuple
 from pipes import quote
-import socket
-import subprocess
-import threading
-import time
-import datetime
+
 from bd2k.util.collections import OrderedSet
-from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
 from boto import logging
-from boto.exception import BotoServerError, EC2ResponseError
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
-from boto.ec2.spotpricehistory import SpotPriceHistory
 from boto.ec2.instance import Reservation
+from boto.ec2.spotpricehistory import SpotPriceHistory
+from boto.exception import BotoServerError, EC2ResponseError
+from fabric.api import execute
 from fabric.context_managers import settings
 from fabric.operations import sudo, run, get, put
-from fabric.api import execute
 from paramiko import SSHClient
 from paramiko.client import MissingHostKeyPolicy
-from cgcloud.lib.ec2 import ec2_instance_types, wait_for_spot_instances
+
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
+from cgcloud.lib.ec2 import ec2_instance_types, wait_for_spot_instances
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
 from cgcloud.lib.util import (UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint,
                               private_to_public_key, mean, std_dev)
