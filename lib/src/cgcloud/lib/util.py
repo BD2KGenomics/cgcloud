@@ -1,18 +1,22 @@
-from StringIO import StringIO
-from abc import ABCMeta, abstractmethod
 import argparse
 import base64
 import hashlib
 import logging
-from math import sqrt
+import multiprocessing
+import multiprocessing.pool
 import os
 import re
-import sys
 import struct
+import subprocess
+import sys
+from StringIO import StringIO
+from abc import ABCMeta, abstractmethod
+from collections import Sequence
+from contextlib import contextmanager
+from math import sqrt
 from textwrap import dedent
 
 from bd2k.util.strings import interpolate
-import subprocess
 
 log = logging.getLogger( __name__ )
 
@@ -54,9 +58,7 @@ def unpack_singleton( singleton ):
 
 def mean( xs ):
     """
-    from http://rosettacode.org/wiki/Standard_deviation#Python
-    :param listOfNums:
-    :return: Floating point representation of the average of listOfNums
+    Return the mean value of a sequence of values.
 
     >>> mean([2,4,4,4,5,5,7,9])
     5.0
@@ -255,7 +257,9 @@ class Application( object ):
         super( Application, self ).__init__( )
         self.args = None
         self.parser = argparse.ArgumentParser( formatter_class=ArgParseHelpFormatter )
+        # noinspection PyProtectedMember
         self.parser._positionals.title = 'Commands'
+        # noinspection PyProtectedMember
         self.parser._optionals.title = 'Global options'
         self.subparsers = self.parser.add_subparsers( help='Application commands',
                                                       dest='command_name' )
@@ -335,15 +339,18 @@ class Command( object ):
         if not 'description' in kwargs:
             kwargs[ 'description' ] = doc
         self.parser = application.subparsers.add_parser(
-            self.name( ),
-            formatter_class=ArgParseHelpFormatter,
-            **kwargs )
+                self.name( ),
+                formatter_class=ArgParseHelpFormatter,
+                **kwargs )
+        # noinspection PyProtectedMember
         self.parser._positionals.title = 'Command arguments'
+        # noinspection PyProtectedMember
         self.parser._optionals.title = 'Command options'
         self.group = None
 
     def option( self, *args, **kwargs ):
         target = self.parser if self.group is None else self.group
+        # noinspection PyProtectedMember
         self.application._option( target, args, kwargs )
 
     def name( self ):
@@ -359,7 +366,7 @@ class Command( object ):
         >>> FooBarCommand(app).name()
         'foo-bar'
         """
-        return abreviated_snake_case_class_name( self.__class__, Command )
+        return abreviated_snake_case_class_name( type( self ), Command )
 
     def begin_mutex( self, **kwargs ):
         self.group = self.parser.add_mutually_exclusive_group( **kwargs )
@@ -370,7 +377,7 @@ class Command( object ):
 
 class ArgParseHelpFormatter( argparse.ArgumentDefaultsHelpFormatter ):
     try:
-        with open(os.devnull, 'a') as devnull:
+        with open( os.devnull, 'a' ) as devnull:
             rows, columns = map( int, subprocess.check_output( [ 'stty', 'size' ],
                                                                stderr=devnull ).split( ) )
     except:
@@ -662,3 +669,99 @@ def heredoc( s, indent=None ):
     if indent is not None:
         s = prefix_lines( s, indent )
     return interpolate( s, skip_frames=1 )
+
+
+@contextmanager
+def thread_pool( size ):
+    """
+    A context manager that yields a thread pool of the given size. On normal closing,
+    this context manager closes the pool and joins all threads in it. On exceptions, the pool
+    will be terminated but threads won't be joined.
+    """
+    pool = multiprocessing.pool.ThreadPool( processes=size )
+    try:
+        yield pool
+    except:
+        pool.terminate( )
+        raise
+    else:
+        pool.close( )
+        pool.join( )
+
+
+def pmap( f, seq, pool_size=None ):
+    """
+    Apply the given function to each element of the given sequence and return a sequence of the
+    result of each function application. Do so in parallel, using a thread pool no larger than
+    the given size.
+
+    :param callable f: the function to be applied
+
+    :param Sequence seq: the input sequence
+
+    :param int pool_size: the desired pool size, if absent the default pool size will be used
+
+    >>> pmap( lambda (a, b): a + b, [] )
+    []
+    >>> pmap( lambda (a, b): a + b, [ (1, 2) ] )
+    [3]
+    >>> pmap( lambda (a, b): a + b, [ (1, 2), (3, 4) ] )
+    [3, 7]
+    >>> pmap( lambda a, b: a + b, [ (1, 2), (3, 4) ] )
+    Traceback (most recent call last):
+    ...
+    TypeError: <lambda>() takes exactly 2 arguments (1 given)
+    """
+    if pool_size is None:
+        pool_size = default_pool_size( len( seq ) )
+    with thread_pool( pool_size ) as pool:
+        return pool.map( f, seq )
+
+
+def papply( f, seq, pool_size=None, callback=None ):
+    """
+    Apply the given function to each element of the given sequence, optionally invoking the given
+    callback with the result of each application. Do so in parallel, using a thread pool no
+    larger than the given size.
+
+    :param callable f: the function to be applied
+
+    :param Sequence seq: the input sequence
+
+    :param int pool_size: the desired pool size, if absent the default pool size will be used
+
+    :param callable callback: an optional function to be invoked with the return value of f
+
+    >>> l=[]; papply( lambda a, b: a + b, [], 1, callback=l.append ); l
+    []
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2) ], 1, callback=l.append); l
+    [3]
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], 1, callback=l.append ); l
+    [3, 7]
+    """
+    if pool_size is None:
+        pool_size = default_pool_size( len( seq ) )
+    if pool_size == 1:
+        for args in seq:
+            result = apply( f, args )
+            if callback is not None:
+                callback( result )
+    else:
+        with thread_pool( pool_size ) as pool:
+            for args in seq:
+                pool.apply_async( f, args, callback=callback )
+
+
+def default_pool_size( num_tasks, min_tasks_per_thread=8 ):
+    """
+    Return the default size of a thread pool for performing a given number of tasks.
+
+    :param int num_tasks: the number of tasks to be performed by threads in the pool
+
+    :param int min_tasks_per_thread: the minimum number of tasks performed by each thread
+
+    :rtype: int
+    """
+    return max( 1,
+                min( num_tasks / min_tasks_per_thread,
+                     multiprocessing.cpu_count( ) * min_tasks_per_thread ) )

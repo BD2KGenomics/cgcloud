@@ -1,14 +1,12 @@
 import logging
-import multiprocessing
-import multiprocessing.pool
 from abc import ABCMeta, abstractproperty
-from contextlib import contextmanager
 from copy import copy
 
 from bd2k.util.iterables import concat
 
 from cgcloud.core.box import Box
-from cgcloud.lib.util import abreviated_snake_case_class_name
+from cgcloud.lib.util import (abreviated_snake_case_class_name, papply, thread_pool,
+                              default_pool_size)
 
 log = logging.getLogger( __name__ )
 
@@ -165,7 +163,7 @@ class ClusterLeader( ClusterBox ):
         spec = first_worker.prepare( *args, **kwargs )
         spec.min_count = num_workers
         spec.max_count = num_workers
-        with thread_pool( size=default_pool_size( num_workers ) ) as pool:
+        with thread_pool( default_pool_size( num_workers ) ) as pool:
             first_worker.create( spec,
                                  wait_ready=wait_ready,
                                  cluster_ordinal=self.cluster_ordinal + 1,
@@ -192,61 +190,3 @@ class ClusterWorker( ClusterBox ):
         return dict( super( ClusterWorker, self )._get_instance_options( ),
                      leader_instance_id=self.leader_instance_id,
                      cluster_name=self.cluster_name or self.leader_instance_id )
-
-
-@contextmanager
-def thread_pool( size ):
-    pool = multiprocessing.pool.ThreadPool( processes=size )
-    try:
-        yield pool
-    except:
-        pool.terminate( )
-        raise
-    else:
-        pool.close( )
-        pool.join( )
-
-
-def pmap( f, seq, pool_size=None ):
-    """
-    >>> pmap( lambda (a, b): a + b, [] )
-    []
-    >>> pmap( lambda (a, b): a + b, [ (1, 2) ] )
-    [3]
-    >>> pmap( lambda (a, b): a + b, [ (1, 2), (3, 4) ] )
-    [3, 7]
-    >>> pmap( lambda a, b: a + b, [ (1, 2), (3, 4) ] )
-    Traceback (most recent call last):
-    ...
-    TypeError: <lambda>() takes exactly 2 arguments (1 given)
-    """
-    if pool_size is None:
-        pool_size = default_pool_size( len( seq ) )
-    with thread_pool( pool_size ) as pool:
-        return pool.map( f, seq )
-
-
-def papply( f, seq, pool_size=None, callback=None ):
-    """
-    >>> l=[]; papply( lambda a, b: a + b, [], 1, callback=l.append ); l
-    []
-    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2) ], 1, callback=l.append); l
-    [3]
-    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], 1, callback=l.append ); l
-    [3, 7]
-    """
-    if pool_size is None:
-        pool_size = default_pool_size( len( seq ) )
-    if pool_size == 1:
-        for args in seq:
-            result = apply( f, args )
-            if callback is not None:
-                callback( result )
-    else:
-        with thread_pool( pool_size ) as pool:
-            for args in seq:
-                pool.apply_async( f, args, callback=callback )
-
-
-def default_pool_size( num_tasks ):
-    return max( 1, min( num_tasks, multiprocessing.cpu_count( ) * 10 ) )
