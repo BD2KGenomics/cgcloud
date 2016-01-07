@@ -341,9 +341,8 @@ Customization
 =============
 
 CGCloud can be customized via plugins. A plugin is a Python module or package
-containing two functions:
+containing two functions::
 
-:: 
    def roles():
       """
       Return a list of roles, each role being a concrete subclass of 
