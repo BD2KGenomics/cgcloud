@@ -106,6 +106,25 @@ following contents::
    aws_access_key_id = PASTE_YOUR_ACCESS_KEY_ID_HERE
    aws_secret_access_key = PASTE_YOUR_SECRET_ACCESS_KEY_HERE
    
+
+The ``~/.boto`` file is being deprecated. Consider using ``~/.aws/credentials``
+instead. It is supported by various AWS SDKs and allows for easily switching
+between different AWS accounts (profiles)::
+
+    [foo]
+    aws_access_key_id=PASTE_YOUR_FOO_ACCESS_KEY_ID_HERE
+    aws_secret_access_key=PASTE_YOUR_FOO_SECRET_KEY_ID_HERE
+    region=us-west-2
+
+    [bar]
+    aws_access_key_id=PASTE_YOUR_BAR_ACCESS_KEY_ID_HERE
+    aws_secret_access_key=PASTE_YOUR_BAR_SECRET_KEY_ID_HERE
+    region=us-west-2
+
+To choose an active profile, set the ``AWS_PROFILE`` environment variable::
+
+    export AWS_PROFILE=foo
+
 .. _access key: http://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSGettingStartedGuide/AWSCredentials.html
 
 EC2 region and availability zone

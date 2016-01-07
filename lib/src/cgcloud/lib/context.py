@@ -585,9 +585,10 @@ class Context( object ):
             if not me:
                 raise UserError(
                     "Can't determine current IAM user name. Be sure to put valid AWS credentials "
-                    "in ~/.boto. For details, refer to %s. On an EC2 instance that is authorized "
-                    "via IAM roles, you can set the CGCLOUD_ME environment variable (uncommon)."
-                    % 'http://boto.readthedocs.org/en/latest/boto_config_tut.html' )
+                    "in ~/.boto or ~/.aws/credentials. For details, refer to %s. On an EC2 "
+                    "instance that is authorized via IAM roles, you can set the CGCLOUD_ME "
+                    "environment variable (uncommon)." %
+                    'http://boto.readthedocs.org/en/latest/boto_config_tut.html' )
             if drop_hostname:
                 me = self.drop_hostname( me )
             return s.replace( placeholder, me )
