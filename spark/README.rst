@@ -60,7 +60,7 @@ cgcloud-spark``, try running ``pip install --pre cgcloud-spark``.
 
 Be sure to configure_ ``cgcloud-core`` before proceeding.
 
-.. _configure: https://github.com/BD2KGenomics/cgcloud-core#configuration
+.. _configure: ../core/README.rst#configuration
 
 Configuration
 =============
