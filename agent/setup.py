@@ -28,4 +28,5 @@ setup(
         'cgcloud-lib==' + cgcloud_version,
         'boto==' + boto_version,
         'python-daemon==2.0.6',
-        'argparse==1.4.0' if sys.version_info < (2, 7) else None ] ) )
+        'argparse==1.4.0' if sys.version_info < (2, 7) else None,
+        'psutil>=2.2.1'] ) )

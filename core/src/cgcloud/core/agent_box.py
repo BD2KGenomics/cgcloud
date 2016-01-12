@@ -144,7 +144,12 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
                         "sns:Get*",
                         "sns:List*",
                         "sns:CreateTopic",
-                        "sns:Subscribe" ] ) ] ) ) )
+                        "sns:Subscribe"] ) ] ),
+                cloud_watch=dict( Version='2012-10-17', Statement=[
+                    dict( Effect='Allow', Resource='*', Action=[
+                        'cloudwatch:Get*',
+                        'cloudwatch:List*',
+                        'cloudwatch:PutMetricData'] ) ] ) ) )
         return role_name, policies
 
     @staticmethod
