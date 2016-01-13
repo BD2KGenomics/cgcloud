@@ -24,7 +24,7 @@ Features
  
  * Lets you create a Mesos cluster of any number of Nodes
  
- * Will soon support running the Spark and Mesos workers on the spot market
+ * Supports running Spark, Mesos and Toil workers on the spot market
  
  * Is easily extensible via a simple plugin architecture
  
