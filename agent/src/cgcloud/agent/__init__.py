@@ -4,13 +4,19 @@ import errno
 import os
 import tempfile
 import pwd
+import threading
 
 from boto.sqs.message import RawMessage
 from bd2k.util.throttle import LocalThrottle
+import time
 
 from cgcloud.lib.context import Context
 from cgcloud.lib.message import Message, UnknownVersion
 from cgcloud.lib.util import UserError
+from psutil import virtual_memory, disk_usage, disk_partitions
+from boto.ec2 import cloudwatch
+from boto.utils import get_instance_metadata
+
 
 log = logging.getLogger( __name__ )
 
@@ -38,12 +44,47 @@ class Agent( object ):
         self.queue.set_message_class( RawMessage )
         self.ctx.sns.subscribe_sqs_queue( ctx.agent_topic_arn, self.queue )
 
+    @staticmethod
+    def collect_and_send_metric_data():
+        """
+        Collects memory and disk usage as percentages via psutil and adds them as Cloudwatch metrics.
+        Any "3" type instance assumes ephemeral (/mnt/ephemeral) is primary storage.
+        Metrics are updated every 5 minutes under the 'AWS/EC2' Namespace.
+
+        Resource    Metric Name
+        --------    -----------
+        Memory      MemUsage
+        Disk        DiskUsage_root or DiskUsage_mount_point
+        """
+        metadata = get_instance_metadata()
+        instance_id = metadata['instance-id']
+        region = metadata['placement']['availability-zone'][0:-1]
+        while True:
+            # Memory
+            memory_percent = virtual_memory().percent
+            metrics = {'MemUsage': memory_percent}
+            # Disk
+            for partition in disk_partitions():
+                mountpoint = partition.mountpoint
+                if mountpoint == '/':
+                    metrics['DiskUsage_root'] = disk_usage(mountpoint).percent
+                else:
+                    metrics['DiskUsage' + mountpoint.replace('/', '_')] = disk_usage(mountpoint).percent
+            cw = cloudwatch.connect_to_region(region)
+            cw.put_metric_data('CGCloud', metrics.keys(), metrics.values(),
+                               unit='Percent', dimensions={"InstanceId": instance_id})
+            time.sleep(300)
+
     def run( self ):
         throttle = LocalThrottle( min_interval=self.options.interval )
         # First call always returns immediately
         throttle.throttle( )
         # Always update keys initially
         self.update_ssh_keys( )
+        # Invoke metric collection thread
+        t = threading.Thread(target=self.collect_and_send_metric_data)
+        t.daemon = True
+        t.start()
         while True:
             # Do 'long' (20s) polling for messages
             messages = self.queue.get_messages( num_messages=10,  # the maximum permitted
