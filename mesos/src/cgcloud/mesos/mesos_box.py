@@ -211,12 +211,17 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
     @fabric_task
     def _lazy_mkdir( self, parent, name, persistent=False ):
         """
-        __lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
+        _lazy_mkdir( '/foo', 'dir', True ) creates /foo/dir now and ensures that
         /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
         Likewise, __lazy_mkdir( '/foo', 'dir', False) creates /foo/dir now and ensures that
         /mnt/ephemeral/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+
         Note that at start-up time, /mnt/persistent may be reassigned  to /mnt/ephemeral if no
         EBS volume is mounted at /mnt/persistent.
+
+        _lazy_mkdir( '/foo', 'dir', None ) will look up an instance tag named 'persist_foo_dir'
+        when the box starts and then behave like _lazy_mkdir( '/foo', 'dir', True ) if that tag's
+        value is 'True', or _lazy_mkdir( '/foo', 'dir', False ) if that tag's value is False.
         """
         assert self.lazy_dirs is not None
         assert '/' not in name

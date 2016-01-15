@@ -1,24 +1,24 @@
-import logging
-import re
-import os
 import errno
 import fcntl
-from grp import getgrnam
-from pwd import getpwnam
+import itertools
+import logging
+import os
+import re
 import socket
 import stat
-from urllib2 import urlopen
-from subprocess import check_call, check_output, CalledProcessError
 import time
-import itertools
+from grp import getgrnam
+from pwd import getpwnam
+from subprocess import check_call, check_output, CalledProcessError
+from urllib2 import urlopen
 
 import boto.ec2
-from boto.ec2.instance import Instance
-from bd2k.util import memoize
+from bd2k.util import memoize, less_strict_bool
 from bd2k.util.files import mkdir_p
+from boto.ec2.instance import Instance
 
-from cgcloud.lib.util import volume_label_hash
 from cgcloud.lib.ec2 import EC2VolumeHelper
+from cgcloud.lib.util import volume_label_hash
 
 initctl = '/sbin/initctl'
 
@@ -293,11 +293,14 @@ class MesosTools( object ):
         log.info( "Bind-mounting directory structure" )
         for (parent, name, persistent) in self.lazy_dirs:
             assert parent[ 0 ] == os.path.sep
+            logical_path = os.path.join( parent, name )
+            if persistent is None:
+                tag = 'persist' + logical_path.replace( os.path.sep, '_' )
+                persistent = less_strict_bool( self.__get_instance_tag( self.instance_id, tag ) )
             location = self.persistent_dir if persistent else self.ephemeral_dir
             physical_path = os.path.join( location, parent[ 1: ], name )
             mkdir_p( physical_path )
             os.chown( physical_path, self.uid, self.gid )
-            logical_path = os.path.join( parent, name )
             check_call( [ 'mount', '--bind', physical_path, logical_path ] )
 
     def __patch_etc_hosts( self, hosts ):

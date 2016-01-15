@@ -1,5 +1,6 @@
 import logging
 
+from bd2k.util import strict_bool
 from bd2k.util.iterables import concat
 
 from cgcloud.core.box import fabric_task
@@ -55,6 +56,15 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
                  limit nofile 524288 1048576
                  limit nproc 524288 1048576""" ) )
 
+    @classmethod
+    def get_role_options( cls ):
+        return super( ToilBox, cls ).get_role_options( ) + [
+            cls.RoleOption( name='persist_var_lib_toil',
+                            type=strict_bool,
+                            repr=repr,
+                            inherited=True,
+                            help='True if /var/lib/toil should be persistent.' ) ]
+
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilBox, self )._get_iam_ec2_role( )
         role_name += '--' + abreviated_snake_case_class_name( ToilBox )
@@ -74,7 +84,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
         pip( 'install --upgrade pip', use_sudo=True )
         pip( 'install --pre s3am', use_sudo=True )
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
-        self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
+        self._lazy_mkdir( '/var/lib', 'toil', persistent=None )
 
     def _toil_pip_args( self ):
         return [ 'toil[aws,mesos,encryption]==3.1.1' ]

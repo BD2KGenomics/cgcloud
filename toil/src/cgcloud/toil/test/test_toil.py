@@ -102,6 +102,7 @@ class ToilClusterTests( MesosTestCase ):
 
         def hex64( x ):
             return hex( int( x ) )[ 2: ].zfill( 8 )
+
         # Could use UUID but prefer historical ordering. Time in s plus PID is sufficiently unique.
         job_store = 'test-%s%s-toil-job-store' % (hex64( time.time( ) ), hex64( os.getpid( ) ))
         job_store = ':'.join( ('aws', self.ctx.region, job_store) )
@@ -117,20 +118,29 @@ class ToilClusterTests( MesosTestCase ):
 
     def test_persistence( self ):
         """
-        Check that /var/lib/docker is on the persistent volume
+        Check that /var/lib/docker is on the persistent volume and that /var/lib/toil can be
+        switched between ephemeral and persistent.
         """
         volume_size_gb = 1
-        self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
+        self._create_cluster( '--ebs-volume-size', str( volume_size_gb ),
+                              '-O', 'persist_var_lib_toil=True' )
         try:
             try:
                 self._wait_for_workers( )
                 self._ssh( worker, 'sudo touch /var/lib/docker/foo', admin=True )
+                self._ssh( worker, 'touch /var/lib/toil/bar' )
+                # Ensure both files are on the same device (/mnt/persistent)
+                self._ssh( worker, "test $(stat -c '%d' /var/lib/docker/foo) == $(stat -c '%d' /var/lib/toil/bar)" )
             finally:
                 self._terminate_cluster( )
-            self._create_cluster( '--ebs-volume-size', str( volume_size_gb ) )
+            self._create_cluster( '--ebs-volume-size', str( volume_size_gb ),
+                                  '-O', 'persist_var_lib_toil=False' )
             try:
                 self._wait_for_workers( )
                 self._ssh( worker, 'sudo test -f /var/lib/docker/foo', admin=True )
+                self._ssh( worker, 'touch /var/lib/toil/bar' )
+                # Ensure both files are on different devices (/mnt/persistent)
+                self._ssh( worker, "test $(stat -c '%d' /var/lib/docker/foo) != $(stat -c '%d' /var/lib/toil/bar)" )
             finally:
                 if self.cleanup:
                     self._terminate_cluster( )
