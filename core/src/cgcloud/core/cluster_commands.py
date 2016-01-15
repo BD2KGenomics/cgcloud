@@ -79,8 +79,8 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
                      help=heredoc( """Additional options to pass to ssh when uploading the files
                      shared via rsync. For more detail refer to cgcloud rsync --help""" ) )
 
-    def instance_options( self, options ):
-        return dict( super( CreateClusterCommand, self ).instance_options( options ),
+    def instance_options( self, options, box ):
+        return dict( super( CreateClusterCommand, self ).instance_options( options, box ),
                      cluster_name=options.cluster_name,
                      leader_on_demand=options.leader_on_demand,
                      ebs_volume_size=options.ebs_volume_size )

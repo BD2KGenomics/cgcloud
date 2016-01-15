@@ -36,7 +36,8 @@ def command_classes( ):
                                        RegisterKeyCommand,
                                        CleanupCommand,
                                        UpdateInstanceProfile,
-                                       ResetSecurityCommand)
+                                       ResetSecurityCommand,
+                                       ListOptionsCommand)
     from cgcloud.core.cluster_commands import (CreateClusterCommand,
                                                StartClusterCommand,
                                                StopClusterCommand,

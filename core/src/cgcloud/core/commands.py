@@ -291,8 +291,8 @@ class ShowCommand( InstanceCommand ):
         for k, v in sorted( d.iteritems( ), key=itemgetter( 0 ) ):
             k = str( k )
             if k[ 0:1 ] != '_' \
-                    and k != 'connection' \
-                    and not isinstance( v, EC2Connection ):
+                and k != 'connection' \
+                and not isinstance( v, EC2Connection ):
                 sys.stdout.write( '\n%s%s: ' % ('\t' * depth, k) )
                 if isinstance( v, str ):
                     sys.stdout.write( v.strip( ) )
@@ -303,7 +303,7 @@ class ShowCommand( InstanceCommand ):
                 elif hasattr( v, '__iter__' ):
                     self.print_dict( dict( enumerate( v ) ), visited, depth + 1 )
                 elif isinstance( v, BlockDeviceType ) \
-                        or isinstance( v, Group ):
+                    or isinstance( v, Group ):
                     self.print_object( v, visited, depth + 1 )
                 else:
                     sys.stdout.write( repr( v ) )
@@ -428,6 +428,22 @@ class CreationCommand( BoxCommand ):
                      to be terminated by Amazon, so will the remaining ones, even if their bid is
                      higher than the market price.""" ) )
 
+        option_name_re = re.compile( r'^[A-Za-z][0-9A-Za-z_]*$' )
+
+        def option( o ):
+            l = o.split( '=', 1 )
+            if len( l ) != 2:
+                raise ValueError( "An option must be of the form NAME=VALUE. '%s' is not." % o )
+            k, v = l
+            if not option_name_re.match( k ):
+                raise ValueError( "An option name must start with a letter and contain only "
+                                  "letters, digits and underscore. '%s' does not." % o )
+            return k, v
+
+        self.option( '--option', '-O', metavar='NAME=VALUE',
+                     type=option, action='append', default=[ ], dest='role_options',
+                     help=heredoc( """"Set a role-specific option for the instance.""" ) )
+
         self.begin_mutex( )
 
         self.option( '--terminate', '-T',
@@ -449,12 +465,18 @@ class CreationCommand( BoxCommand ):
         """
         raise NotImplementedError( )
 
-    def instance_options( self, options ):
+    def instance_options( self, options, box ):
         """
         Return dict with instance options to be passed box.create()
         """
-        return dict( spot_bid=options.spot_bid,
-                     launch_group=options.launch_group)
+        role_options = box.get_role_options( )
+        supported_options = set( option.name for option in role_options )
+        actual_options = set( name for name, value in options.role_options )
+        for name in actual_options - supported_options:
+            raise UserError( "Options %s not supported by role '%s'." % (name, box.role( )) )
+        return dict( options.role_options,
+                     spot_bid=options.spot_bid,
+                     launch_group=options.launch_group )
 
     def run_on_box( self, options, box ):
         try:
@@ -462,7 +484,7 @@ class CreationCommand( BoxCommand ):
             spec = box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
                                 instance_type=options.instance_type,
                                 virtualization_type=options.virtualization_type,
-                                **self.instance_options( options ) )
+                                **self.instance_options( options, box ) )
             box.create( spec, wait_ready=True )
             self.run_on_creation( box, options )
         except:
@@ -641,8 +663,8 @@ class RecreateCommand( ImageReferenceCommand, CreationCommand ):
     long_image_option = '--boot-image'
     short_image_option = '-i'
 
-    def instance_options( self, options ):
-        return dict( super( RecreateCommand, self ).instance_options( options ),
+    def instance_options( self, options, box ):
+        return dict( super( RecreateCommand, self ).instance_options( options, box ),
                      image_ref=options.boot_image )
 
     def run_on_creation( self, box, options ):
@@ -676,8 +698,8 @@ class CreateCommand( CreationCommand ):
                      packages up to date, i.e. do what on Ubuntu is achieved by doing 'sudo
                      apt-get update ; sudo apt-get upgrade'.""" ) )
 
-    def instance_options( self, options ):
-        return dict( super( CreateCommand, self ).instance_options( options ),
+    def instance_options( self, options, box ):
+        return dict( super( CreateCommand, self ).instance_options( options, box ),
                      image_ref=options.boot_image,
                      enable_agent=not options.no_agent )
 
@@ -688,6 +710,16 @@ class CreateCommand( CreationCommand ):
             box.image( )
             if options.terminate is not True:
                 box.start( )
+
+
+class ListOptionsCommand( RoleCommand ):
+    def run_on_role( self, options, ctx, role ):
+        role_options = role.get_role_options( )
+        if role_options:
+            for option in role_options:
+                print( "{name}: {help}".format( **option.to_dict( ) ) )
+        else:
+            print( 'The role %s does not define any options' % role.role( ) )
 
 
 class CleanupCommand( ContextCommand ):

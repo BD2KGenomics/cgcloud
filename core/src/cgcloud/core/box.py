@@ -206,6 +206,9 @@ class Box( object ):
         # into the instance'
         self.ec2_keypair_globs = None
 
+        # Set by bind() and prepare()
+        self.role_options = { }
+
     possible_root_devices = ('/dev/sda1', '/dev/sda', '/dev/xvda')
 
     # FIXME: this can probably be rolled into prepare()
@@ -254,9 +257,9 @@ class Box( object ):
         name = self.ctx.to_aws_name( self._security_group_name( ) )
         try:
             sg = self.ctx.ec2.create_security_group(
-                    name=name,
-                    description="Security group for box of role %s in namespace %s" % (
-                        self.role( ), self.ctx.namespace) )
+                name=name,
+                description="Security group for box of role %s in namespace %s" % (
+                    self.role( ), self.ctx.namespace) )
         except EC2ResponseError as e:
             if e.error_code == 'InvalidGroup.Duplicate':
                 sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
@@ -332,8 +335,8 @@ class Box( object ):
             image = self.__select_image( image_ref )
             if image.virtualization_type not in virtualization_types:
                 raise RuntimeError(
-                        "Role and type support virtualization types %s but image only supports %s" % (
-                            virtualization_types, image.virtualization_type) )
+                    "Role and type support virtualization types %s but image only supports %s" % (
+                        virtualization_types, image.virtualization_type) )
             return image
 
     def prepare( self, ec2_keypair_globs,
@@ -644,23 +647,67 @@ class Box( object ):
         self.generation = int( options.get( 'generation' ) or 0 )
         self.cluster_ordinal = int( options.get( 'cluster_ordinal' ) or 0 )
         self.cluster_name = options.get( 'cluster_name' )
+        for option in self.get_role_options( ):
+            value = options.get( option.name )
+            if value is not None:
+                self.role_options[ option.name ] = option.type( value )
 
     def _get_instance_options( self ):
         """
         Return a dictionary specifying the tags an instance of this role should be tagged with.
         Keys and values should be strings.
         """
-        return dict( Name=(self.ctx.to_aws_name( self.role( ) )),
-                     generation=str( self.generation ),
-                     cluster_ordinal=str( self.cluster_ordinal ),
-                     cluster_name=self.cluster_name or self.instance_id )
+        options = dict( Name=self.ctx.to_aws_name( self.role( ) ),
+                        generation=str( self.generation ),
+                        cluster_ordinal=str( self.cluster_ordinal ),
+                        cluster_name=self.cluster_name or self.instance_id )
+        for option in self.get_role_options( ):
+            value = self.role_options.get( option.name )
+            if value is not None:
+                options[ option.name ] = option.repr( value )
+        return options
 
     def _get_image_options( self ):
         """
         Return a dictionary specifying the tags an image of an instance of this role should be
         tagged with. Keys and values should be strings.
         """
-        return dict( generation=str( self.generation + 1 ) )
+        options = dict( generation=str( self.generation + 1 ) )
+        for option in self.get_role_options( ):
+            if option.inherited:
+                value = self.role_options.get( option.name )
+                if value is not None:
+                    options[ option.name ] = option.repr( value )
+        return options
+
+    class RoleOption( namedtuple( "_RoleOption", 'name type repr help inherited' ) ):
+        """
+        Describes a role option, i.e. an instance option that is specific to boxes of a
+        particular role. Name is the name of the option, type is a function converting an option
+        value from a string to the option's native type, repr is the inverse of type, help is a
+        help text describing the option and inherited is a boolean controlling whether the option
+        is inherited by images created from an instance.
+        """
+
+        def to_dict( self ):
+            return self._asdict( )
+
+        def type( self, value ):
+            try:
+                # noinspection PyUnresolvedReferences
+                return super( Box.RoleOption, self ).type( value )
+            except ValueError as e:
+                raise UserError(
+                    "'%s' is not a valid value for option %s" % (value, self.name) )
+
+    @classmethod
+    def get_role_options( cls ):
+        """
+        Return a list of RoleOption objects, one for each supported option supported by this role.
+
+        :rtype: list[Box.RoleOption]
+        """
+        return [ ]
 
     def _tag_object_persistently( self, tagged_ec2_object, tags_dict ):
         """
@@ -777,8 +824,8 @@ class Box( object ):
         role, instances = self.__list_instances( cluster_name=cluster_name )
         if not instances:
             raise UserError(
-                    "No instance performing role '%s'" % role if cluster_name is None
-                    else "No instance performing role '%s' in cluster '%s'" % (role, cluster_name) )
+                "No instance performing role '%s'" % role if cluster_name is None
+                else "No instance performing role '%s' in cluster '%s'" % (role, cluster_name) )
         if ordinal is None:
             if len( instances ) > 1:
                 raise UserError( "More than one instance performing role '%s'. Please specify an "
@@ -812,9 +859,9 @@ class Box( object ):
         timestamp = time.strftime( '%Y-%m-%d_%H-%M-%S' )
         image_name = self.ctx.to_aws_name( self._image_name_prefix( ) + "_" + timestamp )
         image_id = self.ctx.ec2.create_image(
-                instance_id=self.instance_id,
-                name=image_name,
-                block_device_mapping=self._image_block_device_mapping( ) )
+            instance_id=self.instance_id,
+            name=image_name,
+            block_device_mapping=self._image_block_device_mapping( ) )
         while True:
             try:
                 image = self.ctx.ec2.get_image( image_id )
@@ -1223,8 +1270,8 @@ class Box( object ):
                 # It is safe to retry this indefinitely because a snapshot can only be
                 # referenced by one AMI. See also https://github.com/boto/boto/issues/3019.
                 for attempt in retry_ec2(
-                        retry_for=a_long_time if wait else 0,
-                        retry_while=lambda e: e.error_code == 'InvalidSnapshot.InUse' ):
+                    retry_for=a_long_time if wait else 0,
+                    retry_while=lambda e: e.error_code == 'InvalidSnapshot.InUse' ):
                     with attempt:
                         self.ctx.ec2.delete_snapshot( snapshot_id )
                 return
@@ -1296,11 +1343,11 @@ class Box( object ):
                                                                        private_key_path )
                 else:
                     raise UserError(
-                            "The key pair {ec2_keypair.name} is registered in EC2 but the "
-                            "corresponding private key file {private_key_path} does not exist on the "
-                            "instance. In order to create the private key file, the key pair must be "
-                            "created at the same time. Please delete the key pair from EC2 before "
-                            "retrying.".format( **locals( ) ) )
+                        "The key pair {ec2_keypair.name} is registered in EC2 but the "
+                        "corresponding private key file {private_key_path} does not exist on the "
+                        "instance. In order to create the private key file, the key pair must be "
+                        "created at the same time. Please delete the key pair from EC2 before "
+                        "retrying.".format( **locals( ) ) )
 
         # Store public key
         put( local_path=StringIO( ssh_pubkey ), remote_path=private_key_path + '.pub' )
@@ -1334,10 +1381,10 @@ class Box( object ):
         fingerprint = ec2_keypair_fingerprint( ssh_privkey )
         if ec2_keypair.fingerprint != fingerprint:
             raise UserError(
-                    "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} doesn't "
-                    "match the fingerprint {fingerprint} of the private key file currently present on "
-                    "the instance. Please delete the key pair from EC2 before retrying. "
-                        .format( **locals( ) ) )
+                "The fingerprint {ec2_keypair.fingerprint} of key pair {ec2_keypair.name} doesn't "
+                "match the fingerprint {fingerprint} of the private key file currently present on "
+                "the instance. Please delete the key pair from EC2 before retrying. "
+                    .format( **locals( ) ) )
         ssh_pubkey = self.ctx.download_ssh_pubkey( ec2_keypair )
         if ssh_pubkey != private_to_public_key( ssh_privkey ):
             raise RuntimeError( "The private key on the data volume doesn't match the "
