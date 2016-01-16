@@ -442,7 +442,8 @@ class CreationCommand( BoxCommand ):
 
         self.option( '--option', '-O', metavar='NAME=VALUE',
                      type=option, action='append', default=[ ], dest='role_options',
-                     help=heredoc( """"Set a role-specific option for the instance.""" ) )
+                     help=heredoc( """Set a role-specific option for the instance. To see a list
+                     of options for a role, use the list-options command.""" ) )
 
         self.begin_mutex( )
 
