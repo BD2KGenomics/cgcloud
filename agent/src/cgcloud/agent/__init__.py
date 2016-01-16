@@ -13,10 +13,6 @@ import time
 from cgcloud.lib.context import Context
 from cgcloud.lib.message import Message, UnknownVersion
 from cgcloud.lib.util import UserError
-from psutil import virtual_memory, disk_usage, disk_partitions
-from boto.ec2 import cloudwatch
-from boto.utils import get_instance_metadata
-
 
 log = logging.getLogger( __name__ )
 
@@ -50,10 +46,7 @@ class Agent( object ):
         throttle.throttle( )
         # Always update keys initially
         self.update_ssh_keys( )
-        # Invoke metric collection thread
-        t = threading.Thread(target=self.collect_and_send_metric_data)
-        t.daemon = True
-        t.start()
+        self.start_metric_thread( )
         while True:
             # Do 'long' (20s) polling for messages
             messages = self.queue.get_messages( num_messages=10,  # the maximum permitted
@@ -128,7 +121,7 @@ class Agent( object ):
                         raise
                 if local_ssh_keys != ssh_keys:
                     with self.make_file( authorized_keys_path, 00644, pw.pw_uid,
-                                        pw.pw_gid ) as authorized_keys:
+                                         pw.pw_gid ) as authorized_keys:
                         authorized_keys.writelines( ssh_key + '\n' for ssh_key in ssh_keys )
             self.fingerprints = fingerprints
 
@@ -139,34 +132,51 @@ class Agent( object ):
             log.warn( 'Exception while downloading SSH public key from S3.', exc_info=True )
             return None
 
-    @staticmethod
-    def collect_and_send_metric_data():
+    def start_metric_thread( self ):
+        try:
+            import psutil
+        except ImportError:
+            pass
+        else:
+            t = threading.Thread( target=self.metric_thread )
+            t.daemon = True
+            t.start( )
+
+    def metric_thread( self ):
         """
-        Collects memory and disk usage as percentages via psutil and adds them as Cloudwatch metrics.
-        Any "3" type instance assumes ephemeral (/mnt/ephemeral) is primary storage.
+        Collects memory and disk usage as percentages via psutil and adds them as Cloudwatch
+        metrics. Any "3" type instance assumes ephemeral (/mnt/ephemeral) is primary storage.
         Metrics are updated every 5 minutes under the 'AWS/EC2' Namespace.
 
         Resource    Metric Name
         --------    -----------
         Memory      MemUsage
-        Disk        DiskUsage_root or DiskUsage_mount_point
+        Disk        DiskUsage_root or DiskUsage_<mount_point>
         """
-        metadata = get_instance_metadata()
-        instance_id = metadata['instance-id']
-        region = metadata['placement']['availability-zone'][0:-1]
+        import psutil
+        from boto.ec2 import cloudwatch
+        from boto.utils import get_instance_metadata
+        metadata = get_instance_metadata( )
+        instance_id = metadata[ 'instance-id' ]
+        region = metadata[ 'placement' ][ 'availability-zone' ][ 0:-1 ]
         while True:
-            # Memory
-            memory_percent = virtual_memory().percent
-            metrics = {'MemUsage': memory_percent}
-            # Disk
-            for partition in disk_partitions():
+            # Collect memory metrics
+            memory_percent = psutil.virtual_memory( ).percent
+            metrics = { 'MemUsage': memory_percent }
+            # Collect disk metrics
+            for partition in psutil.disk_partitions( ):
                 mountpoint = partition.mountpoint
                 if mountpoint == '/':
-                    metrics['DiskUsage_root'] = disk_usage(mountpoint).percent
+                    metrics[ 'DiskUsage_root' ] = psutil.disk_usage( mountpoint ).percent
                 else:
-                    metrics['DiskUsage' + mountpoint.replace('/', '_')] = disk_usage(mountpoint).percent
-            cw = cloudwatch.connect_to_region(region)
-            cw.put_metric_data('CGCloud', metrics.keys(), metrics.values(),
-                               unit='Percent', dimensions={"InstanceId": instance_id})
-            time.sleep(300)
-
+                    metrics[ 'DiskUsage' + mountpoint.replace( '/', '_' ) ] = psutil.disk_usage(
+                        mountpoint ).percent
+            # Send metrics
+            cw = cloudwatch.connect_to_region( region )
+            try:
+                cw.put_metric_data( 'CGCloud', metrics.keys( ), metrics.values( ),
+                                    unit='Percent', dimensions={ "InstanceId": instance_id } )
+            finally:
+                cw.close( )
+            cw = None
+            time.sleep( 300 )

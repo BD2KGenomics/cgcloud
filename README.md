@@ -28,6 +28,9 @@ Features
  
  * Is easily extensible via a simple plugin architecture
  
+ * VMs created by CGCloud optionally report memory and disk utilization as 
+   custom CloudWatch metrics
+ 
 So what does it not offer? What are its limitations? First and foremost, it is
 strictly tied to AWS and EC2. Other cloud providers are not supported and
 probably will not be in the near future. It does not have a GUI. It is written

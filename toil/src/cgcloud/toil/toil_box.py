@@ -56,6 +56,9 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
                  limit nofile 524288 1048576
                  limit nproc 524288 1048576""" ) )
 
+    def _enable_agent_metrics( self ):
+        return True
+
     @classmethod
     def get_role_options( cls ):
         return super( ToilBox, cls ).get_role_options( ) + [

@@ -80,6 +80,14 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
         if self.enable_agent:
             self.__setup_agent( )
 
+    def _enable_agent_metrics( self ):
+        """
+        Overide this in a subclass to enable reporting of additional CloudWatch metrics like disk
+        space and memory. The metric collection requires the psutil package which in turn
+        requires a compiler and Python headers to be installed.
+        """
+        return False
+
     def __setup_agent( self ):
         availability_zone = self.ctx.availability_zone
         namespace = self.ctx.namespace
@@ -102,11 +110,15 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
         run( fmt( '{install_dir}/bin/easy_install pip==1.5.2' ) )
 
         with settings( forward_agent=True ):
+            venv_pip = install_dir + '/bin/pip'
+            if self._enable_agent_metrics( ):
+                pip( path=venv_pip, args='install psutil==3.4.1' )
             with self._project_artifacts( 'agent' ) as artifacts:
-                pip( path=install_dir + '/bin/pip',
+                pip( path=venv_pip,
                      args=concat( 'install',
                                   '--allow-external', 'argparse',  # needed on CentOS 5 and 6
                                   artifacts ) )
+
         sudo( fmt( 'mkdir {run_dir}' ) )
         script = self.__gunzip_base64_decode( run( fmt(
             '{install_dir}/bin/cgcloudagent'
@@ -144,12 +156,12 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
                         "sns:Get*",
                         "sns:List*",
                         "sns:CreateTopic",
-                        "sns:Subscribe"] ) ] ),
+                        "sns:Subscribe" ] ) ] ),
                 cloud_watch=dict( Version='2012-10-17', Statement=[
                     dict( Effect='Allow', Resource='*', Action=[
                         'cloudwatch:Get*',
                         'cloudwatch:List*',
-                        'cloudwatch:PutMetricData'] ) ] ) ) )
+                        'cloudwatch:PutMetricData' ] ) ] ) ) )
         return role_name, policies
 
     @staticmethod
