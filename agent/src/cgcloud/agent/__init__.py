@@ -44,37 +44,6 @@ class Agent( object ):
         self.queue.set_message_class( RawMessage )
         self.ctx.sns.subscribe_sqs_queue( ctx.agent_topic_arn, self.queue )
 
-    @staticmethod
-    def collect_and_send_metric_data():
-        """
-        Collects memory and disk usage as percentages via psutil and adds them as Cloudwatch metrics.
-        Any "3" type instance assumes ephemeral (/mnt/ephemeral) is primary storage.
-        Metrics are updated every 5 minutes under the 'AWS/EC2' Namespace.
-
-        Resource    Metric Name
-        --------    -----------
-        Memory      MemUsage
-        Disk        DiskUsage_root or DiskUsage_mount_point
-        """
-        metadata = get_instance_metadata()
-        instance_id = metadata['instance-id']
-        region = metadata['placement']['availability-zone'][0:-1]
-        while True:
-            # Memory
-            memory_percent = virtual_memory().percent
-            metrics = {'MemUsage': memory_percent}
-            # Disk
-            for partition in disk_partitions():
-                mountpoint = partition.mountpoint
-                if mountpoint == '/':
-                    metrics['DiskUsage_root'] = disk_usage(mountpoint).percent
-                else:
-                    metrics['DiskUsage' + mountpoint.replace('/', '_')] = disk_usage(mountpoint).percent
-            cw = cloudwatch.connect_to_region(region)
-            cw.put_metric_data('CGCloud', metrics.keys(), metrics.values(),
-                               unit='Percent', dimensions={"InstanceId": instance_id})
-            time.sleep(300)
-
     def run( self ):
         throttle = LocalThrottle( min_interval=self.options.interval )
         # First call always returns immediately
@@ -169,4 +138,35 @@ class Agent( object ):
         except UserError:
             log.warn( 'Exception while downloading SSH public key from S3.', exc_info=True )
             return None
+
+    @staticmethod
+    def collect_and_send_metric_data():
+        """
+        Collects memory and disk usage as percentages via psutil and adds them as Cloudwatch metrics.
+        Any "3" type instance assumes ephemeral (/mnt/ephemeral) is primary storage.
+        Metrics are updated every 5 minutes under the 'AWS/EC2' Namespace.
+
+        Resource    Metric Name
+        --------    -----------
+        Memory      MemUsage
+        Disk        DiskUsage_root or DiskUsage_mount_point
+        """
+        metadata = get_instance_metadata()
+        instance_id = metadata['instance-id']
+        region = metadata['placement']['availability-zone'][0:-1]
+        while True:
+            # Memory
+            memory_percent = virtual_memory().percent
+            metrics = {'MemUsage': memory_percent}
+            # Disk
+            for partition in disk_partitions():
+                mountpoint = partition.mountpoint
+                if mountpoint == '/':
+                    metrics['DiskUsage_root'] = disk_usage(mountpoint).percent
+                else:
+                    metrics['DiskUsage' + mountpoint.replace('/', '_')] = disk_usage(mountpoint).percent
+            cw = cloudwatch.connect_to_region(region)
+            cw.put_metric_data('CGCloud', metrics.keys(), metrics.values(),
+                               unit='Percent', dimensions={"InstanceId": instance_id})
+            time.sleep(300)
 
