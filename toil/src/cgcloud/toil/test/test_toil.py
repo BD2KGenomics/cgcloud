@@ -116,11 +116,10 @@ class ToilClusterTests( MesosTestCase ):
             with panic( ):
                 self._ssh( leader, 'toil', 'clean', job_store )
 
+
     def test_persistence( self ):
-        """
-        Check that /var/lib/docker is on the persistent volume and that /var/lib/toil can be
-        switched between ephemeral and persistent.
-        """
+        # Check that /var/lib/docker is on the persistent volume and that /var/lib/toil can be
+        # switched between ephemeral and persistent. [ Would use docstring but confuses pytest ]
         volume_size_gb = 1
         self._create_cluster( '--ebs-volume-size', str( volume_size_gb ),
                               '-O', 'persist_var_lib_toil=True' )
