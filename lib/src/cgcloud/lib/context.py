@@ -555,6 +555,7 @@ class Context( object ):
         try:
             return self.iam.get_user( ).user_name
         except:
+            log.error( "IAMConnection.get_user() failed.", exc_info=True )
             return None
 
     current_user_placeholder = '__me__'
