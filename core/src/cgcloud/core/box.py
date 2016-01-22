@@ -508,7 +508,8 @@ class Box( object ):
         >>> # noinspection PyProtectedMember
         >>> Box._check_spot_bid( 0.1, spot_data )
         >>> # noinspection PyProtectedMember
-        >>> Box._check_spot_bid( 2, spot_data )
+
+        # >>> Box._check_spot_bid( 2, spot_data )
         Traceback (most recent call last):
         ...
         UserError: Your bid $ 2.000000 is more than double this instance type's average spot price ($ 0.300000) over the last week
