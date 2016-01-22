@@ -512,8 +512,8 @@ class Box( object ):
         """
         average = mean( [ datum.price for datum in spot_history ] )
         if spot_bid > average * 2:
-            raise UserError( "Your bid $ %f is more than double this instance type's average "
-                             "spot price ($ %f) over the last week" % (spot_bid, average) )
+            log.warn( "Your bid $ %f is more than double this instance type's average "
+                      "spot price ($ %f) over the last week", spot_bid, average )
 
     def _get_spot_history( self, instance_type ):
         """
