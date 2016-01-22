@@ -599,8 +599,17 @@ class Box( object ):
         # price is a positional argument, so we need to extract it
         price = spec.price
         del spec.price
-        requests = self.ctx.ec2.request_spot_instances( price, self.image_id, **spec )
+        for attempt in retry_ec2( retry_for=a_long_time,
+                                  retry_while=self.__inconsistencies_detected ):
+            with attempt:
+                requests = self.ctx.ec2.request_spot_instances( price, self.image_id, **spec )
+        # noinspection PyUnboundLocalVariable
         return wait_for_spot_instances( self.ctx.ec2, requests )
+
+    def __inconsistencies_detected( self, e ):
+        if e.code == 'InvalidGroup.NotFound': return True
+        m = e.error_message.lower( )
+        return 'invalid iam instance profile' in m or 'no associated iam roles' in m
 
     def _create_ondemand_instances( self, spec ):
         """
@@ -612,13 +621,8 @@ class Box( object ):
         instance_type = spec[ 'instance_type' ]
         log.info( 'Creating %s instance(s) ... ', instance_type )
 
-        def inconsistencies_detected( e ):
-            if e.code == 'InvalidGroup.NotFound': return True
-            m = e.error_message.lower( )
-            return 'invalid iam instance profile' in m or 'no associated iam roles' in m
-
         for attempt in retry_ec2( retry_for=a_long_time,
-                                  retry_while=inconsistencies_detected ):
+                                  retry_while=self.__inconsistencies_detected ):
             with attempt:
                 return self.ctx.ec2.run_instances( self.image_id, **spec )
 
