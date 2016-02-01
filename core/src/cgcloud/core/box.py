@@ -340,35 +340,38 @@ class Box( object ):
             return image
 
     def prepare( self, ec2_keypair_globs,
-                 instance_type=None, image_ref=None, virtualization_type=None,
+                 instance_type=None, image_ref=None, virtualization_type=None, num_instances=1,
                  spot_bid=None, launch_group=None,
                  **options ):
         """
-        Launch (aka 'run' in EC2 lingo) the EC2 instance represented by this box
+        Prepare to create an EC2 instance represented by this box. Return a dictionary with
+        keyword arguments to boto.ec2.connection.EC2Connection.run_instances() that can be used
+        to create the instance.
 
-        :type ec2_keypair_globs: list of strings
-        :param ec2_keypair_globs: The names of EC2 keypairs whose public key is to be injected
-        into the instance to facilitate SSH logins. For the first listed keypair a matching
-        private key needs to be present locally. Note that after the agent is installed on the
-        box it will
+        :param list[str] ec2_keypair_globs: The names of EC2 keypairs whose public key is to be
+        injected into the instance to facilitate SSH logins. For the first listed keypair a
+        matching private key needs to be present locally. Note that after the agent is installed
+        on the box it will
 
-        :type instance_type: str
-        :param instance_type: The type of instance to create, e.g. m1.small or t1.micro.
+        :param str instance_type: The type of instance to create, e.g. m1.small or t1.micro.
 
-        :type image_ref: int|str
-        :param image_ref: the ordinal or AMI ID of the image to boot from. If None,
+        :param int|str image_ref: The ordinal or AMI ID of the image to boot from. If None,
                the return value of self._base_image() will be used.
 
-        :type virtualization_type: str
-        :param virtualization_type: The desired virtualization type to use for the instance
+        :param str virtualization_type: The desired virtualization type to use for the instance
 
-        :type spot_bid: float
-        :param spot_bid: dollar amount to bid for spot instances. If None, and on-demand instance
-               will be created
+        :param int num_instances: The number of instances to prepare for
 
-        :type options: dict
-        :param options: Additional, role-specific options can be specified. These options augment
-               the options associated with the givem image.
+        :param float spot_bid: Dollar amount to bid for spot instances. If None, an on-demand
+        instance will be created
+
+        :param str launch_group: Specify a launch group in your Spot instance request to tell
+        Amazon EC2 to launch a set of Spot instances only if it can launch them all. In addition,
+        if the Spot service must terminate one of the instances in a launch group (for example,
+        if the Spot price rises above your bid price), it must terminate them all.
+
+        :param dict options: Additional, role-specific options can be specified. These options
+        augment the options associated with the givem image.
         """
         if launch_group is not None and spot_bid is None:
             raise UserError( 'Need spot bid for launch group' )
@@ -401,7 +404,9 @@ class Box( object ):
                         key_name=ec2_keypairs[ 0 ].name,
                         placement=self.ctx.availability_zone,
                         security_groups=security_groups,
-                        instance_profile_arn=self.get_instance_profile_arn( ) )
+                        instance_profile_arn=self.get_instance_profile_arn( ),
+                        min_count=num_instances,
+                        max_count=num_instances )
         self._populate_instance_spec( image, spec )
         self.__add_spot_instance_spec( spec, spot_bid, launch_group )
         return spec

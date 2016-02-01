@@ -159,10 +159,9 @@ class ClusterLeader( ClusterBox ):
         args = self.preparation_args
         kwargs = dict( self.preparation_kwargs,
                        instance_type=worker_instance_type,
-                       leader_instance_id=self.instance_id )
+                       leader_instance_id=self.instance_id,
+                       num_instances=num_workers )
         spec = first_worker.prepare( *args, **kwargs )
-        spec.min_count = num_workers
-        spec.max_count = num_workers
         with thread_pool( default_pool_size( num_workers ) ) as pool:
             first_worker.create( spec,
                                  wait_ready=wait_ready,
