@@ -2,10 +2,14 @@ from abc import abstractmethod
 from functools import partial
 import logging
 import os
+
+from itertools import count, islice
 from bd2k.util.expando import Expando
+from bd2k.util.iterables import concat
+
 from cgcloud.core.commands import (RecreateCommand, ContextCommand, SshCommandMixin,
                                    RsyncCommandMixin)
-from cgcloud.lib.util import abreviated_snake_case_class_name, UserError, heredoc
+from cgcloud.lib.util import abreviated_snake_case_class_name, UserError, heredoc, thread_pool
 
 log = logging.getLogger( __name__ )
 
@@ -173,6 +177,107 @@ class ClusterCommand( ClusterTypeCommand ):
     @abstractmethod
     def run_on_cluster( self, options, ctx, cluster ):
         raise NotImplementedError( )
+
+
+class GrowClusterCommand( ClusterCommand, RecreateCommand ):
+    """
+    Increase
+    """
+
+    def __init__( self, application ):
+        super( GrowClusterCommand, self ).__init__( application )
+        self.cluster = None
+
+        self.option( '--num-workers', '-s', metavar='NUM',
+                     type=int, default=1, dest='num_workers',
+                     help='The number of workers to add.' )
+
+    def option( self, option_name, *args, **kwargs ):
+        _super = super( GrowClusterCommand, self )
+        if option_name in ('role', '--terminate'):
+            # Suppress the role positional argument since the role is hard-wired and the
+            # --terminate option since it doesn't make sense here.
+            return
+        if option_name == '--instance-type':
+            assert 'dest' not in kwargs
+            assert args[ 0 ] == '-t'
+            kwargs[ 'help' ] = kwargs[ 'help' ].replace( 'for the box',
+                                                         'for the workers' )
+        _super.option( option_name, *args, **kwargs )
+
+    def run_on_cluster( self, options, ctx, cluster ):
+        self.cluster = cluster
+        options.role = self.cluster.worker_role.role( )
+        self.run_on_role( options, ctx, self.cluster.worker_role )
+
+    def instance_options( self, options, box ):
+        return dict( super( GrowClusterCommand, self ).instance_options( options, box ),
+                     cluster_name=options.cluster_name,
+                     num_instances=options.num_workers )
+
+    def run_on_box( self, options, first_worker ):
+        log.info( '=== Binding to leader ===' )
+        leader = self.cluster.leader_role( self.cluster.ctx )
+        leader.bind( cluster_name=options.cluster_name,
+                     ordinal=options.ordinal,
+                     wait_ready=False )
+        log.info( '=== Creating workers  ===' )
+        workers = first_worker.list( leader_instance_id=leader.instance_id )
+        used_cluster_ordinals = set( w.cluster_ordinal for w in workers )
+        assert len( used_cluster_ordinals ) == len( workers )  # check for collisions
+        assert 0 not in used_cluster_ordinals  # master has 0
+        used_cluster_ordinals.add( 0 )  # to make the math easier
+        cluster_ordinal = self.allocate_cluster_ordinals( num=options.num_workers,
+                                                          used=used_cluster_ordinals )
+        spec = first_worker.prepare( leader_instance_id=leader.instance_id,
+                                     **self.instance_options( options, first_worker ) )
+        with thread_pool( min( options.num_threads, options.num_workers ) ) as pool:
+            first_worker.create( spec,
+                                 wait_ready=True,
+                                 cluster_ordinal=cluster_ordinal,
+                                 executor=pool.apply_async )
+
+    @staticmethod
+    def allocate_cluster_ordinals( num, used ):
+        """
+        Return an iterator containing a given number of unused cluster ordinals. The result is
+        guaranteed to yield each ordinal exactly once, i.e. the result is set-like. The argument
+        set and the result iterator will be disjoint. The sum of all ordinals in the argument and
+        the result is guaranteed to be minimal, i.e. the function will first fill the gaps in the
+        argument before allocating higher values. The result will yield ordinal in ascending order.
+
+        :param int num: the number of ordinal to allocate
+        :param set[int] used: a set of currently used ordinal
+        :rtype: iterator
+
+        >>> f = list(GrowClusterCommand.allocate_cluster_ordinals)
+
+        >>> f(set(),0)
+        []
+        >>> f(set(),1)
+        [0]
+        >>> f({0},0)
+        []
+        >>> f({0},1)
+        [1]
+        >>> f({0,1},0)
+        []
+        >>> f({0,1},1)
+        [2]
+        >>> f({0,2},0)
+        []
+        >>> f({0,2},1)
+        [1]
+        >>> f({0,2},2)
+        [1, 3]
+        >>> f({0,2},3)
+        [1, 3, 4]
+        """
+        assert isinstance( used, set )
+        first_free = max( used ) + 1 if used else 0
+        complete = set( range( 0, len( used ) ) )
+        gaps = sorted( complete - used )
+        return islice( concat( gaps, count( first_free ) ), num )
 
 
 class ClusterLifecycleCommand( ClusterCommand ):

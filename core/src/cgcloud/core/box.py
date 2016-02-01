@@ -582,12 +582,12 @@ class Box( object ):
 
         try:
             # Generates infinite numbers of clones of this box
-        def clones( ):
-            while True:
-                yield copy( self )
+            def clones( ):
+                while True:
+                    yield copy( self )
 
-        def adopt( box, instance, _cluster_ordinal ):
-            box._adopt( instance, _cluster_ordinal, wait_ready )
+            def adopt( box, instance, _cluster_ordinal ):
+                box._adopt( instance, _cluster_ordinal, wait_ready )
 
             if len( instances ) == 1:
                 # For a single instance, adopt() will wait for the status change ...
@@ -868,7 +868,8 @@ class Box( object ):
                           private_ip=instance.private_ip_address,
                           created_at=instance.launch_time,
                           state=instance.state,
-                          cluster_name=instance.tags.get( 'cluster_name' ) )
+                          cluster_name=instance.tags.get( 'cluster_name' ),
+                          cluster_ordinal=int( instance.tags.get( 'cluster_ordinal' ) ) )
             for ordinal, instance in enumerate( instances ) ]
 
     def __list_instances( self, **tags ):

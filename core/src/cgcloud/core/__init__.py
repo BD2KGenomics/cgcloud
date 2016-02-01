@@ -43,7 +43,8 @@ def command_classes( ):
                                                StopClusterCommand,
                                                TerminateClusterCommand,
                                                SshClusterCommand,
-                                               RsyncClusterCommand)
+                                               RsyncClusterCommand,
+                                               GrowClusterCommand)
     return __fail_deprecated( sorted( locals( ).values( ), key=lambda cls: cls.__name__ ) )
 
 
