@@ -468,24 +468,24 @@ class CreationCommand( BoxCommand ):
 
     def instance_options( self, options, box ):
         """
-        Return dict with instance options to be passed box.create()
+        Return dict with keyword arguments to be passed box.prepare()
         """
         role_options = box.get_role_options( )
         supported_options = set( option.name for option in role_options )
         actual_options = set( name for name, value in options.role_options )
         for name in actual_options - supported_options:
             raise UserError( "Options %s not supported by role '%s'." % (name, box.role( )) )
+        resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
         return dict( options.role_options,
+                     ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
+                     instance_type=options.instance_type,
+                     virtualization_type=options.virtualization_type,
                      spot_bid=options.spot_bid,
                      launch_group=options.launch_group )
 
     def run_on_box( self, options, box ):
         try:
-            resolve_me = functools.partial( box.ctx.resolve_me, drop_hostname=False )
-            spec = box.prepare( ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
-                                instance_type=options.instance_type,
-                                virtualization_type=options.virtualization_type,
-                                **self.instance_options( options, box ) )
+            spec = box.prepare( **self.instance_options( options, box ) )
             box.create( spec, wait_ready=True )
             self.run_on_creation( box, options )
         except:
