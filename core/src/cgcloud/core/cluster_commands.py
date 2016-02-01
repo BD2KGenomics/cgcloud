@@ -17,6 +17,10 @@ class ClusterTypeCommand( ContextCommand ):
         :type: Cluster
         """
         super( ClusterTypeCommand, self ).__init__( application )
+        self.option( '--num-threads', metavar='NUM',
+                     type=int, default=1, dest='num_threads',
+                     help='The maximum number of tasks to be performed concurrently.' )
+
         self.option( 'cluster_type', metavar='TYPE',
                      completer=self.completer,
                      help=heredoc( """The type of the cluster to be used. The cluster type is
@@ -129,7 +133,8 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
         log.info( '=== Launching workers ===' )
         leader.clone( worker_role=self.cluster.worker_role,
                       num_workers=options.num_workers,
-                      worker_instance_type=options.worker_instance_type )
+                      worker_instance_type=options.worker_instance_type,
+                      pool_size=min( options.num_threads, options.num_workers ))
 
     def ssh_hint( self, options ):
         hint = super( CreateClusterCommand, self ).ssh_hint( options )
@@ -183,6 +188,7 @@ class ClusterLifecycleCommand( ClusterCommand ):
                        ordinal=options.ordinal,
                        leader_first=self.leader_first,
                        wait_ready=self.wait_ready,
+                       pool_size=min(options.num_threads),
                        operation=self.operation( ) + '()' )
 
     def run_on_node( self, options, node ):
@@ -244,7 +250,7 @@ class SshClusterCommand( SshCommandMixin, ClusterCommand ):
                        cluster_name=options.cluster_name,
                        ordinal=options.ordinal,
                        leader_first=True,
-                       pool_size=None if options.parallel else 1,
+                       pool_size=options.num_threads if options.parallel else 1,
                        wait_ready=True )
 
 
@@ -259,5 +265,6 @@ class RsyncClusterCommand( RsyncCommandMixin, ClusterCommand ):
         cluster.apply( partial( self.rsync, options ),
                        cluster_name=options.cluster_name,
                        ordinal=options.ordinal,
+                       pool_size=options.num_threads,
                        leader_first=True,
                        wait_ready=True )

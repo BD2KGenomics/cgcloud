@@ -25,6 +25,8 @@ try:
 except ImportError:
     from cgcloud_Crypto.PublicKey import RSA
 
+cores = multiprocessing.cpu_count( )
+
 
 def unpack_singleton( singleton ):
     """
@@ -339,9 +341,9 @@ class Command( object ):
         if not 'description' in kwargs:
             kwargs[ 'description' ] = doc
         self.parser = application.subparsers.add_parser(
-                self.name( ),
-                formatter_class=ArgParseHelpFormatter,
-                **kwargs )
+            self.name( ),
+            formatter_class=ArgParseHelpFormatter,
+            **kwargs )
         # noinspection PyProtectedMember
         self.parser._positionals.title = 'Command arguments'
         # noinspection PyProtectedMember
@@ -689,7 +691,7 @@ def thread_pool( size ):
         pool.join( )
 
 
-def pmap( f, seq, pool_size=None ):
+def pmap( f, seq, pool_size=cores ):
     """
     Apply the given function to each element of the given sequence and return a sequence of the
     result of each function application. Do so in parallel, using a thread pool no larger than
@@ -699,7 +701,8 @@ def pmap( f, seq, pool_size=None ):
 
     :param Sequence seq: the input sequence
 
-    :param int pool_size: the desired pool size, if absent the default pool size will be used
+    :param int pool_size: the desired pool size, if absent the number of CPU cores will be used.
+            The actual pool size may be smaller if the input sequence is small.
 
     >>> pmap( lambda (a, b): a + b, [] )
     []
@@ -712,13 +715,11 @@ def pmap( f, seq, pool_size=None ):
     ...
     TypeError: <lambda>() takes exactly 2 arguments (1 given)
     """
-    if pool_size is None:
-        pool_size = default_pool_size( len( seq ) )
-    with thread_pool( pool_size ) as pool:
+    with thread_pool( min( pool_size, len( seq ) ) ) as pool:
         return pool.map( f, seq )
 
 
-def papply( f, seq, pool_size=None, callback=None ):
+def papply( f, seq, pool_size=cores, callback=None ):
     """
     Apply the given function to each element of the given sequence, optionally invoking the given
     callback with the result of each application. Do so in parallel, using a thread pool no
@@ -728,7 +729,8 @@ def papply( f, seq, pool_size=None, callback=None ):
 
     :param Sequence seq: the input sequence
 
-    :param int pool_size: the desired pool size, if absent the default pool size will be used
+    :param int pool_size: the desired pool size, if absent the number of CPU cores will be used.
+            The actual pool size may be smaller if the input sequence is small.
 
     :param callable callback: an optional function to be invoked with the return value of f
 
@@ -739,29 +741,12 @@ def papply( f, seq, pool_size=None, callback=None ):
     >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], 1, callback=l.append ); l
     [3, 7]
     """
-    if pool_size is None:
-        pool_size = default_pool_size( len( seq ) )
     if pool_size == 1:
         for args in seq:
             result = apply( f, args )
             if callback is not None:
                 callback( result )
     else:
-        with thread_pool( pool_size ) as pool:
+        with thread_pool( pool_size=min( pool_size, len( seq ) ) ) as pool:
             for args in seq:
                 pool.apply_async( f, args, callback=callback )
-
-
-def default_pool_size( num_tasks, min_tasks_per_thread=8 ):
-    """
-    Return the default size of a thread pool for performing a given number of tasks.
-
-    :param int num_tasks: the number of tasks to be performed by threads in the pool
-
-    :param int min_tasks_per_thread: the minimum number of tasks performed by each thread
-
-    :rtype: int
-    """
-    return max( 1,
-                min( num_tasks / min_tasks_per_thread,
-                     multiprocessing.cpu_count( ) * min_tasks_per_thread ) )

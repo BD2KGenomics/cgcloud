@@ -5,8 +5,7 @@ from copy import copy
 from bd2k.util.iterables import concat
 
 from cgcloud.core.box import Box
-from cgcloud.lib.util import (abreviated_snake_case_class_name, papply, thread_pool,
-                              default_pool_size)
+from cgcloud.lib.util import (abreviated_snake_case_class_name, papply, thread_pool)
 
 log = logging.getLogger( __name__ )
 
@@ -151,7 +150,7 @@ class ClusterLeader( ClusterBox ):
         return dict( super( ClusterLeader, self )._get_instance_options( ),
                      leader_instance_id=self.instance_id )
 
-    def clone( self, worker_role, num_workers, worker_instance_type, wait_ready=True ):
+    def clone( self, worker_role, num_workers, worker_instance_type, pool_size, wait_ready=True):
         """
         Create a number of worker boxes that are connected to this leader.
         """
@@ -162,7 +161,7 @@ class ClusterLeader( ClusterBox ):
                        leader_instance_id=self.instance_id,
                        num_instances=num_workers )
         spec = first_worker.prepare( *args, **kwargs )
-        with thread_pool( default_pool_size( num_workers ) ) as pool:
+        with thread_pool( pool_size ) as pool:
             first_worker.create( spec,
                                  wait_ready=wait_ready,
                                  cluster_ordinal=self.cluster_ordinal + 1,
