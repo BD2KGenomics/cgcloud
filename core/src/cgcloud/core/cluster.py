@@ -177,9 +177,6 @@ class ClusterWorker( ClusterBox ):
         super( ClusterWorker, self ).__init__( ctx )
         self.leader_instance_id = None
 
-    def _populate_instance_spec( self, image, spec ):
-        return super( ClusterWorker, self )._populate_instance_spec( image, spec )
-
     def _set_instance_options( self, options ):
         super( ClusterWorker, self )._set_instance_options( options )
         self.leader_instance_id = options[ 'leader_instance_id' ]
