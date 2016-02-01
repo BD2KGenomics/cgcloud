@@ -120,7 +120,7 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
 
     def run_on_cluster_type( self, ctx, options, cluster_type ):
         self.cluster = cluster_type( ctx )
-        log.info( '=== Launching leader ===' )
+        log.info( '=== Creating leader ===' )
         options.role = self.cluster.leader_role.role( )
         self.run_on_role( options, ctx, self.cluster.leader_role )
 
@@ -130,7 +130,7 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
             log.info( '=== Copying %s%s to ~/shared on leader ===',
                       'the contents of ' if local_path.endswith( '/' ) else '', local_path )
             leader.rsync( args=[ '-r', local_path, ":shared/" ], ssh_opts=options.ssh_opts )
-        log.info( '=== Launching workers ===' )
+        log.info( '=== Creating workers ===' )
         leader.clone( worker_role=self.cluster.worker_role,
                       num_workers=options.num_workers,
                       worker_instance_type=options.worker_instance_type,
