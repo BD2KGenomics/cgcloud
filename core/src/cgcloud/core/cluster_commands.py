@@ -22,7 +22,7 @@ class ClusterTypeCommand( ContextCommand ):
         """
         super( ClusterTypeCommand, self ).__init__( application )
         self.option( '--num-threads', metavar='NUM',
-                     type=int, default=1, dest='num_threads',
+                     type=int, default=100, dest='num_threads',
                      help='The maximum number of tasks to be performed concurrently.' )
 
         self.option( 'cluster_type', metavar='TYPE',
