@@ -747,6 +747,6 @@ def papply( f, seq, pool_size=cores, callback=None ):
             if callback is not None:
                 callback( result )
     else:
-        with thread_pool( pool_size=min( pool_size, len( seq ) ) ) as pool:
+        with thread_pool( min( pool_size, len( seq ) ) ) as pool:
             for args in seq:
                 pool.apply_async( f, args, callback=callback )
