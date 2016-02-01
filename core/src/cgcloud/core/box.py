@@ -5,20 +5,21 @@ import threading
 import time
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
-from collections import namedtuple
+from collections import namedtuple, Iterator
 from contextlib import closing, contextmanager
 from copy import copy
 from functools import partial, wraps
-from itertools import count, chain
+from itertools import count, chain, izip
 from operator import attrgetter
 from pipes import quote
 
 from bd2k.util.collections import OrderedSet
+from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
 from boto import logging
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
-from boto.ec2.instance import Reservation
+from boto.ec2.instance import Reservation, Instance
 from boto.ec2.spotpricehistory import SpotPriceHistory
 from boto.exception import BotoServerError, EC2ResponseError
 from fabric.api import execute
@@ -554,13 +555,21 @@ class Box( object ):
         :param wait_ready: whether to wait for all instances to be ready. The waiting for an
         instance will be handled as a task that is submitted to the given executor.
 
-        :param cluster_ordinal: the cluster ordinal to be assigned to the first instance
+        :param cluster_ordinal: the cluster ordinal to be assigned to the first instance or an
+               iterable yielding ordinals for the instances
 
         :param executor: a callable that accepts two arguments: a task function and a sequence of
         task arguments. The executor applies the task function to the given sequence of
         arguments. It may choose to do so immediately, i.e. synchronously or at a later time,
         i.e asynchronously. If None, a synchronous executor will be used by default.
         """
+        if isinstance( cluster_ordinal, int ):
+            cluster_ordinal = count( start=cluster_ordinal )
+
+        if executor is None:
+            def executor( f, args ):
+                f( *args )
+
         if 'price' in spec:
             reservations = self._create_spot_instances( spec )
             # Each spot market reservation contains only 1 instance each
@@ -569,26 +578,85 @@ class Box( object ):
             reservation = self._create_ondemand_instances( spec )
             instances = reservation.instances
 
-        instances = sorted( instances, key=self.__ordinal_sort_key )
+        assert instances
 
+        try:
+            # Generates infinite numbers of clones of this box
         def clones( ):
             while True:
                 yield copy( self )
 
-        if executor is None:
-            def executor( f, _args ):
-                f( *_args )
-
         def adopt( box, instance, _cluster_ordinal ):
-            """
-            :type box: Box
-            """
             box._adopt( instance, _cluster_ordinal, wait_ready )
 
-        for args in zip( concat( self, clones( ) ),
-                         instances,
-                         count( start=cluster_ordinal ) ):
-            executor( adopt, args )
+            if len( instances ) == 1:
+                # For a single instance, adopt() will wait for the status change ...
+                executor( adopt, (self, instances[ 0 ], next( cluster_ordinal )) )
+            else:
+                # .. but for multiple instances it is more efficient to query all instances at
+                # once. adopt() will automatically skip the waiting step.
+
+                # First, sort and index by cluster_ordinal
+                instances = sorted( instances, key=self.__ordinal_sort_key )
+                cluster_ordinals = { i.id: o for i, o in izip( instances, cluster_ordinal ) }
+
+                # Wait for instances to enter the running state and as they do, pass them to the
+                # executor where they are adopted concurrently.
+                num_running, num_other = 0, 0
+                for box, instance in izip( concat( self, clones( ) ),
+                                           self.__wait_instances( instances ) ):
+                    if instance.state == 'running':
+                        executor( adopt, (box, instance, cluster_ordinals[ instance.id ]) )
+                        num_running += 1
+                    else:
+                        log.info( 'Instance %s in unexpected state %s.', instance.id,
+                                  instance.state )
+                        num_other += 1
+                assert num_running + num_other == len( instances )
+                if not num_running:
+                    raise RuntimeError( 'None of the instances entered the running state.' )
+                if num_other:
+                    log.warn( '%i instance(s) did not enter running state', num_other )
+        except:
+            log.warn( 'Terminating instances ...' )
+            with panic( log ):
+                self.ctx.ec2.terminate_instances( instance_ids=[ i.id for i in instances ] )
+            raise
+
+    def __wait_instances( self, instances ):
+        """
+        Wait until no instance in the given iterable is 'pending'. Yield every instance that entered
+        the running state as soon as it does.
+
+        :type instances: list[Instance]
+        :rtype: Iterator[Instance]
+        """
+        pending_ids = { i.id for i in instances }
+        running_instances = { }
+        other_instances = { }
+        while True:
+            log.info( '%i instance(s) pending, %i running, %i other.',
+                      *map( len, (pending_ids, running_instances, other_instances) ) )
+            if not pending_ids:
+                break
+            seconds = max( a_short_time, min( len( pending_ids ), 10 * a_short_time ) )
+            log.info( 'Sleeping for %is', seconds )
+            time.sleep( seconds )
+            for attempt in retry_ec2( ):
+                with attempt:
+                    instances = self.ctx.ec2.get_only_instances( list( pending_ids ) )
+            pending_ids = set( )
+            for i in instances:
+                if i.state == 'pending':
+                    pending_ids.add( i.id )
+                elif i.state == 'running':
+                    assert i.id not in running_instances
+                    running_instances[ i.id ] = i
+                    yield i
+                else:
+                    assert i.id not in other_instances
+                    other_instances[ i.id ] = i
+                    yield i
 
     def _create_spot_instances( self, spec ):
         """
