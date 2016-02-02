@@ -293,7 +293,7 @@ class ClusterLifecycleCommand( ClusterCommand ):
                        ordinal=options.ordinal,
                        leader_first=self.leader_first,
                        wait_ready=self.wait_ready,
-                       pool_size=min(options.num_threads),
+                       pool_size=options.num_threads,
                        operation=self.operation( ) + '()' )
 
     def run_on_node( self, options, node ):
