@@ -189,6 +189,9 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
                 console log
                 start on (local-filesystems and net-device-up IFACE!=lo)
                 stop on runlevel [!2345]
+                # also see the modification of boto.config in MesosTools
+                respawn
+                respawn limit 0 300
                 pre-start script
                 {tools_dir}/bin/python2.7 - <<END
                 import logging

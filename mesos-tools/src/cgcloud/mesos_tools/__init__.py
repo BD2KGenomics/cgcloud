@@ -53,6 +53,9 @@ class MesosTools( object ):
         self.uid = getpwnam( self.user ).pw_uid
         self.gid = getgrnam( self.user ).gr_gid
         self.lazy_dirs = lazy_dirs
+        # Override the 5xx retry limit default of 6
+        from boto import config
+        config.set( 'Boto', 'num_retries', '12' )  #
 
     def start( self ):
         """
