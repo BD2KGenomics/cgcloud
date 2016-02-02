@@ -36,12 +36,12 @@ class CentosBox( YumBox, AgentBox, RcLocalBox ):
     def admin_account( self ):
         if self._username is None:
             default_username = 'root' if self.generation == 0 else 'admin'
-            self._username = self.get_instance( ).tags.get( 'admin_user', default_username )
+            self._username = self.instance.tags.get( 'admin_user', default_username )
         return self._username
 
     def _set_username( self, admin_user ):
         self._username = admin_user
-        self.get_instance( ).add_tag( 'admin_user', admin_user )
+        self.instance.add_tag( 'admin_user', admin_user )
 
     def _base_image( self, virtualization_type ):
         release = self.release( )

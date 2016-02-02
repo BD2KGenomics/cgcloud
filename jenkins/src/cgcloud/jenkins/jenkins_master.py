@@ -98,10 +98,10 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                                        availability_zone=self.ctx.availability_zone )
         return super( JenkinsMaster, self ).prepare( *args, **kwargs )
 
-    def _on_instance_running( self, instance, first_boot ):
+    def _on_instance_running( self, first_boot ):
         if first_boot:
             self.volume.attach( self.instance_id, device=Jenkins.data_device_ext )
-        super( JenkinsMaster, self )._on_instance_running( instance, first_boot )
+        super( JenkinsMaster, self )._on_instance_running( first_boot )
 
     @fabric_task
     def _setup_package_repos( self ):
@@ -140,7 +140,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         # 1) cruft was removed
         # 2) --httpListenAddress=127.0.0.1 was added to make Jenkins listen locally only
         #
-        instance_type = self.get_instance( ).instance_type
+        instance_type = self.instance.instance_type
         etc_default_jenkins = StringIO( dedent( '''\
             NAME=jenkins
             JAVA=/usr/bin/java
@@ -262,7 +262,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
 
     def _image_block_device_mapping( self ):
         # Do not include the data volume in the snapshot
-        bdm = self.get_instance( ).block_device_mapping
+        bdm = self.instance.block_device_mapping
         bdm[ Jenkins.data_device_ext ].no_device = True
         return bdm
 

@@ -179,9 +179,22 @@ class ListCommand( BoxCommand ):
                      help='Only list boxes belonging to a cluster of the given name.' )
 
     def run_on_box( self, options, box ):
-        for row in box.list( cluster_name=options.cluster_name ):
-            columns = 'cluster_name role ordinal private_ip ip id created_at state'.split( )
-            print( '\t'.join( map( str, map( row.get, columns ) ) ) )
+        columns = """
+            cluster_name
+            cluster_ordinal
+            private_ip_address
+            ip_address
+            instance_id
+            launch_time
+            state""".split( )
+        boxes = box.list( cluster_name=options.cluster_name )
+        header = list(columns)
+        header.insert(2,'ordinal')
+        print( '\t'.join( header ) )
+        for ordinal, box in enumerate( boxes ):
+            row = [ getattr( box, column ) for column in columns ]
+            row.insert( 2, ordinal )
+            print( '\t'.join( str( column ) for column in row ) )
 
 
 class UserCommandMixin( Command ):
@@ -311,7 +324,7 @@ class ShowCommand( InstanceCommand ):
     wait_ready = False
 
     def run_on_instance( self, options, box ):
-        self.print_object( box.get_instance( ) )
+        self.print_object( box.instance )
 
 
 class LifecycleCommand( InstanceCommand ):

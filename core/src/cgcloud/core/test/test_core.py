@@ -1,14 +1,10 @@
 import logging
 import os
-import itertools
-from subprocess import check_call
 
 from bd2k.util.exceptions import panic
-import sys
 
 from cgcloud.core import roles
 from cgcloud.core.test import CgcloudTestCase, out_stderr
-from cgcloud.core.cli import main
 
 log = logging.getLogger( __name__ )
 

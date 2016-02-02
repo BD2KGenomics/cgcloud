@@ -356,7 +356,7 @@ class SshClusterCommand( SshCommandMixin, ClusterCommand ):
                        ordinal=options.ordinal,
                        leader_first=True,
                        pool_size=options.num_threads if options.parallel else 1,
-                       wait_ready=True )
+                       wait_ready=False )
 
 
 class RsyncClusterCommand( RsyncCommandMixin, ClusterCommand ):
@@ -372,4 +372,4 @@ class RsyncClusterCommand( RsyncCommandMixin, ClusterCommand ):
                        ordinal=options.ordinal,
                        pool_size=options.num_threads,
                        leader_first=True,
-                       wait_ready=True )
+                       wait_ready=False )

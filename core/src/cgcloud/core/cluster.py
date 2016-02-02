@@ -60,21 +60,11 @@ class Cluster( object ):
             log.info( '=== Performing %s on leader ===', operation )
             f( leader )
 
-        def clones( ):
-            while True:
-                yield copy( first_worker )
-
         def apply_workers( ):
             log.info( '=== Performing %s on workers ===', operation )
-            instances = first_worker.list( leader_instance_id=leader.instance_id )
-            papply( apply_worker,
-                    pool_size=pool_size,
-                    seq=zip( concat( first_worker, clones( ) ),
-                             (i.id for i in instances) ) )
+            workers = first_worker.list( leader_instance_id=leader.instance_id, wait_ready=wait_ready )
+            papply( f, seq=zip(workers), pool_size=pool_size )
 
-        def apply_worker( worker, instance_id ):
-            worker.bind( instance_id=instance_id, wait_ready=wait_ready )
-            f( worker )
 
         if leader_first:
             apply_leader( )
@@ -150,7 +140,7 @@ class ClusterLeader( ClusterBox ):
         return dict( super( ClusterLeader, self )._get_instance_options( ),
                      leader_instance_id=self.instance_id )
 
-    def clone( self, worker_role, num_workers, worker_instance_type, pool_size, wait_ready=True):
+    def clone( self, worker_role, num_workers, worker_instance_type, pool_size, wait_ready=True ):
         """
         Create a number of worker boxes that are connected to this leader.
         """
@@ -179,7 +169,7 @@ class ClusterWorker( ClusterBox ):
 
     def _set_instance_options( self, options ):
         super( ClusterWorker, self )._set_instance_options( options )
-        self.leader_instance_id = options[ 'leader_instance_id' ]
+        self.leader_instance_id = options.get( 'leader_instance_id' )
 
     def _get_instance_options( self ):
         return dict( super( ClusterWorker, self )._get_instance_options( ),

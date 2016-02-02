@@ -4,10 +4,10 @@ import time
 from contextlib import contextmanager
 from itertools import ifilter
 from struct import pack
-from subprocess import check_call
 from tempfile import mkstemp
 from unittest import TestCase
 
+import subprocess32
 from bd2k.util.d64 import D64
 from bd2k.util.iterables import concat
 from boto.utils import get_instance_metadata, logging
@@ -103,7 +103,7 @@ class CgcloudTestCase( TestCase ):
     def _cgcloud( cls, *args ):
         log.info( 'Running %r', args )
         if os.environ.get( 'CGCLOUD_TEST_EXEC', "" ):
-            check_call( concat( 'cgcloud', args ) )
+            subprocess32.check_call( concat( 'cgcloud', args ) )
         else:
             main( args )
 
