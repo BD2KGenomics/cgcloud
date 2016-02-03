@@ -250,27 +250,27 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
         :param set[int] used: a set of currently used ordinal
         :rtype: iterator
 
-        >>> f = list(GrowClusterCommand.allocate_cluster_ordinals)
+        >>> f = GrowClusterCommand.allocate_cluster_ordinals
 
-        >>> f(set(),0)
+        >>> list(f(0,set()))
         []
-        >>> f(set(),1)
+        >>> list(f(1,set()))
         [0]
-        >>> f({0},0)
+        >>> list(f(0,{0}))
         []
-        >>> f({0},1)
+        >>> list(f(1,{0}))
         [1]
-        >>> f({0,1},0)
+        >>> list(f(0,{0,1}))
         []
-        >>> f({0,1},1)
+        >>> list(f(1,{0,1}))
         [2]
-        >>> f({0,2},0)
+        >>> list(f(0,{0,2}))
         []
-        >>> f({0,2},1)
+        >>> list(f(1,{0,2}))
         [1]
-        >>> f({0,2},2)
+        >>> list(f(2,{0,2}))
         [1, 3]
-        >>> f({0,2},3)
+        >>> list(f(3,{0,2}))
         [1, 3, 4]
         """
         assert isinstance( used, set )
