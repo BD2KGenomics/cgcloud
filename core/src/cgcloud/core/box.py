@@ -6,7 +6,7 @@ import threading
 import time
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
-from collections import namedtuple, Iterator
+from collections import namedtuple, Iterator, Iterable
 from contextlib import closing, contextmanager
 from copy import copy
 from functools import partial, wraps
@@ -655,15 +655,15 @@ class Box( object ):
         Wait until no instance in the given iterable is 'pending'. Yield every instance that entered
         the running state as soon as it does.
 
-        :type instances: list[Instance]
+        :type instances: Iterable[Instance]
         :rtype: Iterator[Instance]
         """
         pending_ids = { i.id for i in instances }
-        running_instances = { }
-        other_instances = { }
+        running_ids = set()
+        other_ids = set()
         while True:
             log.info( '%i instance(s) pending, %i running, %i other.',
-                      *map( len, (pending_ids, running_instances, other_instances) ) )
+                      *map( len, (pending_ids, running_ids, other_ids) ) )
             if not pending_ids:
                 break
             seconds = max( a_short_time, min( len( pending_ids ), 10 * a_short_time ) )
@@ -677,12 +677,12 @@ class Box( object ):
                 if i.state == 'pending':
                     pending_ids.add( i.id )
                 elif i.state == 'running':
-                    assert i.id not in running_instances
-                    running_instances[ i.id ] = i
+                    assert i.id not in running_ids
+                    running_ids.add( i.id )
                     yield i
                 else:
-                    assert i.id not in other_instances
-                    other_instances[ i.id ] = i
+                    assert i.id not in other_ids
+                    other_ids.add( i.id )
                     yield i
 
     def _create_spot_instances( self, spec ):
