@@ -779,8 +779,8 @@ class ResetSecurityCommand( ContextCommand ):
     def run_in_ctx( self, options, ctx ):
         message = ("Do you really want to delete all IAM instance profiles, IAM roles and EC2 "
                    "security groups in namespace %s and its children? Although these resources "
-                   "will; be created on-the-fly for newly created boxes, existing boxes will "
-                   "likely be impacted; negatively." % ctx.namespace)
+                   "will be created on-the-fly for newly created boxes, existing boxes will "
+                   "likely be impacted negatively." % ctx.namespace)
         if 'yes' == prompt( message + ' (yes/no)', default='no' ):
             ctx.reset_namespace_security( )
 
