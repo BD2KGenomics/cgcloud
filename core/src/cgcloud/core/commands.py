@@ -229,9 +229,7 @@ class SshCommandMixin( UserCommandMixin ):
                      but including, for example, the remote command to execute.""" ) )
 
     def ssh( self, options, box ):
-        status = box.ssh( user=self._user( box, options ), command=options.command )
-        if status != 0:
-            sys.exit( status )
+        return box.ssh( user=self._user( box, options ), command=options.command )
 
 
 # NB: The ordering of bases affects ordering of positionals
@@ -242,7 +240,10 @@ class SshCommand( SshCommandMixin, InstanceCommand ):
     """
 
     def run_on_instance( self, options, box ):
-        self.ssh( options, box )
+        status = self.ssh( options, box )
+        if status != 0:
+            sys.exit( status )
+
 
 
 class RsyncCommandMixin( UserCommandMixin ):

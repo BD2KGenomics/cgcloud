@@ -41,27 +41,31 @@ class Cluster( object ):
     def name( cls ):
         return abreviated_snake_case_class_name( cls, Cluster )
 
-    def apply( self, f, cluster_name=None, ordinal=None, leader_first=True, wait_ready=True,
-               operation='operation', pool_size=None ):
+    def apply( self, f, cluster_name=None, ordinal=None, leader_first=True, skip_leader=False,
+               wait_ready=True, operation='operation', pool_size=None, callback=None ):
         """
         Apply a callable to the leader and each worker. The callable may be applied to multiple
         workers concurrently.
         """
-        # Look up the leader first, even if leader_first is False, that way we fail early if the
-        # cluster doesn't exist.
+        # Look up the leader first, even if leader_first is False or skip_leader is True. That
+        # way we fail early if the cluster doesn't exist.
         leader = self.leader_role( self.ctx )
         leader.bind( cluster_name=cluster_name, ordinal=ordinal, wait_ready=wait_ready )
         first_worker = self.worker_role( self.ctx )
 
         def apply_leader( ):
-            log.info( '=== Performing %s on leader ===', operation )
-            f( leader )
+            if not skip_leader:
+                log.info( '=== Performing %s on leader ===', operation )
+                result = f( leader )
+                if callback is not None:
+                    callback( result )
 
         def apply_workers( ):
             log.info( '=== Performing %s on workers ===', operation )
-            workers = first_worker.list( leader_instance_id=leader.instance_id, wait_ready=wait_ready )
-            papply( f, seq=zip(workers), pool_size=pool_size )
-
+            workers = first_worker.list( leader_instance_id=leader.instance_id,
+                                         wait_ready=wait_ready )
+            # zip() creates the singleton tuples that papply() expects
+            papply( f, seq=zip( workers ), pool_size=pool_size, callback=callback )
 
         if leader_first:
             apply_leader( )

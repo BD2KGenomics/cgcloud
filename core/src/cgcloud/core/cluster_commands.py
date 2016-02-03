@@ -4,6 +4,8 @@ import logging
 import os
 
 from itertools import count, islice
+
+import sys
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
 
@@ -22,7 +24,7 @@ class ClusterTypeCommand( ContextCommand ):
         """
         super( ClusterTypeCommand, self ).__init__( application )
         self.option( '--num-threads', metavar='NUM',
-                     type=int, default=100, dest='num_threads',
+                     type=int, default=100,
                      help='The maximum number of tasks to be performed concurrently.' )
 
         self.option( 'cluster_type', metavar='TYPE',
@@ -64,7 +66,7 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
                      should be in order to avoid user error.""" ) )
 
         self.option( '--num-workers', '-s', metavar='NUM',
-                     type=int, default=1, dest='num_workers',
+                     type=int, default=1,
                      help='The number of workers to launch.' )
 
         self.option( '--ebs-volume-size', '-e', metavar='GB',
@@ -72,7 +74,7 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
                      for persistent data. The volume will be mounted at /mnt/persistent.""" ) )
 
         self.option( '--leader-on-demand', '-D',
-                     dest='leader_on_demand', default=False, action='store_true',
+                     default=False, action='store_true',
                      help=heredoc( """Use this option to insure that the leader will be an
                      on-demand instance, even if --spot-bid is given.""" ) )
 
@@ -138,7 +140,7 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
         leader.clone( worker_role=self.cluster.worker_role,
                       num_workers=options.num_workers,
                       worker_instance_type=options.worker_instance_type,
-                      pool_size=min( options.num_threads, options.num_workers ))
+                      pool_size=min( options.num_threads, options.num_workers ) )
 
     def ssh_hint( self, options ):
         hint = super( CreateClusterCommand, self ).ssh_hint( options )
@@ -181,7 +183,7 @@ class ClusterCommand( ClusterTypeCommand ):
 
 class GrowClusterCommand( ClusterCommand, RecreateCommand ):
     """
-    Increase
+    Increase the size of the cluster
     """
 
     def __init__( self, application ):
@@ -189,7 +191,7 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
         self.cluster = None
 
         self.option( '--num-workers', '-s', metavar='NUM',
-                     type=int, default=1, dest='num_workers',
+                     type=int, default=1,
                      help='The number of workers to add.' )
 
     def option( self, option_name, *args, **kwargs ):
@@ -281,7 +283,18 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
         return islice( concat( gaps, count( first_free ) ), num )
 
 
-class ClusterLifecycleCommand( ClusterCommand ):
+class ApplyClusterCommand( ClusterCommand ):
+    """
+    A command that applies an operation to a running cluster.
+    """
+
+    def __init__( self, application ):
+        super( ApplyClusterCommand, self ).__init__( application )
+        self.option( '--skip-leader', '-L', default=False, action='store_true',
+                     help=heredoc( """Don't perform the operation on the leader.""" ) )
+
+
+class ClusterLifecycleCommand( ApplyClusterCommand ):
     """
     A command that runs a simple method on each node in a cluster
     """
@@ -293,6 +306,7 @@ class ClusterLifecycleCommand( ClusterCommand ):
                        cluster_name=options.cluster_name,
                        ordinal=options.ordinal,
                        leader_first=self.leader_first,
+                       skip_leader=options.skip_leader,
                        wait_ready=self.wait_ready,
                        pool_size=options.num_threads,
                        operation=self.operation( ) + '()' )
@@ -336,7 +350,7 @@ class TerminateClusterCommand( ClusterLifecycleCommand ):
 
 # NB: The ordering of bases affects ordering of positionals
 
-class SshClusterCommand( SshCommandMixin, ClusterCommand ):
+class SshClusterCommand( SshCommandMixin, ApplyClusterCommand ):
     """
     Run a command via SSH on each node of a cluster. The command is run on the leader first,
     followed by the workers, serially by default or optionally in parallel.
@@ -352,15 +366,20 @@ class SshClusterCommand( SshCommandMixin, ClusterCommand ):
                      "-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no".""" ) )
 
     def run_on_cluster( self, options, ctx, cluster ):
+        exit_codes = [ ]
         cluster.apply( partial( self.ssh, options ),
                        cluster_name=options.cluster_name,
                        ordinal=options.ordinal,
                        leader_first=True,
-                       pool_size=options.num_threads if options.parallel else 1,
-                       wait_ready=False )
+                       skip_leader=options.skip_leader,
+                       pool_size=options.num_threads if options.parallel else 0,
+                       wait_ready=False,
+                       callback=exit_codes.append )
+        if any( exit_code for exit_code in exit_codes ):
+            sys.exit( 2 )
 
 
-class RsyncClusterCommand( RsyncCommandMixin, ClusterCommand ):
+class RsyncClusterCommand( RsyncCommandMixin, ApplyClusterCommand ):
     """
     Run rsync against each node in a cluster. The rsync program will be run against master first,
     followed by all workers in parallel. To avoid being prompted for confirmation of the host
@@ -371,6 +390,7 @@ class RsyncClusterCommand( RsyncCommandMixin, ClusterCommand ):
         cluster.apply( partial( self.rsync, options ),
                        cluster_name=options.cluster_name,
                        ordinal=options.ordinal,
-                       pool_size=options.num_threads,
                        leader_first=True,
+                       skip_leader=options.skip_leader,
+                       pool_size=options.num_threads,
                        wait_ready=False )
