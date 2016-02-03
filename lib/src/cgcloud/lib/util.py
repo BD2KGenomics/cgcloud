@@ -702,21 +702,51 @@ def pmap( f, seq, pool_size=cores ):
     :param Sequence seq: the input sequence
 
     :param int pool_size: the desired pool size, if absent the number of CPU cores will be used.
-            The actual pool size may be smaller if the input sequence is small.
+    The actual pool size may be smaller if the input sequence is small. A pool size of 0 will
+    make this function behave exactly like the map() builtin, i.e. the function will be applied
+    serially in the current thread.
 
-    >>> pmap( lambda (a, b): a + b, [] )
+    >>> pmap( lambda (a, b): a + b, [], pool_size=0 )
     []
-    >>> pmap( lambda (a, b): a + b, [ (1, 2) ] )
+    >>> pmap( lambda (a, b): a + b, [ (1, 2) ], pool_size=0 )
     [3]
-    >>> pmap( lambda (a, b): a + b, [ (1, 2), (3, 4) ] )
+    >>> pmap( lambda (a, b): a + b, [ (1, 2), (3, 4) ], pool_size=0 )
     [3, 7]
-    >>> pmap( lambda a, b: a + b, [ (1, 2), (3, 4) ] )
+    >>> pmap( lambda a, b: a + b, [ (1, 2), (3, 4) ], pool_size=0 )
+    Traceback (most recent call last):
+    ...
+    TypeError: <lambda>() takes exactly 2 arguments (1 given)
+    >>> pmap( lambda (a, b): a + b, [], pool_size=1 )
+    []
+    >>> pmap( lambda (a, b): a + b, [ (1, 2) ], pool_size=1 )
+    [3]
+    >>> pmap( lambda (a, b): a + b, [ (1, 2), (3, 4) ], pool_size=1 )
+    [3, 7]
+    >>> pmap( lambda a, b: a + b, [ (1, 2), (3, 4) ], pool_size=1 )
+    Traceback (most recent call last):
+    ...
+    TypeError: <lambda>() takes exactly 2 arguments (1 given)
+    >>> pmap( lambda (a, b): a + b, [], pool_size=2 )
+    []
+    >>> pmap( lambda (a, b): a + b, [ (1, 2) ], pool_size=2 )
+    [3]
+    >>> pmap( lambda (a, b): a + b, [ (1, 2), (3, 4) ], pool_size=2 )
+    [3, 7]
+    >>> pmap( lambda a, b: a + b, [ (1, 2), (3, 4) ], pool_size=2 )
     Traceback (most recent call last):
     ...
     TypeError: <lambda>() takes exactly 2 arguments (1 given)
     """
-    with thread_pool( min( pool_size, len( seq ) ) ) as pool:
-        return pool.map( f, seq )
+    __check_pool_size( pool_size )
+    n = len( seq )
+    if n:
+        if pool_size == 0:
+            return map( f, seq )
+        else:
+            with thread_pool( min( pool_size, n ) ) as pool:
+                return pool.map( f, seq )
+    else:
+        return [ ]
 
 
 def papply( f, seq, pool_size=cores, callback=None ):
@@ -730,23 +760,45 @@ def papply( f, seq, pool_size=cores, callback=None ):
     :param Sequence seq: the input sequence
 
     :param int pool_size: the desired pool size, if absent the number of CPU cores will be used.
-            The actual pool size may be smaller if the input sequence is small.
+    The actual pool size may be smaller if the input sequence is small.A pool size of 0 will make
+    this function emulate the apply() builtin, i.e. f (and the callback, if provided) will be
+    invoked serially in the current thread.
 
     :param callable callback: an optional function to be invoked with the return value of f
 
-    >>> l=[]; papply( lambda a, b: a + b, [], 1, callback=l.append ); l
+    >>> l=[]; papply( lambda a, b: a + b, [], pool_size=0, callback=l.append ); l
     []
-    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2) ], 1, callback=l.append); l
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2) ], pool_size=0, callback=l.append); l
     [3]
-    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], 1, callback=l.append ); l
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], pool_size=0, callback=l.append ); l
+    [3, 7]
+    >>> l=[]; papply( lambda a, b: a + b, [], pool_size=1, callback=l.append ); l
+    []
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2) ], pool_size=1, callback=l.append); l
+    [3]
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], pool_size=1, callback=l.append ); l
+    [3, 7]
+    >>> l=[]; papply( lambda a, b: a + b, [], pool_size=2, callback=l.append ); l
+    []
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2) ], pool_size=2, callback=l.append); l
+    [3]
+    >>> l=[]; papply( lambda a, b: a + b, [ (1, 2), (3, 4) ], pool_size=2, callback=l.append ); l
     [3, 7]
     """
-    if pool_size == 1:
-        for args in seq:
-            result = apply( f, args )
-            if callback is not None:
-                callback( result )
-    else:
-        with thread_pool( min( pool_size, len( seq ) ) ) as pool:
+    __check_pool_size( pool_size )
+    n = len( seq )
+    if n:
+        if pool_size == 0:
             for args in seq:
-                pool.apply_async( f, args, callback=callback )
+                result = apply( f, args )
+                if callback is not None:
+                    callback( result )
+        else:
+            with thread_pool( min( pool_size, n ) ) as pool:
+                for args in seq:
+                    pool.apply_async( f, args, callback=callback )
+
+
+def __check_pool_size( pool_size ):
+    if pool_size < 0:
+        raise ValueError( 'Pool size must be >= 0' )
