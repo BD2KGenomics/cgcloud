@@ -618,7 +618,7 @@ class Box( object ):
                 # Wait for instances to enter the running state and as they do, pass them to the
                 # executor where they are adopted concurrently.
                 num_running, num_other = 0, 0
-                for box, instance in izip( concat( self, self.clones ),
+                for box, instance in izip( concat( self, self.clones() ),
                                            self.__wait_instances( instances ) ):
                     if instance.state == 'running':
                         executor( adopt, (box, instance, cluster_ordinals[ instance.id ]) )
