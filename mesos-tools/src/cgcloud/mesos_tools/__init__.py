@@ -53,9 +53,21 @@ class MesosTools( object ):
         self.uid = getpwnam( self.user ).pw_uid
         self.gid = getgrnam( self.user ).gr_gid
         self.lazy_dirs = lazy_dirs
-        # Override the 5xx retry limit default of 6
+        self._patch_boto_config( )
+
+    def _patch_boto_config( self ):
         from boto import config
-        config.set( 'Boto', 'num_retries', '12' )  #
+        def inject_default( name, default ):
+            section = 'Boto'
+            value = config.get( section, name )
+
+            if value != default:
+                if not config.has_section( section ):
+                    config.add_section( section )
+                config.set( section, name, default )
+
+        # Override the 5xx retry limit default of 6
+        inject_default( 'num_retries', '12' )
 
     def start( self ):
         """
