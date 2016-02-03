@@ -177,30 +177,31 @@ class Box( object ):
         # The context to be used by the instance
         self.ctx = ctx
 
-        # The instance represented by this box
-        self.instance = None
-
         # The image the instance was or will be booted from
         self.image_id = None
+
+        # The SSH key pairs to be injected into the instance.
+        self.ec2_keypairs = None
+
+        # The globs from which to derive the SSH key pairs to be inhected into the instance
+        self.ec2_keypair_globs = None
+
+        # The instance represented by this box
+        self.instance = None
 
         # The number of previous generations of this box. When an instance is booted from a stock
         # AMI, generation is 0. After that instance is set up and imaged and another instance is
         # booted from the resulting AMI, generation will be 1.
         self.generation = None
 
-        # Set by bind() and create(), the ordinal of this box within a cluster of boxes. For
-        # boxes that don't join a cluster, this will be 0
+        # The ordinal of this box within a cluster of boxes. For boxes that don't join a cluster,
+        # this will be 0
         self.cluster_ordinal = None
 
-        # Set by prepare() only, the SSH key pairs to be injected into the instance'
-        self.ec2_keypairs = None
-
-        # Set by prepare() only, the globs from which to derive the SSH key pairs to be inhected
-        # into the instance'
-        self.ec2_keypair_globs = None
-
-        # Set by bind() and prepare()
+        # Role-specifc options for this box
         self.role_options = { }
+
+
 
     @property
     def instance_id( self ):
@@ -646,7 +647,7 @@ class Box( object ):
         """
         while True:
             clone = copy( self )
-            clone.unbind( )
+            clone._unbind( )
             yield clone
 
     def __wait_instances( self, instances ):
@@ -891,10 +892,13 @@ class Box( object ):
                 if verbose: log.info( '... bound to %s.', instance.id )
         return self
 
-    def unbind( self ):
+    def _unbind( self ):
+        """
+        Unset all state in this box that would be specific to an individual EC2 instance. This
+        method prepares this box for being bound to another EC2 instance.
+        """
         self.instance = None
-        self.image_id = None
-        self._set_instance_options( { } )
+        self.cluster_ordinal = None
 
     def list( self, wait_ready=False, **tags ):
         return [ box.bind( instance=instance, wait_ready=wait_ready, verbose=False )
