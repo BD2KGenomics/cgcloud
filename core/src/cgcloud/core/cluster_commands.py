@@ -229,6 +229,7 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
         used_cluster_ordinals.add( 0 )  # to make the math easier
         cluster_ordinal = self.allocate_cluster_ordinals( num=options.num_workers,
                                                           used=used_cluster_ordinals )
+        first_worker.unbind( )  # list() bound it
         spec = first_worker.prepare( leader_instance_id=leader.instance_id,
                                      **self.instance_options( options, first_worker ) )
         with thread_pool( min( options.num_threads, options.num_workers ) ) as pool:

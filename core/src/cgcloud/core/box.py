@@ -649,7 +649,7 @@ class Box( object ):
         """
         while True:
             clone = copy( self )
-            clone._unbind( )
+            clone.unbind( )
             yield clone
 
     def __wait_instances( self, instances ):
@@ -894,7 +894,7 @@ class Box( object ):
                 if verbose: log.info( '... bound to %s.', instance.id )
         return self
 
-    def _unbind( self ):
+    def unbind( self ):
         """
         Unset all state in this box that would be specific to an individual EC2 instance. This
         method prepares this box for being bound to another EC2 instance.
