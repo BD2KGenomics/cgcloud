@@ -1,8 +1,5 @@
 import logging
 from abc import ABCMeta, abstractproperty
-from copy import copy
-
-from bd2k.util.iterables import concat
 
 from cgcloud.core.box import Box
 from cgcloud.lib.util import (abreviated_snake_case_class_name, papply, thread_pool)
