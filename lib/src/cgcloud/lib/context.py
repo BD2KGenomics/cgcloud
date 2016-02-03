@@ -555,7 +555,7 @@ class Context( object ):
         try:
             return self.iam.get_user( ).user_name
         except:
-            log.error( "IAMConnection.get_user() failed.", exc_info=True )
+            log.warn( "IAMConnection.get_user() failed.", exc_info=True )
             return None
 
     current_user_placeholder = '__me__'
@@ -582,7 +582,10 @@ class Context( object ):
     def resolve_me( self, s, drop_hostname=True ):
         placeholder = self.current_user_placeholder
         if placeholder in s:
-            me = os.environ.get( 'CGCLOUD_ME', self.iam_user_name )
+            try:
+                me = os.environ['CGCLOUD_ME']
+            except KeyError:
+                me = self.iam_user_name
             if not me:
                 raise UserError(
                     "Can't determine current IAM user name. Be sure to put valid AWS credentials "
