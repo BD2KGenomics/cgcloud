@@ -44,7 +44,7 @@ class ToilClusterTests( MesosTestCase ):
 
     def test_hello_world( self ):
         shared_dir = self._prepare_shared_dir( )
-        self._create_cluster( '--share', shared_dir )
+        self._create_cluster( 1, '--share', shared_dir )
         try:
             self._assert_remote_failure( leader )
             self._wait_for_workers( )
@@ -72,9 +72,11 @@ class ToilClusterTests( MesosTestCase ):
         for i in xrange( num_workers ):
             self._ssh( worker, command, ordinal=i )
 
-    def _create_cluster( self, *args ):
-        self._cgcloud( 'create-cluster', 'toil', '-s=%d' % num_workers,
+    def _create_cluster( self, growth, *args ):
+        self._cgcloud( 'create-cluster', 'toil', '-s=%d' % ( num_workers - growth ),
                        '--ssh-opts', self.ssh_opts_str( ), *args )
+        if growth:
+            self._cgcloud( 'grow-cluster', 'toil', '-s=%d' % growth )
 
     def _terminate_cluster( self ):
         self._cgcloud( 'terminate-cluster', 'toil' )
@@ -121,7 +123,7 @@ class ToilClusterTests( MesosTestCase ):
         # Check that /var/lib/docker is on the persistent volume and that /var/lib/toil can be
         # switched between ephemeral and persistent. [ Would use docstring but confuses pytest ]
         volume_size_gb = 1
-        self._create_cluster( '--ebs-volume-size', str( volume_size_gb ),
+        self._create_cluster( 0, '--ebs-volume-size', str( volume_size_gb ),
                               '-O', 'persist_var_lib_toil=True' )
         try:
             try:
@@ -132,7 +134,7 @@ class ToilClusterTests( MesosTestCase ):
                 self._ssh( worker, "test $(stat -c '%d' /var/lib/docker/foo) == $(stat -c '%d' /var/lib/toil/bar)" )
             finally:
                 self._terminate_cluster( )
-            self._create_cluster( '--ebs-volume-size', str( volume_size_gb ),
+            self._create_cluster( 0, '--ebs-volume-size', str( volume_size_gb ),
                                   '-O', 'persist_var_lib_toil=False' )
             try:
                 self._wait_for_workers( )
