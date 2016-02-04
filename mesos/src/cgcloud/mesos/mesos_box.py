@@ -2,18 +2,17 @@ import logging
 from collections import namedtuple
 
 from bd2k.util.iterables import concat
+from bd2k.util.strings import interpolate as fmt
 from fabric.context_managers import settings
 from fabric.operations import run
 
-from bd2k.util.strings import interpolate as fmt
-
 from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterLeader, ClusterWorker
-from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
-from cgcloud.fabric.operations import sudo, remote_open, pip, sudov
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
 from cgcloud.core.mesos_box import MesosBox as CoreMesosBox
+from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
+from cgcloud.fabric.operations import sudo, remote_open, pip, sudov
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 log = logging.getLogger( __name__ )
@@ -164,8 +163,8 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
         admin = self.admin_account( )
         sudo( fmt( 'mkdir -p {tools_dir}' ) )
         sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) )
-        sudo( fmt( 'virtualenv --no-pip {tools_dir}' ) )
-        sudo( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+        run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
+        run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
 
         with settings( forward_agent=True ):
             with self._project_artifacts( 'mesos-tools' ) as artifacts:
@@ -189,17 +188,15 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
                 console log
                 start on (local-filesystems and net-device-up IFACE!=lo)
                 stop on runlevel [!2345]
-                # also see the modification of boto.config in MesosTools
-                respawn
-                respawn limit 0 300
                 pre-start script
-                {tools_dir}/bin/python2.7 - <<END
+                for i in 1 2 3; do if {tools_dir}/bin/python2.7 - <<END
                 import logging
                 logging.basicConfig( level=logging.INFO )
                 from cgcloud.mesos_tools import MesosTools
                 mesos_tools = {mesos_tools}
                 mesos_tools.start()
                 END
+                then exit 0; fi; echo Retrying in 60s; sleep 60; done; exit 1
                 end script
                 post-stop script
                 {tools_dir}/bin/python2.7 - <<END

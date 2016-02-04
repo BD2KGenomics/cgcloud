@@ -103,14 +103,17 @@ class MesosTools( object ):
         self.__patch_etc_hosts( { 'mesos-master': None } )
 
     @classmethod
+    @memoize
     def instance_data( cls, path ):
         return urlopen( 'http://169.254.169.254/latest/' + path ).read( )
 
     @classmethod
+    @memoize
     def meta_data( cls, path ):
         return cls.instance_data( 'meta-data/' + path )
 
     @classmethod
+    @memoize
     def user_data( cls ):
         user_data = cls.instance_data( 'user-data' )
         log.info( "User data is '%s'", user_data )
@@ -154,13 +157,11 @@ class MesosTools( object ):
     @property
     @memoize
     def master_id( self ):
-        while True:
-            master_id = self.__get_instance_tag( self.instance_id, 'leader_instance_id' )
-            if master_id:
-                log.info( "Master's instance ID is '%s'", master_id )
-                return master_id
-            log.warn( "Instance not tagged with master's instance ID, retrying" )
-            time.sleep( 5 )
+        master_id = self.instance_tag( 'leader_instance_id' )
+        if not master_id:
+            raise RuntimeError( "Instance not tagged with master's instance ID" )
+        log.info( "Master's instance ID is '%s'", master_id )
+        return master_id
 
     @property
     @memoize
@@ -170,26 +171,54 @@ class MesosTools( object ):
             log.info( "I am the master" )
         else:
             log.info( "I am a slave" )
-            master_instance = self.__get_instance( self.master_id )
-            master_ip = master_instance.private_ip_address
+            master_ip = self.master_instance.private_ip_address
         log.info( "Master IP is '%s'", master_ip )
         return master_ip
 
     @property
     @memoize
     def is_spot_instance( self ):
-        return bool( self.__get_instance( instance_id=self.instance_id ).spot_instance_request_id )
+        result = bool( self.this_instance.spot_instance_request_id )
+        log.info( "I am %s spot instance", "a" if result else "not a" )
+        return result
+
+    @memoize
+    def instance( self, instance_id ):
+        """:rtype: Instance"""
+        instances = self.ec2.get_only_instances( instance_ids=[ instance_id ] )
+        assert len( instances ) == 1
+        instance = instances[ 0 ]
+        return instance
+
+    @property
+    @memoize
+    def this_instance( self ):
+        """:rtype: Instance"""
+        instance = self.instance( self.instance_id )
+        log.info( "I am running on %r", instance.__dict__ )
+        return instance
+
+    @property
+    @memoize
+    def master_instance( self ):
+        """:rtype: Instance"""
+        return self.instance( self.master_id )
+
+    @memoize
+    def instance_tag( self, key ):
+        """:rtype: str|None"""
+        return self.this_instance.tags.get( key )
 
     def __mount_ebs_volume( self ):
         """
         Attach, format (if necessary) and mount the EBS volume with the same cluster ordinal as
         this node.
         """
-        ebs_volume_size = self.__get_instance_tag( self.instance_id, 'ebs_volume_size' ) or '0'
+        ebs_volume_size = self.instance_tag( 'ebs_volume_size' ) or '0'
         ebs_volume_size = int( ebs_volume_size )
         if ebs_volume_size:
-            instance_name = self.__get_instance_tag( self.instance_id, 'Name' )
-            cluster_ordinal = int( self.__get_instance_tag( self.instance_id, 'cluster_ordinal' ) )
+            instance_name = self.instance_tag( 'Name' )
+            cluster_ordinal = int( self.instance_tag( 'cluster_ordinal' ) )
             volume_name = '%s__%d' % (instance_name, cluster_ordinal)
             volume = EC2VolumeHelper( ec2=self.ec2,
                                       availability_zone=self.availability_zone,
@@ -241,7 +270,7 @@ class MesosTools( object ):
 
     def __get_master_host_key( self ):
         log.info( "Getting master's host key" )
-        master_host_key = self.__get_instance_tag( self.master_id, 'ssh_host_key' )
+        master_host_key = self.master_instance.tags.get( 'ssh_host_key' )
         if master_host_key:
             self.__add_host_keys( [ 'mesos-master:' + master_host_key ] )
         else:
@@ -311,7 +340,7 @@ class MesosTools( object ):
             logical_path = os.path.join( parent, name )
             if persistent is None:
                 tag = 'persist' + logical_path.replace( os.path.sep, '_' )
-                persistent = less_strict_bool( self.__get_instance_tag( self.instance_id, tag ) )
+                persistent = less_strict_bool( self.instance_tag( tag ) )
             location = self.persistent_dir if persistent else self.ephemeral_dir
             physical_path = os.path.join( location, parent[ 1: ], name )
             mkdir_p( physical_path )
@@ -330,23 +359,6 @@ class MesosTools( object ):
             etc_hosts.seek( 0 )
             etc_hosts.truncate( 0 )
             etc_hosts.writelines( lines )
-
-    def __get_instance_tag( self, instance_id, key ):
-        """
-        :rtype: str
-        """
-        tags = self.ec2.get_all_tags( filters={ 'resource-id': instance_id, 'key': key } )
-        return tags[ 0 ].value if tags else None
-
-    def __get_instance( self, instance_id ):
-        """
-        :rtype: Instance
-        """
-        reservations = self.ec2.get_all_reservations( instance_ids=[ instance_id ] )
-        instances = (i for r in reservations for i in r.instances if i.id == instance_id)
-        instance = next( instances )
-        assert next( instances, None ) is None
-        return instance
 
     def __mount_point( self, device ):
         with open( '/proc/mounts' ) as f:
