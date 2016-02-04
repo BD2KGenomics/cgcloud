@@ -368,17 +368,15 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
                 console log
                 start on (local-filesystems and net-device-up IFACE!=lo)
                 stop on runlevel [!2345]
-                # also see the modification of boto.config in SparkTools
-                respawn
-                respawn limit 0 300
                 pre-start script
-                {tools_dir}/bin/python2.7 - <<END
+                for i in 1 2 3; do if {tools_dir}/bin/python2.7 - <<END
                 import logging
                 logging.basicConfig( level=logging.INFO )
                 from cgcloud.spark_tools import SparkTools
                 spark_tools = {spark_tools}
                 spark_tools.start()
                 END
+                then exit 0; fi; echo Retrying in 60s; sleep 60; done; exit 1
                 end script
                 post-stop script
                 {tools_dir}/bin/python2.7 - <<END
