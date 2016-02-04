@@ -42,7 +42,7 @@ class DockerBox( UbuntuBox ):
         assert kernel.endswith( '-generic' ), \
             'Current kernel is not supported by the linux-image-extra-virtual package.'
         packages = super( DockerBox, self )._list_packages_to_install( )
-        packages += [ 'docker-engine', 'linux-image-extra-' + kernel, 'linux-image-extra-virtual' ]
+        packages += [ 'docker-engine=1.9.1-0~trusty', 'linux-image-extra-' + kernel, 'linux-image-extra-virtual' ]
         if run( 'cat /sys/module/apparmor/parameters/enabled' ).lower( ).startswith( 'y' ):
             packages += [ 'apparmor' ]
         return packages
