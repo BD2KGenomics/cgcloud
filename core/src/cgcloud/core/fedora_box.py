@@ -29,10 +29,17 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
 
     def _base_image( self, virtualization_type ):
         release = self.release( )
+        name = None
+        if release < 21:
+            name = 'Fedora-x86_64-%i-*' % release
+        elif release == 21:
+            name = 'Fedora-Cloud-Base-*-21.x86_64-*'
+        else:
+            name = 'Fedora-Cloud-Base-%s-*.x86_64-*' % release
         images = self.ctx.ec2.get_all_images(
             owners=[ '125523088429' ],
             filters={
-                'name': ( 'Fedora-x86_64-%i-*' if release < 21 else 'Fedora-Cloud-Base-%s-*.x86_64-*') % release,
+                'name': name,
                 'root-device-type': 'ebs',
                 'virtualization-type': virtualization_type } )
         images = [ i for i in images if not re.search( 'Alpha|Beta', i.name ) ]
@@ -46,7 +53,7 @@ class FedoraBox( YumBox, AgentBox, CloudInitBox, RcLocalBox ):
                 raise RuntimeError(
                     "Found more than one AMI for Fedora %i and virtualization type %s" % (
                     release, virtualization_type ) )
-        return images[ 0 ]
+        return images[0]
 
     def _list_packages_to_install( self ):
         return super( FedoraBox, self )._list_packages_to_install( ) + [
