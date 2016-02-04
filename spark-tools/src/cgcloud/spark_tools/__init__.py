@@ -1,24 +1,24 @@
-import logging
-import re
-import os
 import errno
 import fcntl
-from grp import getgrnam
-from pwd import getpwnam
+import itertools
+import logging
+import os
+import re
 import socket
 import stat
-from urllib2 import urlopen
-from subprocess import check_call, check_output, CalledProcessError, STDOUT
 import time
-import itertools
+from grp import getgrnam
+from pwd import getpwnam
+from subprocess import check_call, check_output, CalledProcessError, STDOUT
+from urllib2 import urlopen
 
 import boto.ec2
 from bd2k.util import memoize, less_strict_bool
 from bd2k.util.files import mkdir_p
 from boto.ec2.instance import Instance
 
-from cgcloud.lib.util import volume_label_hash
 from cgcloud.lib.ec2 import EC2VolumeHelper
+from cgcloud.lib.util import volume_label_hash
 
 initctl = '/sbin/initctl'
 
@@ -213,8 +213,8 @@ class SparkTools( object ):
         master_id = self.instance_tag( 'leader_instance_id' )
         if not master_id:
             raise RuntimeError( "Instance not tagged with master's instance ID" )
-                log.info( "Master's instance ID is '%s'", master_id )
-                return master_id
+        log.info( "Master's instance ID is '%s'", master_id )
+        return master_id
 
     @property
     @memoize
@@ -365,7 +365,7 @@ class SparkTools( object ):
 
     def _copy_dir_from_master( self, path ):
         log.info( "Copying %s from master" % path )
-        if not path.endswith('/'):
+        if not path.endswith( '/' ):
             path += '/'
         for tries in range( 5 ):
             try:
@@ -404,6 +404,10 @@ class SparkTools( object ):
         log.info( "Bind-mounting directory structure" )
         for (parent, name, persistent) in self.lazy_dirs:
             assert parent[ 0 ] == os.path.sep
+            logical_path = os.path.join( parent, name )
+            if persistent is None:
+                tag = 'persist' + logical_path.replace( os.path.sep, '_' )
+                persistent = less_strict_bool( self.instance_tag( tag ) )
             location = self.persistent_dir if persistent else self.ephemeral_dir
             physical_path = os.path.join( location, parent[ 1: ], name )
             mkdir_p( physical_path )

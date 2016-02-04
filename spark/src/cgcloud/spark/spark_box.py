@@ -1,34 +1,27 @@
-import logging
-from collections import namedtuple
 import json
+import logging
 import re
 from StringIO import StringIO
+from collections import namedtuple
 
 from bd2k.util.iterables import concat
+from bd2k.util.strings import interpolate as fmt
 from fabric.context_managers import settings
 from fabric.operations import run, put, os
 
-from bd2k.util.strings import interpolate as fmt
-
 from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterLeader, ClusterWorker
-from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
-from cgcloud.fabric.operations import sudo, remote_open, pip, sudov
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
 from cgcloud.core.generic_boxes import GenericUbuntuTrustyBox
+from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
+from cgcloud.fabric.operations import sudo, remote_open, pip, sudov
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 log = logging.getLogger( __name__ )
 
-hadoop_version = '2.6.0'
-
-spark_version = '1.2.1'
-
 user = 'sparkbox'
 
 install_dir = '/opt/sparkbox'
-
-var_dir = '/var/lib/sparkbox'
 
 log_dir = "/var/log/sparkbox"
 
@@ -36,7 +29,13 @@ ephemeral_dir = '/mnt/ephemeral'
 
 persistent_dir = '/mnt/persistent'
 
+var_dir = '/var/lib/sparkbox'
+
 hdfs_replication = 1
+
+hadoop_version = '2.6.0'
+
+spark_version = '1.2.1'
 
 Service = namedtuple( 'Service', [
     'init_name',
@@ -64,17 +63,17 @@ def spark_service( name, script_suffix=None ):
         stop_script=fmt( script, action='stop' ) )
 
 
-hadoop_services = {
-    'master': [ hdfs_service( 'namenode' ), hdfs_service( 'secondarynamenode' ) ],
-    'slave': [ hdfs_service( 'datanode' ) ] }
+hadoop_services = dict(
+    master=[ hdfs_service( 'namenode' ), hdfs_service( 'secondarynamenode' ) ],
+    slave=[ hdfs_service( 'datanode' ) ] )
 
-spark_services = {
-    'master': [ spark_service( 'master' ) ],
+spark_services = dict(
+    master=[ spark_service( 'master' ) ],
     # FIXME: The start-slaves.sh script actually does ssh localhost on a slave so I am not sure
     # this is the right thing to do. OTOH, it is the only script starts Tachyon and sets up the
     # spark:// URL pointing at the master. We would need to duplicate some of its functionality
     # if we wanted to eliminate the ssh call.
-    'slave': [ spark_service( 'slave', 'slaves' ) ] }
+    slave=[ spark_service( 'slave', 'slaves' ) ] )
 
 
 class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
@@ -341,10 +340,11 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         """
         tools_dir = install_dir + '/tools'
         admin = self.admin_account( )
-        sudo( fmt( 'mkdir -p {tools_dir} {persistent_dir} {ephemeral_dir}' ) )
+        sudo( fmt( 'mkdir -p {tools_dir}' ) )
         sudo( fmt( 'chown {admin}:{admin} {tools_dir}' ) )
         run( fmt( 'virtualenv --no-pip {tools_dir}' ) )
         run( fmt( '{tools_dir}/bin/easy_install pip==1.5.2' ) )
+
         with settings( forward_agent=True ):
             with self._project_artifacts( 'spark-tools' ) as artifacts:
                 pip( use_sudo=True,
@@ -409,8 +409,13 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         /mnt/persistent/foo/dir is created and bind-mounted into /foo/dir when the box starts.
         Likewise, __lazy_mkdir( '/foo', 'dir', False) creates /foo/dir now and ensures that
         /mnt/ephemeral/foo/dir is created and bind-mounted into /foo/dir when the box starts.
+
         Note that at start-up time, /mnt/persistent may be reassigned  to /mnt/ephemeral if no
         EBS volume is mounted at /mnt/persistent.
+
+        _lazy_mkdir( '/foo', 'dir', None ) will look up an instance tag named 'persist_foo_dir'
+        when the box starts and then behave like _lazy_mkdir( '/foo', 'dir', True ) if that tag's
+        value is 'True', or _lazy_mkdir( '/foo', 'dir', False ) if that tag's value is False.
         """
         assert self.lazy_dirs is not None
         assert '/' not in name
