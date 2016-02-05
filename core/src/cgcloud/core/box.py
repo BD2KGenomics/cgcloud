@@ -10,7 +10,7 @@ from collections import namedtuple, Iterator, Iterable
 from contextlib import closing, contextmanager
 from copy import copy
 from functools import partial, wraps
-from itertools import count, chain, izip
+from itertools import count, izip
 from operator import attrgetter
 from pipes import quote
 
@@ -20,7 +20,7 @@ from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
 from boto import logging
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
-from boto.ec2.instance import Reservation, Instance
+from boto.ec2.instance import Instance
 from boto.ec2.spotpricehistory import SpotPriceHistory
 from boto.exception import BotoServerError, EC2ResponseError
 from fabric.api import execute
@@ -200,8 +200,6 @@ class Box( object ):
 
         # Role-specifc options for this box
         self.role_options = { }
-
-
 
     @property
     def instance_id( self ):
@@ -592,53 +590,61 @@ class Box( object ):
             def executor( f, args ):
                 f( *args )
 
-        if 'price' in spec:
-            reservations = self._create_spot_instances( spec )
-            # Each spot market reservation contains only 1 instance each
-            instances = list( chain.from_iterable( r.instances for r in reservations ) )
-        else:
-            reservation = self._create_ondemand_instances( spec )
-            instances = reservation.instances
-
-        assert instances
-
-        try:
-            def adopt( _box, _instance, _cluster_ordinal ):
+        # noinspection PyShadowingNames
+        def adopt( instances ):
+            for box, instance in izip( concat( self, self.clones( ) ), instances ):
                 # noinspection PyProtectedMember
-                _box._adopt( _instance, _cluster_ordinal, wait_ready )
+                box._adopt( instance, next( cluster_ordinal ) )
+                yield box
 
-            if len( instances ) == 1:
-                # For a single instance, adopt() will wait for the status change ...
-                executor( adopt, (self, instances[ 0 ], next( cluster_ordinal )) )
+        boxes = [ ]
+        try:
+            if 'price' in spec:
+                # Spot requests are fulfilled in batches. A batch could consist of one instance,
+                # of all requested instances or a subset thereof. As soon as a batch comes back from
+                # _create_spot_instances(), we will want to adopt every instance in it. Part of
+                # adoption is tagging which is crucial for cluster nodes.
+                # TODO: timeout
+                for batch in self._create_spot_instances( spec ):
+                    boxes.extend( adopt( batch ) )
             else:
-                # .. but for multiple instances it is more efficient to query all instances at
-                # once. adopt() will automatically skip the waiting step.
+                boxes.extend( adopt( self._create_ondemand_instances( spec ) ) )
+            assert boxes
 
-                # First, sort and index by cluster_ordinal
-                instances = sorted( instances, key=self.__ordinal_sort_key )
-                cluster_ordinals = { i.id: o for i, o in izip( instances, cluster_ordinal ) }
+            if len( boxes ) == 1:
+                assert boxes[0] == self
+                # For a single instance, self._wait_ready will wait for the instance to change to
+                # running ...
+                if wait_ready:
+                    executor( self._wait_ready, ( { 'pending' }, True ) ) # FIXME: kwargs
+            else:
+                # .. but for multiple instances it is more efficient to wait for all together.
+                boxes_by_instance_id = { box.instance.id: box for box in boxes  }
 
                 # Wait for instances to enter the running state and as they do, pass them to the
-                # executor where they are adopted concurrently.
+                # executor where they are waited on concurrently.
                 num_running, num_other = 0, 0
-                for box, instance in izip( concat( self, self.clones() ),
-                                           self.__wait_instances( instances ) ):
+                # TODO: timeout
+                for instance in self.__wait_instances( box.instance for box in boxes ):
+                    box = boxes_by_instance_id[instance.id]
+                    # equivalent to the instance.update() done in wait_ready
+                    box.instance = instance
                     if instance.state == 'running':
-                        executor( adopt, (box, instance, cluster_ordinals[ instance.id ]) )
+                        # noinspection PyProtectedMember
+                        executor( box._wait_ready, ( { 'pending' }, True ) )
                         num_running += 1
                     else:
-                        log.info( 'Instance %s in unexpected state %s.', instance.id,
-                                  instance.state )
+                        log.info( 'Instance %s in unexpected state %s.', instance.id, instance.state )
                         num_other += 1
-                assert num_running + num_other == len( instances )
+                assert num_running + num_other == len( boxes )
                 if not num_running:
                     raise RuntimeError( 'None of the instances entered the running state.' )
                 if num_other:
-                    log.warn( '%i instance(s) did not enter running state', num_other )
+                    log.warn( '%i instance(s) entered a state other than running.', num_other )
         except:
             log.warn( 'Terminating instances ...' )
             with panic( log ):
-                self.ctx.ec2.terminate_instances( instance_ids=[ i.id for i in instances ] )
+                self.ctx.ec2.terminate_instances( [ box.instance.id for box in boxes ] )
             raise
 
     def clones( self ):
@@ -661,8 +667,8 @@ class Box( object ):
         :rtype: Iterator[Instance]
         """
         pending_ids = { i.id for i in instances }
-        running_ids = set()
-        other_ids = set()
+        running_ids = set( )
+        other_ids = set( )
         while True:
             log.info( '%i instance(s) pending, %i running, %i other.',
                       *map( len, (pending_ids, running_ids, other_ids) ) )
@@ -689,10 +695,7 @@ class Box( object ):
 
     def _create_spot_instances( self, spec ):
         """
-        A request for multiple instances actually creates many requests for 1 instance each,
-        which then become reservations with 1 instance each.
-
-        :rtype: list[Reservation]
+        :rtype: Iterator[Instance]
         """
         # There is no min/max count parameter for request_spot_instances, just count
         spec = spec.copy( )
@@ -709,8 +712,26 @@ class Box( object ):
                                   retry_while=self.__inconsistencies_detected ):
             with attempt:
                 requests = self.ctx.ec2.request_spot_instances( price, self.image_id, **spec )
+
+        num_active, num_other = 0, 0
         # noinspection PyUnboundLocalVariable
-        return wait_for_spot_instances( self.ctx.ec2, requests )
+        for batch in wait_for_spot_instances( self.ctx.ec2, requests ):
+            instance_ids = [ ]
+            for request in batch:
+                if request.state == 'active':
+                    instance_ids.append( request.instance_id )
+                    num_active += 1
+                else:
+                    log.info( 'Request %s in unexpected state %s.', request.id, request.state )
+                    num_other += 1
+            if instance_ids:
+                # This next line is the reason we batch. It's so we can get multiple instances in
+                # a single request.
+                yield self.ctx.ec2.get_only_instances( instance_ids )
+        if not num_active:
+            raise RuntimeError( 'None of the spot requests entered the active state' )
+        if num_other:
+            log.warn( '%i request(s) entered a state other than active.', num_other )
 
     def __inconsistencies_detected( self, e ):
         if e.code == 'InvalidGroup.NotFound': return True
@@ -722,7 +743,7 @@ class Box( object ):
         Requests the RunInstances EC2 API call but accounts for the race between recently created
         instance profiles, IAM roles and an instance creation that refers to them.
 
-        :rtype: Reservation
+        :rtype: list[Instance]
         """
         instance_type = spec[ 'instance_type' ]
         log.info( 'Creating %s instance(s) ... ', instance_type )
@@ -730,9 +751,9 @@ class Box( object ):
         for attempt in retry_ec2( retry_for=a_long_time,
                                   retry_while=self.__inconsistencies_detected ):
             with attempt:
-                return self.ctx.ec2.run_instances( self.image_id, **spec )
+                return self.ctx.ec2.run_instances( self.image_id, **spec ).instances
 
-    def _adopt( self, instance, cluster_ordinal, wait_ready=True ):
+    def _adopt( self, instance, cluster_ordinal ):
         """
         Link the given newly created EC2 instance with this box.
         """
@@ -740,8 +761,6 @@ class Box( object ):
         self.instance = instance
         self.cluster_ordinal = cluster_ordinal
         self._on_instance_created( )
-        if wait_ready:
-            self._wait_ready( instance, { 'pending' }, first_boot=True )
 
     def _set_instance_options( self, options ):
         """
@@ -885,13 +904,13 @@ class Box( object ):
                 instance = self.__get_instance_by_ordinal( ordinal=ordinal,
                                                            cluster_name=cluster_name )
             self.instance = instance
-            self.image_id = instance.image_id
-            options = dict( instance.tags )
+            self.image_id = self.instance.image_id
+            options = dict( self.instance.tags )
             self._set_instance_options( options )
             if wait_ready:
-                self._wait_ready( instance, from_states={ 'pending' }, first_boot=None )
+                self._wait_ready( from_states={ 'pending' }, first_boot=None )
             else:
-                if verbose: log.info( '... bound to %s.', instance.id )
+                if verbose: log.info( '... bound to %s.', self.instance.id )
         return self
 
     def unbind( self ):
@@ -1026,7 +1045,7 @@ class Box( object ):
         # Not 100% sure why from_states includes 'stopped' but I think I noticed that there is a
         # short interval after start_instances returns during which the instance is still in
         # stopped before it goes into pending
-        self._wait_ready( self.instance, from_states={ 'stopped', 'pending' }, first_boot=False )
+        self._wait_ready( from_states={ 'stopped', 'pending' }, first_boot=False )
 
     def reboot( self ):
         """
@@ -1081,13 +1100,10 @@ class Box( object ):
             raise UserError( "Expected instance state '%s' but got '%s'"
                              % (expected_state, actual_state) )
 
-    def _wait_ready( self, instance, from_states, first_boot ):
+    def _wait_ready( self, from_states, first_boot ):
         """
         Wait until the given instance transistions from stopped or pending state to being fully
         running and accessible via SSH.
-
-        :param instance: the instance to wait for
-        :type instance: boto.ec2.instance.Instance
 
         :param from_states: the set of states the instance may be in when this methods is
         invoked, any other state will raise an exception.
@@ -1097,11 +1113,11 @@ class Box( object ):
          None if the instance isn't booting, False if the instance is booting but not for the
          first time.
         """
-        log.info( "... waiting for instance %s ... ", instance.id )
-        wait_transition( instance, from_states, 'running' )
+        log.info( "... waiting for instance %s ... ", self.instance.id )
+        wait_transition( self.instance, from_states, 'running' )
         self._on_instance_running( first_boot )
         log.info( "... running, waiting for assignment of public IP ... " )
-        self.__wait_public_ip_assigned( instance )
+        self.__wait_public_ip_assigned( self.instance )
         log.info( "... assigned, waiting for SSH port ... " )
         self.__wait_ssh_port_open( )
         log.info( "... open ... " )

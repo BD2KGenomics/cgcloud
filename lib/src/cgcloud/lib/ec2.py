@@ -5,6 +5,7 @@ import time
 import errno
 
 from bd2k.util.exceptions import panic
+from boto.ec2.spotinstancerequest import SpotInstanceRequest
 from boto.exception import EC2ResponseError
 
 from cgcloud.lib.util import UserError
@@ -188,8 +189,8 @@ class EC2VolumeHelper( object ):
 class UnexpectedResourceState( Exception ):
     def __init__( self, resource, to_state, state ):
         super( UnexpectedResourceState, self ).__init__(
-                "Expected state of %s to be '%s' but got '%s'" %
-                (resource, to_state, state) )
+            "Expected state of %s to be '%s' but got '%s'" %
+            (resource, to_state, state) )
 
 
 def wait_transition( resource, from_states, to_state, state_getter=attrgetter( 'state' ) ):
@@ -318,43 +319,64 @@ _ec2_instance_types = [
 ec2_instance_types = dict( (_.name, _) for _ in _ec2_instance_types )
 
 
-def wait_for_spot_instances( ec2, requests ):
-    # We would use a set but get_all_spot_instance_requests wants a list so its either O(n)
-    # for lookup (the rock) or O(n) for converting a set to a list (the hard place).
-    request_ids = [ request.id for request in requests ]
-    instance_ids = [ ]
+def wait_for_spot_instances( ec2, requests, timeout=None ):
+    """
+    Wait until no spot request in the given iterable is 'open' or, optionally, a timeout occurs.
+    Yield spot requests as soon as they leave that state.
+
+    :param float timeout: maximum time in seconds to spend waiting or None to wait forever. If a
+    timeout occurs, all remaining open requests will be terminated.
+
+    :type requests: Iterator[list[SpotInstanceRequest]]
+
+    :rtype: Iterator[SpotInstanceRequest]
+    """
+
+    if timeout is not None:
+        timeout = time.time( ) + timeout
+    open_ids = { i.id for i in requests }
+    active_ids = set( )
+    other_ids = set( )
+
+    def cancel( ):
+        log.warn( 'Cancelling remaining %i spot requests.', len( open_ids ) )
+        ec2.cancel_spot_instance_requests( list( open_ids ) )
 
     def spot_request_not_found( e ):
         error_code = 'InvalidSpotInstanceRequestID.NotFound'
         return isinstance( e, EC2ResponseError ) and e.error_code == error_code
 
-    # noinspection PyBroadException
     try:
-        try:
-            while True:
-                for attempt in retry_ec2( retry_while=spot_request_not_found ):
-                    with attempt:
-                        requests = ec2.get_all_spot_instance_requests( request_ids )
-                        for request in requests:
-                            if request.status.code == 'fulfilled':
-                                log.info( 'Request %s was fulfilled.', request.id )
-                                request_ids.remove( request.id )
-                                instance_ids.append( request.instance_id )
-                if request_ids:
-                    spot_sleep = 30
-                    log.info( '%d spot market requests still pending. Waiting for %ds',
-                              len( request_ids ), spot_sleep )
-                    time.sleep( spot_sleep )
+        while timeout is None or time.time( ) < timeout:
+            log.info( '%i requests(s) open, %i active, %i other.',
+                      *map( len, (open_ids, active_ids, other_ids) ) )
+            if not open_ids:
+                return
+            log.info( 'Sleeping for %is', a_short_time )
+            time.sleep( a_short_time )
+            for attempt in retry_ec2( retry_while=spot_request_not_found ):
+                with attempt:
+                    requests = ec2.get_all_spot_instance_requests( list( open_ids ) )
+            open_ids = set( )
+            batch = [ ]
+            for r in requests:
+                if r.state == 'open':
+                    open_ids.add( r.id )
+                elif r.state == 'active':
+                    assert r.id not in active_ids
+                    active_ids.add( r.id )
+                    batch.append( r )
                 else:
-                    log.info( 'All spot market requests have been fulfilled.' )
-                    return ec2.get_all_instances( instance_ids )
-        except:
-            with panic( log ):
-                if instance_ids:
-                    log.warn( 'Terminating instances for already fulfilled requests.' )
-                    ec2.terminate_instances( instance_ids )
+                    assert r.id not in other_ids
+                    other_ids.add( r.id )
+                    batch.append( r )
+            if batch:
+                yield batch
+        log.warn( 'Timed out waiting for spot requests.' )
+        if open_ids:
+            cancel( )
     except:
-        with panic( log ):
-            if request_ids:
-                log.warn( 'Cancelling remaining spot requests.' )
-                ec2.cancel_spot_instance_requests( request_ids )
+        if open_ids:
+            with panic( log ):
+                cancel( )
+        raise
