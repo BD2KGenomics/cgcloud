@@ -31,7 +31,7 @@ from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
-from cgcloud.lib.ec2 import ec2_instance_types, wait_for_spot_instances
+from cgcloud.lib.ec2 import ec2_instance_types, wait_spot_requests_active
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
 from cgcloud.lib.util import (UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint,
                               private_to_public_key, mean, std_dev)
@@ -564,8 +564,8 @@ class Box( object ):
         """
         Create the EC2 instance represented by this box, and optionally waits for the instance to
         be ready. If the box was prepared to launch multiple instances, and multiple instances
-        were indeed launched by EC2, clones of this box will be created, one clone for each
-        additional instance. This box will represent the first instance while the clones will
+        were indeed launched by EC2, adoptees of this box will be created, one clone for each
+        additional instance. This box will represent the first instance while the adoptees will
         represent the subsequent instances. The given executor will be used to handle
         post-creation activity on each instance.
 
@@ -590,57 +590,61 @@ class Box( object ):
             def executor( f, args ):
                 f( *args )
 
-        # noinspection PyShadowingNames
-        def adopt( instances ):
-            for box, instance in izip( concat( self, self.clones( ) ), instances ):
-                # noinspection PyProtectedMember
-                box._adopt( instance, next( cluster_ordinal ) )
-                yield box
+        adopters = concat( self, self.clones( ) )
+
+        def adopt( adoptees ):
+            """
+            :type adoptees: Iterator[Instance]
+            :rtype: Iterator[Box]
+            """
+            for adopter, adoptee in izip( adopters, adoptees ):
+                yield adopter.adopt( adoptee, next( cluster_ordinal ) )
 
         boxes = [ ]
         try:
             if 'price' in spec:
                 # Spot requests are fulfilled in batches. A batch could consist of one instance,
-                # of all requested instances or a subset thereof. As soon as a batch comes back from
-                # _create_spot_instances(), we will want to adopt every instance in it. Part of
+                # all requested instances or a subset thereof. As soon as a batch comes back from
+                #  _create_spot_instances(), we will want to adopt every instance in it. Part of
                 # adoption is tagging which is crucial for cluster nodes.
                 # TODO: timeout
                 for batch in self._create_spot_instances( spec ):
                     boxes.extend( adopt( batch ) )
             else:
                 boxes.extend( adopt( self._create_ondemand_instances( spec ) ) )
+
             assert boxes
+            assert boxes[0] is self
 
-            if len( boxes ) == 1:
-                assert boxes[0] == self
-                # For a single instance, self._wait_ready will wait for the instance to change to
-                # running ...
-                if wait_ready:
+            if wait_ready:
+                if len( boxes ) == 1:
+                    # For a single instance, self._wait_ready will wait for the instance to change to
+                    # running ...
                     executor( self._wait_ready, ( { 'pending' }, True ) ) # FIXME: kwargs
-            else:
-                # .. but for multiple instances it is more efficient to wait for all together.
-                boxes_by_instance_id = { box.instance.id: box for box in boxes  }
-
-                # Wait for instances to enter the running state and as they do, pass them to the
-                # executor where they are waited on concurrently.
-                num_running, num_other = 0, 0
-                # TODO: timeout
-                for instance in self.__wait_instances( box.instance for box in boxes ):
-                    box = boxes_by_instance_id[instance.id]
-                    # equivalent to the instance.update() done in wait_ready
-                    box.instance = instance
-                    if instance.state == 'running':
-                        # noinspection PyProtectedMember
-                        executor( box._wait_ready, ( { 'pending' }, True ) )
-                        num_running += 1
-                    else:
-                        log.info( 'Instance %s in unexpected state %s.', instance.id, instance.state )
-                        num_other += 1
-                assert num_running + num_other == len( boxes )
-                if not num_running:
-                    raise RuntimeError( 'None of the instances entered the running state.' )
-                if num_other:
-                    log.warn( '%i instance(s) entered a state other than running.', num_other )
+                else:
+                    # .. but for multiple instances it is more efficient to wait for all of the
+                    # instances together.
+                    boxes_by_id = { box.instance_id: box for box in boxes  }
+                    # Wait for instances to enter the running state and as they do, pass them to
+                    # the executor where they are waited on concurrently.
+                    num_running, num_other = 0, 0
+                    # TODO: timeout
+                    for instance in self.__wait_instances_running( box.instance for box in boxes ):
+                        box = boxes_by_id[instance.id]
+                        # equivalent to the instance.update() done in _wait_ready()
+                        box.instance = instance
+                        if instance.state == 'running':
+                            # noinspection PyProtectedMember
+                            executor( box._wait_ready, ( { 'pending' }, True ) )
+                            num_running += 1
+                        else:
+                            log.info( 'Instance %s in unexpected state %s.', instance.id, instance.state )
+                            num_other += 1
+                    assert num_running + num_other == len( boxes )
+                    if not num_running:
+                        raise RuntimeError( 'None of the instances entered the running state.' )
+                    if num_other:
+                        log.warn( '%i instance(s) entered a state other than running.', num_other )
         except:
             log.warn( 'Terminating instances ...' )
             with panic( log ):
@@ -658,28 +662,17 @@ class Box( object ):
             clone.unbind( )
             yield clone
 
-    def __wait_instances( self, instances ):
+    def __wait_instances_running( ec2, instances ):
         """
-        Wait until no instance in the given iterable is 'pending'. Yield every instance that entered
-        the running state as soon as it does.
+        Wait until no instance in the given iterable is 'pending'. Yield every instance that
+        entered the running state as soon as it does.
 
-        :type instances: Iterable[Instance]
+        :type instances: Iterator[Instance]
         :rtype: Iterator[Instance]
         """
-        pending_ids = { i.id for i in instances }
         running_ids = set( )
         other_ids = set( )
         while True:
-            log.info( '%i instance(s) pending, %i running, %i other.',
-                      *map( len, (pending_ids, running_ids, other_ids) ) )
-            if not pending_ids:
-                break
-            seconds = max( a_short_time, min( len( pending_ids ), 10 * a_short_time ) )
-            log.info( 'Sleeping for %is', seconds )
-            time.sleep( seconds )
-            for attempt in retry_ec2( ):
-                with attempt:
-                    instances = self.ctx.ec2.get_only_instances( list( pending_ids ) )
             pending_ids = set( )
             for i in instances:
                 if i.state == 'pending':
@@ -692,10 +685,20 @@ class Box( object ):
                     assert i.id not in other_ids
                     other_ids.add( i.id )
                     yield i
+            log.info( '%i instance(s) pending, %i running, %i other.',
+                      *map( len, (pending_ids, running_ids, other_ids) ) )
+            if not pending_ids:
+                break
+            seconds = max( a_short_time, min( len( pending_ids ), 10 * a_short_time ) )
+            log.info( 'Sleeping for %is', seconds )
+            time.sleep( seconds )
+            for attempt in retry_ec2( ):
+                with attempt:
+                    instances = ec2.ctx.ec2.get_only_instances( list( pending_ids ) )
 
     def _create_spot_instances( self, spec ):
         """
-        :rtype: Iterator[Instance]
+        :rtype: Iterator[list[Instance]]
         """
         # There is no min/max count parameter for request_spot_instances, just count
         spec = spec.copy( )
@@ -715,7 +718,7 @@ class Box( object ):
 
         num_active, num_other = 0, 0
         # noinspection PyUnboundLocalVariable
-        for batch in wait_for_spot_instances( self.ctx.ec2, requests ):
+        for batch in wait_spot_requests_active( self.ctx.ec2, requests ):
             instance_ids = [ ]
             for request in batch:
                 if request.state == 'active':
@@ -753,7 +756,7 @@ class Box( object ):
             with attempt:
                 return self.ctx.ec2.run_instances( self.image_id, **spec ).instances
 
-    def _adopt( self, instance, cluster_ordinal ):
+    def adopt( self, instance, cluster_ordinal ):
         """
         Link the given newly created EC2 instance with this box.
         """
@@ -761,6 +764,7 @@ class Box( object ):
         self.instance = instance
         self.cluster_ordinal = cluster_ordinal
         self._on_instance_created( )
+        return self
 
     def _set_instance_options( self, options ):
         """
