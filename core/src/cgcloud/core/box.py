@@ -590,7 +590,7 @@ class Box( object ):
             def executor( f, args ):
                 f( *args )
 
-        adopters = concat( self, self.clones( ) )
+        adopters = iter( concat( self, self.clones( ) ) )
 
         def adopt( adoptees ):
             """
