@@ -17,6 +17,7 @@ from math import sqrt
 from textwrap import dedent
 
 from bd2k.util.strings import interpolate
+from concurrent.futures import ThreadPoolExecutor
 
 log = logging.getLogger( __name__ )
 
@@ -673,22 +674,29 @@ def heredoc( s, indent=None ):
     return interpolate( s, skip_frames=1 )
 
 
-@contextmanager
-def thread_pool( size ):
+class thread_pool( object ):
     """
     A context manager that yields a thread pool of the given size. On normal closing,
     this context manager closes the pool and joins all threads in it. On exceptions, the pool
     will be terminated but threads won't be joined.
     """
-    pool = multiprocessing.pool.ThreadPool( processes=size )
-    try:
-        yield pool
-    except:
-        pool.terminate( )
-        raise
-    else:
-        pool.close( )
-        pool.join( )
+
+    def __init__( self, size ):
+        self.executor = ThreadPoolExecutor( size )
+
+    def __enter__( self ):
+        return self
+
+    def __exit__( self, exc_type, exc_val, exc_tb ):
+        self.executor.shutdown( wait=exc_type is None )
+
+    def apply_async( self, fn, args, callback=None ):
+        future = self.executor.submit( fn, *args )
+        if callback is not None:
+            future.add_done_callback( lambda f: callback( f.result( ) ) )
+
+    def map( self, fn, iterable ):
+        return list( self.executor.map( fn, iterable ) )
 
 
 def pmap( f, seq, pool_size=cores ):

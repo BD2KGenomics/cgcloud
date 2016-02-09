@@ -24,6 +24,7 @@ setup(
         'cgcloud-lib==' + cgcloud_version,
         'boto==' + boto_version,
         'Fabric==' + fabric_version,
+        'futures==3.0.4',
         'PyYAML==3.11',
         'subprocess32==3.2.7' ],
     test_suite='cgcloud.core.test' )
