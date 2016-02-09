@@ -442,6 +442,10 @@ class CreationCommand( BoxCommand ):
                      to be terminated by Amazon, so will the remaining ones, even if their bid is
                      higher than the market price.""" ) )
 
+        self.option( '--spot-auto-zone', default=False, action='store_true',
+                     help=heredoc( """Ignore --zone/CGCLOUD_ZONE and instead choose the best EC2
+                     availability zone for spot instances based on a heuristic.""" ) )
+
         option_name_re = re.compile( r'^[A-Za-z][0-9A-Za-z_]*$' )
 
         def option( o ):
@@ -495,7 +499,8 @@ class CreationCommand( BoxCommand ):
                      instance_type=options.instance_type,
                      virtualization_type=options.virtualization_type,
                      spot_bid=options.spot_bid,
-                     launch_group=options.launch_group )
+                     launch_group=options.launch_group,
+                     spot_auto_zone=options.spot_auto_zone )
 
     def run_on_box( self, options, box ):
         try:

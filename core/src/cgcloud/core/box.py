@@ -362,7 +362,7 @@ class Box( object ):
 
     def prepare( self, ec2_keypair_globs,
                  instance_type=None, image_ref=None, virtualization_type=None, num_instances=1,
-                 spot_bid=None, launch_group=None,
+                 spot_bid=None, launch_group=None, spot_auto_zone=False,
                  **options ):
         """
         Prepare to create an EC2 instance represented by this box. Return a dictionary with
@@ -395,7 +395,10 @@ class Box( object ):
         augment the options associated with the givem image.
         """
         if launch_group is not None and spot_bid is None:
-            raise UserError( 'Need spot bid for launch group' )
+            raise UserError( 'Need a spot bid when specifying a launch group for spot instances' )
+
+        if spot_auto_zone and spot_bid is None:
+            raise UserError( 'Need a spot bid for automatically chosing a zone for spot instances' )
 
         if self.instance_id is not None:
             raise AssertionError( 'Instance already bound or created' )
@@ -429,13 +432,14 @@ class Box( object ):
                         min_count=num_instances,
                         max_count=num_instances )
         self._populate_instance_spec( image, spec )
-        self.__add_spot_instance_spec( spec, spot_bid, launch_group )
+        self.__add_spot_instance_spec( spec, spot_bid, launch_group, spot_auto_zone )
         return spec
 
-    def __add_spot_instance_spec( self, spec, spot_bid, launch_group ):
+    def __add_spot_instance_spec( self, spec, spot_bid, launch_group, spot_auto_zone=False ):
         if spot_bid is not None:
             assert ec2_instance_types[ spec.instance_type ].spot_availability is True
-            spec.placement = self._optimize_spot_bid( spec.instance_type, spot_bid )
+            if spot_auto_zone:
+                spec.placement = self._optimize_spot_bid( spec.instance_type, spot_bid )
             spec.price = spot_bid
             if launch_group is not None:
                 spec.launch_group = self.ctx.to_aws_name( launch_group )
@@ -448,11 +452,15 @@ class Box( object ):
         Returns the zone to put the spot request based on, in order of priority:
 
            1) zones with prices currently under the bid
+
            2) zones with the most stable price
-        :param zones: list ['boto.ec2.zone.Zone']
-        :param bid: float
-        :param spot_history: list['boto.ec2.SpotMarketHistory objects']
-        :return: String representing the name of the selected zone
+
+        :param list[boto.ec2.zone.Zone] zones:
+        :param float bid:
+        :param list[boto.ec2.spotpricehistory.SpotPriceHistory] spot_history:
+
+        :rtype: str
+        :return: the name of the selected zone
 
         >>> from collections import namedtuple
         >>> FauxHistory = namedtuple( 'FauxHistory', [ 'price', 'availability_zone' ] )
@@ -502,14 +510,13 @@ class Box( object ):
 
     def _optimize_spot_bid( self, instance_type, spot_bid ):
         """
-        Insures that the bid is an appropriate price and makes an effort to place it in a
-        sensible zone.
+        Check whether the bid is sane and makes an effort to place the instance in a sensible zone.
         """
         spot_history = self._get_spot_history( instance_type )
         self._check_spot_bid( spot_bid, spot_history )
         zones = self.ctx.ec2.get_all_zones( )
         most_stable_zone = self._choose_spot_zone( zones, spot_bid, spot_history )
-        log.info( "Requesting spot instances in zone %s", most_stable_zone )
+        log.info( "Placing spot instances in zone %s.", most_stable_zone )
         return most_stable_zone
 
     @staticmethod
