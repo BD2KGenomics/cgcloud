@@ -100,8 +100,8 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
         if instance_type is None:
             instance_type = self.recommended_instance_type( )
         self._set_instance_options( image.tags )
-        creation_kwargs = dict( instance_type=instance_type )
-        self._populate_instance_spec( image, creation_kwargs )
+        spec = dict( instance_type=instance_type )
+        self._spec_block_device_mapping( spec, image )
         return E( 'hudson.plugins.ec2.SlaveTemplate',
                   E.ami( image.id ),
                   # By convention we use the description element as the primary identifier. We
@@ -116,7 +116,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                   E.labels( ' '.join( self.__jenkins_labels( ) ) ),
                   E.mode( 'EXCLUSIVE' ),
                   E.initScript( 'while ! touch %s/.writable; do sleep 1; done' % build_dir ),
-                  E.userData( creation_kwargs.get( 'user_data', '' ) ),
+                  E.userData( spec.get( 'user_data', '' ) ),
                   E.numExecutors( '1' ),
                   E.remoteAdmin( Jenkins.user ),
                   # Using E.foo('') instead of just E.foo() yields <foo></foo> instead of <foo/>,

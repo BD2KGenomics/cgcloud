@@ -140,8 +140,8 @@ class CloudInitBox( Box ):
         bootcmd = user_data.setdefault( 'bootcmd', [ ] )
         bootcmd[ 0:0 ] = commands
 
-    def _populate_instance_spec( self, image, spec ):
-        super( CloudInitBox, self )._populate_instance_spec( image, spec )
+    def _spec_block_device_mapping( self, spec, image ):
+        super( CloudInitBox, self )._spec_block_device_mapping( spec, image )
         cloud_config = { }
         instance_type = ec2_instance_types[ spec[ 'instance_type' ] ]
         self._populate_cloud_config( instance_type, cloud_config )

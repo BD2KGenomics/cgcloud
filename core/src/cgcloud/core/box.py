@@ -232,7 +232,7 @@ class Box( object ):
 
     # FIXME: this can probably be rolled into prepare()
 
-    def _populate_instance_spec( self, image, spec ):
+    def _spec_block_device_mapping( self, spec, image ):
         """
         Add, remove or modify the keyword arguments that will be passed to the EC2 run_instances
         request.
@@ -431,13 +431,15 @@ class Box( object ):
                         instance_profile_arn=self.get_instance_profile_arn( ),
                         min_count=num_instances,
                         max_count=num_instances )
-        self._populate_instance_spec( image, spec )
-        self.__add_spot_instance_spec( spec, spot_bid, launch_group, spot_auto_zone )
+        self._spec_block_device_mapping( spec, image )
+        self._spec_spot_market( spec, spot_bid, launch_group, spot_auto_zone )
         return spec
 
-    def __add_spot_instance_spec( self, spec, spot_bid, launch_group, spot_auto_zone=False ):
+    def _spec_spot_market( self, spec, spot_bid, launch_group, spot_auto_zone ):
         if spot_bid is not None:
-            assert ec2_instance_types[ spec.instance_type ].spot_availability is True
+            if not ec2_instance_types[ spec.instance_type ].spot_availability:
+                raise UserError( 'The instance type %s is not available on the spot market.' %
+                                 spec.instance_type )
             if spot_auto_zone:
                 spec.placement = self._optimize_spot_bid( spec.instance_type, spot_bid )
             spec.price = spot_bid
@@ -621,31 +623,32 @@ class Box( object ):
                 boxes.extend( adopt( self._create_ondemand_instances( spec ) ) )
 
             assert boxes
-            assert boxes[0] is self
+            assert boxes[ 0 ] is self
 
             if wait_ready:
                 if len( boxes ) == 1:
                     # For a single instance, self._wait_ready will wait for the instance to change to
                     # running ...
-                    executor( self._wait_ready, ( { 'pending' }, True ) ) # FIXME: kwargs
+                    executor( self._wait_ready, ({ 'pending' }, True) )  # FIXME: kwargs
                 else:
                     # .. but for multiple instances it is more efficient to wait for all of the
                     # instances together.
-                    boxes_by_id = { box.instance_id: box for box in boxes  }
+                    boxes_by_id = { box.instance_id: box for box in boxes }
                     # Wait for instances to enter the running state and as they do, pass them to
                     # the executor where they are waited on concurrently.
                     num_running, num_other = 0, 0
                     # TODO: timeout
                     for instance in self.__wait_instances_running( box.instance for box in boxes ):
-                        box = boxes_by_id[instance.id]
+                        box = boxes_by_id[ instance.id ]
                         # equivalent to the instance.update() done in _wait_ready()
                         box.instance = instance
                         if instance.state == 'running':
                             # noinspection PyProtectedMember
-                            executor( box._wait_ready, ( { 'pending' }, True ) )
+                            executor( box._wait_ready, ({ 'pending' }, True) )
                             num_running += 1
                         else:
-                            log.info( 'Instance %s in unexpected state %s.', instance.id, instance.state )
+                            log.info( 'Instance %s in unexpected state %s.',
+                                      instance.id, instance.state )
                             num_other += 1
                     assert num_running + num_other == len( boxes )
                     if not num_running:
