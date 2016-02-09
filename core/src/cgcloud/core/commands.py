@@ -133,6 +133,31 @@ class BoxCommand( RoleCommand ):
         """
         raise NotImplementedError( )
 
+    header_written = False
+
+    def list( self, boxes ):
+        columns = """
+            cluster_name
+            role_name
+            cluster_ordinal
+            private_ip_address
+            ip_address
+            instance_id
+            launch_time
+            state
+            zone""".split( )
+
+        if not self.__class__.header_written: # FIXME: obviously not good
+            header = list( columns )
+            header.insert( 2, 'ordinal' )
+            print( '\t'.join( header ) )
+            self.__class__.header_written = True
+
+        for ordinal, box in enumerate( boxes ):
+            row = [ getattr( box, column ) for column in columns ]
+            row.insert( 2, ordinal )
+            print( '\t'.join( str( column ) for column in row ) )
+
 
 class InstanceCommand( BoxCommand ):
     """
@@ -179,22 +204,8 @@ class ListCommand( BoxCommand ):
                      help='Only list boxes belonging to a cluster of the given name.' )
 
     def run_on_box( self, options, box ):
-        columns = """
-            cluster_name
-            cluster_ordinal
-            private_ip_address
-            ip_address
-            instance_id
-            launch_time
-            state""".split( )
         boxes = box.list( cluster_name=options.cluster_name )
-        header = list(columns)
-        header.insert(2,'ordinal')
-        print( '\t'.join( header ) )
-        for ordinal, box in enumerate( boxes ):
-            row = [ getattr( box, column ) for column in columns ]
-            row.insert( 2, ordinal )
-            print( '\t'.join( str( column ) for column in row ) )
+        self.list( boxes )
 
 
 class UserCommandMixin( Command ):
@@ -243,7 +254,6 @@ class SshCommand( SshCommandMixin, InstanceCommand ):
         status = self.ssh( options, box )
         if status != 0:
             sys.exit( status )
-
 
 
 class RsyncCommandMixin( UserCommandMixin ):
@@ -446,6 +456,9 @@ class CreationCommand( BoxCommand ):
                      help=heredoc( """Ignore --zone/CGCLOUD_ZONE and instead choose the best EC2
                      availability zone for spot instances based on a heuristic.""" ) )
 
+        self.option( '--list', default=False, action='store_true',
+                     help=heredoc( """List all instances created by this command on success.""" ) )
+
         option_name_re = re.compile( r'^[A-Za-z][0-9A-Za-z_]*$' )
 
         def option( o ):
@@ -514,6 +527,8 @@ class CreationCommand( BoxCommand ):
             else:
                 raise
         else:
+            if options.list:
+                self.list( [ box ] )
             if options.terminate is True:
                 box.terminate( )
             else:

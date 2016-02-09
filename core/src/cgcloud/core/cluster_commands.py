@@ -137,10 +137,12 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
                       'the contents of ' if local_path.endswith( '/' ) else '', local_path )
             leader.rsync( args=[ '-r', local_path, ":shared/" ], ssh_opts=options.ssh_opts )
         log.info( '=== Creating workers ===' )
-        leader.clone( worker_role=self.cluster.worker_role,
-                      num_workers=options.num_workers,
-                      worker_instance_type=options.worker_instance_type,
-                      pool_size=min( options.num_threads, options.num_workers ) )
+        workers = leader.clone( worker_role=self.cluster.worker_role,
+                                num_workers=options.num_workers,
+                                worker_instance_type=options.worker_instance_type,
+                                pool_size=min( options.num_threads, options.num_workers ) )
+        if options.list:
+            self.list( workers )
 
     def ssh_hint( self, options ):
         hint = super( CreateClusterCommand, self ).ssh_hint( options )
@@ -189,7 +191,6 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
     def __init__( self, application ):
         super( GrowClusterCommand, self ).__init__( application )
         self.cluster = None
-
         self.option( '--num-workers', '-s', metavar='NUM',
                      type=int, default=1,
                      help='The number of workers to add.' )
@@ -235,10 +236,11 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
                                      cluster_name=leader.cluster_name,
                                      **self.instance_options( options, first_worker ) )
         with thread_pool( min( options.num_threads, options.num_workers ) ) as pool:
-            first_worker.create( spec,
-                                 wait_ready=True,
-                                 cluster_ordinal=cluster_ordinal,
-                                 executor=pool.apply_async )
+            workers = first_worker.create( spec,
+                                           wait_ready=True,
+                                           cluster_ordinal=cluster_ordinal,
+                                           executor=pool.apply_async )
+        self.list( workers )
 
     @staticmethod
     def allocate_cluster_ordinals( num, used ):

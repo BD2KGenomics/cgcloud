@@ -153,10 +153,10 @@ class ClusterLeader( ClusterBox ):
                        num_instances=num_workers )
         spec = first_worker.prepare( *args, **kwargs )
         with thread_pool( pool_size ) as pool:
-            first_worker.create( spec,
-                                 wait_ready=wait_ready,
-                                 cluster_ordinal=self.cluster_ordinal + 1,
-                                 executor=pool.apply_async )
+            return first_worker.create( spec,
+                                        wait_ready=wait_ready,
+                                        cluster_ordinal=self.cluster_ordinal + 1,
+                                        executor=pool.apply_async )
 
 
 class ClusterWorker( ClusterBox ):

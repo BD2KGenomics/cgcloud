@@ -6,7 +6,7 @@ import threading
 import time
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
-from collections import namedtuple, Iterator, Iterable
+from collections import namedtuple, Iterator
 from contextlib import closing, contextmanager
 from copy import copy
 from functools import partial, wraps
@@ -230,6 +230,14 @@ class Box( object ):
     @property
     def state( self ):
         return self.instance and self.instance.state
+
+    @property
+    def zone( self ):
+        return self.instance and self.instance.placement
+
+    @property
+    def role_name(self):
+        return self.role()
 
     possible_root_devices = ('/dev/sda1', '/dev/sda', '/dev/xvda')
 
@@ -594,6 +602,8 @@ class Box( object ):
         task arguments. The executor applies the task function to the given sequence of
         arguments. It may choose to do so immediately, i.e. synchronously or at a later time,
         i.e asynchronously. If None, a synchronous executor will be used by default.
+
+        :rtype: list[Box]
         """
         if isinstance( cluster_ordinal, int ):
             cluster_ordinal = count( start=cluster_ordinal )
@@ -662,8 +672,10 @@ class Box( object ):
             with panic( log ):
                 log.warn( 'Terminating instances ...' )
                 if boxes:
-                self.ctx.ec2.terminate_instances( [ box.instance.id for box in boxes ] )
+                    self.ctx.ec2.terminate_instances( [ box.instance.id for box in boxes ] )
             raise
+        else:
+            return boxes
 
     def clones( self ):
         """
@@ -676,7 +688,7 @@ class Box( object ):
             clone.unbind( )
             yield clone
 
-    def __wait_instances_running( ec2, instances ):
+    def __wait_instances_running( self, instances ):
         """
         Wait until no instance in the given iterable is 'pending'. Yield every instance that
         entered the running state as soon as it does.
@@ -708,7 +720,7 @@ class Box( object ):
             time.sleep( seconds )
             for attempt in retry_ec2( ):
                 with attempt:
-                    instances = ec2.ctx.ec2.get_only_instances( list( pending_ids ) )
+                    instances = self.ctx.ec2.get_only_instances( list( pending_ids ) )
 
     def _create_spot_instances( self, spec ):
         """
@@ -731,7 +743,8 @@ class Box( object ):
                 requests = self.ctx.ec2.request_spot_instances( price, self.image_id, **spec )
 
         num_active, num_other = 0, 0
-        # noinspection PyUnboundLocalVariable
+        # noinspection PyUnboundLocalVariable,PyTypeChecker
+        # request_spot_instances's type annotation is wrong
         for batch in wait_spot_requests_active( self.ctx.ec2, requests ):
             instance_ids = [ ]
             for request in batch:
