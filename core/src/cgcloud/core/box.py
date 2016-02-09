@@ -656,8 +656,9 @@ class Box( object ):
                     if num_other:
                         log.warn( '%i instance(s) entered a state other than running.', num_other )
         except:
-            log.warn( 'Terminating instances ...' )
             with panic( log ):
+                log.warn( 'Terminating instances ...' )
+                if boxes:
                 self.ctx.ec2.terminate_instances( [ box.instance.id for box in boxes ] )
             raise
 
