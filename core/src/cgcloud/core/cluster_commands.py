@@ -214,7 +214,6 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
 
     def instance_options( self, options, box ):
         return dict( super( GrowClusterCommand, self ).instance_options( options, box ),
-                     cluster_name=options.cluster_name,
                      num_instances=options.num_workers )
 
     def run_on_box( self, options, first_worker ):
@@ -233,6 +232,7 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
                                                           used=used_cluster_ordinals )
         first_worker.unbind( )  # list() bound it
         spec = first_worker.prepare( leader_instance_id=leader.instance_id,
+                                     cluster_name=leader.cluster_name,
                                      **self.instance_options( options, first_worker ) )
         with thread_pool( min( options.num_threads, options.num_workers ) ) as pool:
             first_worker.create( spec,

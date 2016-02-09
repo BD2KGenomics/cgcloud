@@ -198,6 +198,9 @@ class Box( object ):
         # this will be 0
         self.cluster_ordinal = None
 
+        # The name of the cluster this box is a node of, or None if this box is not in a cluster.
+        self.cluster_name = None
+
         # Role-specifc options for this box
         self.role_options = { }
 
@@ -774,6 +777,8 @@ class Box( object ):
         log.info( '... created %s.', instance.id )
         self.instance = instance
         self.cluster_ordinal = cluster_ordinal
+        if self.cluster_name is None:
+            self.cluster_name = self.instance_id
         self._on_instance_created( )
         return self
 
@@ -801,7 +806,7 @@ class Box( object ):
         options = dict( Name=self.ctx.to_aws_name( self.role( ) ),
                         generation=str( self.generation ),
                         cluster_ordinal=str( self.cluster_ordinal ),
-                        cluster_name=self.cluster_name or self.instance_id )
+                        cluster_name=self.cluster_name )
         for option in self.get_role_options( ):
             value = self.role_options.get( option.name )
             if value is not None:
