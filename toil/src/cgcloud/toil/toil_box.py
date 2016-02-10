@@ -77,7 +77,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
         self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
 
     def _toil_pip_args( self ):
-        return [ 'toil[aws,mesos,encryption]==3.1.1' ]
+        return [ 'toil[aws,mesos,encryption]==3.1.3' ]
 
 
 class ToilLatestBox( ToilBox ):
