@@ -239,6 +239,10 @@ class Box( object ):
     def role_name(self):
         return self.role()
 
+    @property
+    def instance_type(self):
+        return self.instance and self.instance.instance_type
+
     possible_root_devices = ('/dev/sda1', '/dev/sda', '/dev/xvda')
 
     # FIXME: this can probably be rolled into prepare()

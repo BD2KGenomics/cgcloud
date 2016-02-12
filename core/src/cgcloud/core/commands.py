@@ -143,6 +143,7 @@ class BoxCommand( RoleCommand ):
             private_ip_address
             ip_address
             instance_id
+            instance_type
             launch_time
             state
             zone""".split( )
