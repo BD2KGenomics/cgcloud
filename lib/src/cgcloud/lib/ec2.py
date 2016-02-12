@@ -368,8 +368,9 @@ def wait_spot_requests_active( ec2, requests, timeout=None ):
                       *map( len, (open_ids, active_ids, other_ids) ) )
             if not open_ids:
                 return
-            log.info( 'Sleeping for %is', a_short_time )
-            time.sleep( a_short_time )
+            sleep_time = 2 * a_short_time
+            log.info( 'Sleeping for %is', sleep_time )
+            time.sleep( sleep_time )
             for attempt in retry_ec2( retry_while=spot_request_not_found ):
                 with attempt:
                     requests = ec2.get_all_spot_instance_requests( list( open_ids ) )
