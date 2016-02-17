@@ -122,41 +122,9 @@ class ClusterLeader( ClusterBox ):
     """
     A mixin for a box that serves as a leader in a cluster
     """
-
-    def __init__( self, ctx ):
-        super( ClusterLeader, self ).__init__( ctx )
-        self.preparation_args = None
-        self.preparation_kwargs = None
-
-    def prepare( self, *args, **kwargs ):
-        # Stash away arguments to prepare() so we can use them when cloning the workers
-        self.preparation_args = args
-        self.preparation_kwargs = dict( kwargs )
-        if kwargs[ 'leader_on_demand' ]:
-            del kwargs[ 'spot_bid' ]
-            del kwargs[ 'launch_group' ]
-        return super( ClusterLeader, self ).prepare( *args, **kwargs )
-
     def _get_instance_options( self ):
         return dict( super( ClusterLeader, self )._get_instance_options( ),
                      leader_instance_id=self.instance_id )
-
-    def clone( self, worker_role, num_workers, worker_instance_type, pool_size, wait_ready=True ):
-        """
-        Create a number of worker boxes that are connected to this leader.
-        """
-        first_worker = worker_role( self.ctx )
-        args = self.preparation_args
-        kwargs = dict( self.preparation_kwargs,
-                       instance_type=worker_instance_type,
-                       leader_instance_id=self.instance_id,
-                       num_instances=num_workers )
-        spec = first_worker.prepare( *args, **kwargs )
-        with thread_pool( pool_size ) as pool:
-            return first_worker.create( spec,
-                                        wait_ready=wait_ready,
-                                        cluster_ordinal=self.cluster_ordinal + 1,
-                                        executor=pool.apply_async )
 
 
 class ClusterWorker( ClusterBox ):

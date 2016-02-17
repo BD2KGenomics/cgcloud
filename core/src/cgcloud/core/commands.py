@@ -133,9 +133,7 @@ class BoxCommand( RoleCommand ):
         """
         raise NotImplementedError( )
 
-    header_written = False
-
-    def list( self, boxes ):
+    def list( self, boxes, print_header=True ):
         columns = """
             cluster_name
             role_name
@@ -148,11 +146,10 @@ class BoxCommand( RoleCommand ):
             state
             zone""".split( )
 
-        if not self.__class__.header_written: # FIXME: obviously not good
+        if print_header:
             header = list( columns )
             header.insert( 2, 'ordinal' )
             print( '\t'.join( header ) )
-            self.__class__.header_written = True
 
         for ordinal, box in enumerate( boxes ):
             row = [ getattr( box, column ) for column in columns ]
@@ -377,7 +374,7 @@ class TerminateCommand( LifecycleCommand ):
 
     def __init__( self, application, **kwargs ):
         super( TerminateCommand, self ).__init__( application, **kwargs )
-        self.option( '--quick', '-q', default=False, action='store_true',
+        self.option( '--quick', '-Q', default=False, action='store_true',
                      help=heredoc( """Exit immediately after termination request has been made,
                      don't wait until the box is terminated.""" ) )
 
@@ -498,7 +495,7 @@ class CreationCommand( BoxCommand ):
         """
         raise NotImplementedError( )
 
-    def instance_options( self, options, box ):
+    def preparation_kwargs( self, options, box ):
         """
         Return dict with keyword arguments to be passed box.prepare()
         """
@@ -516,10 +513,16 @@ class CreationCommand( BoxCommand ):
                      spot_launch_group=options.spot_launch_group,
                      spot_auto_zone=options.spot_auto_zone )
 
+    def creation_kwargs( self, options, box ):
+        return dict( terminate_on_error=options.terminate is not False )
+
     def run_on_box( self, options, box ):
+        """
+        :type box: Box
+        """
+        spec = box.prepare( **self.preparation_kwargs( options, box ) )
+        box.create( spec, **self.creation_kwargs( options, box ) )
         try:
-            spec = box.prepare( **self.instance_options( options, box ) )
-            box.create( spec, wait_ready=True )
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
@@ -680,7 +683,7 @@ class DeleteImageCommand( ImageReferenceCommand, BoxCommand ):
                      help=heredoc( """Do not delete the EBS volume snapshot associated with the
                      given image. This will leave an orphaned snapshot which should be removed at
                      a later time using the 'cgcloud cleanup' command.""" ) )
-        self.option( '--quick', '-q', default=False, action='store_true',
+        self.option( '--quick', '-Q', default=False, action='store_true',
                      help=heredoc( """Exit immediately after deregistration request has been made,
                      don't wait until the image is deregistered. Implies --keep-snapshot.""" ) )
         self.end_mutex( )
@@ -698,9 +701,21 @@ class RecreateCommand( ImageReferenceCommand, CreationCommand ):
     long_image_option = '--boot-image'
     short_image_option = '-i'
 
-    def instance_options( self, options, box ):
-        return dict( super( RecreateCommand, self ).instance_options( options, box ),
+    def __init__( self, application ):
+        super( RecreateCommand, self ).__init__( application )
+        self.option( '--quick', '-Q', default=False, action='store_true',
+                     help=heredoc( """Don't wait for the box to become running or reachable via
+                     SSH. If the agent is disabled in the boot image (this is uncommon,
+                     see the --no-agent option to the 'create' command), no additional SSH
+                     keypairs will be deployed.""" ) )
+
+    def preparation_kwargs( self, options, box ):
+        return dict( super( RecreateCommand, self ).preparation_kwargs( options, box ),
                      image_ref=options.boot_image )
+
+    def creation_kwargs( self, options, box ):
+        return dict( super( RecreateCommand, self ).creation_kwargs( options, box ),
+                     wait_ready=not options.quick )
 
     def run_on_creation( self, box, options ):
         pass
@@ -733,8 +748,8 @@ class CreateCommand( CreationCommand ):
                      packages up to date, i.e. do what on Ubuntu is achieved by doing 'sudo
                      apt-get update ; sudo apt-get upgrade'.""" ) )
 
-    def instance_options( self, options, box ):
-        return dict( super( CreateCommand, self ).instance_options( options, box ),
+    def preparation_kwargs( self, options, box ):
+        return dict( super( CreateCommand, self ).preparation_kwargs( options, box ),
                      image_ref=options.boot_image,
                      enable_agent=not options.no_agent )
 

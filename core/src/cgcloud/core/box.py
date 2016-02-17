@@ -589,7 +589,11 @@ class Box( object ):
         spot_data.sort( key=attrgetter( "timestamp" ), reverse=True )
         return spot_data
 
-    def create( self, spec, wait_ready=True, cluster_ordinal=0, executor=None ):
+    def create( self, spec,
+                wait_ready=True,
+                terminate_on_error=True,
+                cluster_ordinal=0,
+                executor=None ):
         """
         Create the EC2 instance represented by this box, and optionally waits for the instance to
         be ready. If the box was prepared to launch multiple instances, and multiple instances
@@ -601,11 +605,14 @@ class Box( object ):
         :param spec: a dictionary with keyword arguments to request_spot_instances,
         if the 'price' key is present, or run_instances otherwise.
 
-        :param wait_ready: whether to wait for all instances to be ready. The waiting for an
+        :param bool wait_ready: whether to wait for all instances to be ready. The waiting for an
         instance will be handled as a task that is submitted to the given executor.
 
+        :param bool terminate_on_error: If True, terminate instance on errors. If False,
+        never terminate any instances. Unfulfilled spot requests will always be cancelled.
+
         :param cluster_ordinal: the cluster ordinal to be assigned to the first instance or an
-               iterable yielding ordinals for the instances
+        iterable yielding ordinals for the instances
 
         :param executor: a callable that accepts two arguments: a task function and a sequence of
         task arguments. The executor applies the task function to the given sequence of
@@ -622,16 +629,22 @@ class Box( object ):
                 f( *args )
 
         adopters = iter( concat( self, self.clones( ) ) )
+        boxes = [ ]
+        pending_ids = set( )
+        pending_ids_lock = threading.RLock( )
 
         def adopt( adoptees ):
             """
             :type adoptees: Iterator[Instance]
-            :rtype: Iterator[Box]
             """
-            for adopter, adoptee in izip( adopters, adoptees ):
-                yield adopter.adopt( adoptee, next( cluster_ordinal ) )
+            pending_ids.update( i.id for i in adoptees )
+            for box, instance in izip( adopters, adoptees ):
+                box.adopt( instance, next( cluster_ordinal ) )
+                if not wait_ready:
+                    # Without wait_ready, an instance is done as soon as it has been adopted.
+                    pending_ids.remove( instance.id )
+                boxes.append( box )
 
-        boxes = [ ]
         try:
             if 'price' in spec:
                 # Spot requests are fulfilled in batches. A batch could consist of one instance,
@@ -640,18 +653,32 @@ class Box( object ):
                 # adoption is tagging which is crucial for cluster nodes.
                 # TODO: timeout
                 for batch in self._create_spot_instances( spec ):
-                    boxes.extend( adopt( batch ) )
+                    adopt( batch )
             else:
-                boxes.extend( adopt( self._create_ondemand_instances( spec ) ) )
+                adopt( self._create_ondemand_instances( spec ) )
 
             assert boxes
             assert boxes[ 0 ] is self
+
+            def _wait_ready( box ):
+                try:
+                    # noinspection PyProtectedMember
+                    box._wait_ready( { 'pending' }, first_boot=True )
+                except:
+                    if terminate_on_error:
+                        with panic( log ):
+                            log.warn( 'Terminating instance ...' )
+                            self.ctx.ec2.terminate_instances( [ box.instance_id ] )
+                    raise
+                finally:
+                    with pending_ids_lock:
+                        pending_ids.remove( box.instance_id )
 
             if wait_ready:
                 if len( boxes ) == 1:
                     # For a single instance, self._wait_ready will wait for the instance to change to
                     # running ...
-                    executor( self._wait_ready, ({ 'pending' }, True) )  # FIXME: kwargs
+                    executor( _wait_ready, (self,) )
                 else:
                     # .. but for multiple instances it is more efficient to wait for all of the
                     # instances together.
@@ -665,8 +692,7 @@ class Box( object ):
                         # equivalent to the instance.update() done in _wait_ready()
                         box.instance = instance
                         if instance.state == 'running':
-                            # noinspection PyProtectedMember
-                            executor( box._wait_ready, ({ 'pending' }, True) )
+                            executor( _wait_ready, (box,) )
                             num_running += 1
                         else:
                             log.info( 'Instance %s in unexpected state %s.',
@@ -678,10 +704,13 @@ class Box( object ):
                     if num_other:
                         log.warn( '%i instance(s) entered a state other than running.', num_other )
         except:
-            with panic( log ):
-                log.warn( 'Terminating instances ...' )
-                if boxes:
-                    self.ctx.ec2.terminate_instances( [ box.instance.id for box in boxes ] )
+            if terminate_on_error:
+                with panic( log ):
+                    with pending_ids_lock:
+                        unfinished_ids_list = list( pending_ids )
+                    if unfinished_ids_list:
+                        log.warn( 'Terminating instances ...' )
+                        self.ctx.ec2.terminate_instances( unfinished_ids_list )
             raise
         else:
             return boxes
@@ -802,7 +831,6 @@ class Box( object ):
         if self.cluster_name is None:
             self.cluster_name = self.instance_id
         self._on_instance_created( )
-        return self
 
     def _set_instance_options( self, options ):
         """
