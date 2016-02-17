@@ -236,11 +236,11 @@ class Box( object ):
         return self.instance and self.instance.placement
 
     @property
-    def role_name(self):
-        return self.role()
+    def role_name( self ):
+        return self.role( )
 
     @property
-    def instance_type(self):
+    def instance_type( self ):
         return self.instance and self.instance.instance_type
 
     possible_root_devices = ('/dev/sda1', '/dev/sda', '/dev/xvda')
