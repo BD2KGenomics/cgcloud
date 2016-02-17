@@ -446,7 +446,7 @@ class CreationCommand( BoxCommand ):
                      accepted. By default on-demand instances are used. Note that some instance
                      types are not available on the spot market!""" ) )
 
-        self.option( '--launch-group', metavar='NAME',
+        self.option( '--spot-launch-group', metavar='NAME',
                      help=heredoc( """The name of an EC2 spot instance launch group. If
                      specified, the spot request will only be fullfilled once all instances in
                      the group can be launched. Furthermore, if any instance in the group needs
@@ -513,7 +513,7 @@ class CreationCommand( BoxCommand ):
                      instance_type=options.instance_type,
                      virtualization_type=options.virtualization_type,
                      spot_bid=options.spot_bid,
-                     launch_group=options.launch_group,
+                     spot_launch_group=options.spot_launch_group,
                      spot_auto_zone=options.spot_auto_zone )
 
     def run_on_box( self, options, box ):

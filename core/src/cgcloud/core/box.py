@@ -375,9 +375,11 @@ class Box( object ):
                         virtualization_types, image.virtualization_type) )
             return image
 
+    # Note: The name of all spot-related keyword arguments should begin with 'spot_'
+
     def prepare( self, ec2_keypair_globs,
                  instance_type=None, image_ref=None, virtualization_type=None, num_instances=1,
-                 spot_bid=None, launch_group=None, spot_auto_zone=False,
+                 spot_bid=None, spot_launch_group=None, spot_auto_zone=False,
                  **options ):
         """
         Prepare to create an EC2 instance represented by this box. Return a dictionary with
@@ -401,7 +403,7 @@ class Box( object ):
         :param float spot_bid: Dollar amount to bid for spot instances. If None, an on-demand
         instance will be created
 
-        :param str launch_group: Specify a launch group in your Spot instance request to tell
+        :param str spot_launch_group: Specify a launch group in your Spot instance request to tell
         Amazon EC2 to launch a set of Spot instances only if it can launch them all. In addition,
         if the Spot service must terminate one of the instances in a launch group (for example,
         if the Spot price rises above your bid price), it must terminate them all.
@@ -409,7 +411,7 @@ class Box( object ):
         :param dict options: Additional, role-specific options can be specified. These options
         augment the options associated with the givem image.
         """
-        if launch_group is not None and spot_bid is None:
+        if spot_launch_group is not None and spot_bid is None:
             raise UserError( 'Need a spot bid when specifying a launch group for spot instances' )
 
         if spot_auto_zone and spot_bid is None:
@@ -447,17 +449,20 @@ class Box( object ):
                         min_count=num_instances,
                         max_count=num_instances )
         self._spec_block_device_mapping( spec, image )
-        self._spec_spot_market( spec, spot_bid, launch_group, spot_auto_zone )
+        self._spec_spot_market( spec,
+                                bid=spot_bid,
+                                launch_group=spot_launch_group,
+                                auto_zone=spot_auto_zone )
         return spec
 
-    def _spec_spot_market( self, spec, spot_bid, launch_group, spot_auto_zone ):
-        if spot_bid is not None:
+    def _spec_spot_market( self, spec, bid, launch_group, auto_zone ):
+        if bid is not None:
             if not ec2_instance_types[ spec.instance_type ].spot_availability:
                 raise UserError( 'The instance type %s is not available on the spot market.' %
                                  spec.instance_type )
-            if spot_auto_zone:
-                spec.placement = self._optimize_spot_bid( spec.instance_type, spot_bid )
-            spec.price = spot_bid
+            if auto_zone:
+                spec.placement = self._optimize_spot_bid( spec.instance_type, bid )
+            spec.price = bid
             if launch_group is not None:
                 spec.launch_group = self.ctx.to_aws_name( launch_group )
 
