@@ -115,7 +115,7 @@ class ToilClusterTests( MesosTestCase ):
                        '--mesosMaster=mesos-master:5050',
                        job_store )
         except:
-            with panic( ):
+            with panic( log ):
                 self._ssh( leader, 'toil', 'clean', job_store )
 
 

@@ -523,10 +523,9 @@ class CreationCommand( BoxCommand ):
             self.run_on_creation( box, options )
         except:
             if options.terminate is not False:
-                with panic( ):
+                with panic( log ):
                     box.terminate( wait=False )
-            else:
-                raise
+            raise
         else:
             if options.list:
                 self.list( [ box ] )
