@@ -12,12 +12,10 @@ import sys
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
 from collections import Sequence
-from contextlib import contextmanager
 from math import sqrt
 from textwrap import dedent
 
 from bd2k.util.strings import interpolate
-from concurrent.futures import ThreadPoolExecutor
 
 log = logging.getLogger( __name__ )
 
@@ -295,6 +293,7 @@ class Application( object ):
         """
         # Pull in bash auto completion if available
         try:
+            # noinspection PyUnresolvedReferences
             import argcomplete
         except ImportError:
             pass
@@ -369,6 +368,7 @@ class Command( object ):
         >>> FooBarCommand(app).name()
         'foo-bar'
         """
+        # noinspection PyTypeChecker
         return abreviated_snake_case_class_name( type( self ), Command )
 
     def begin_mutex( self, **kwargs ):
@@ -379,6 +379,7 @@ class Command( object ):
 
 
 class ArgParseHelpFormatter( argparse.ArgumentDefaultsHelpFormatter ):
+    # noinspection PyBroadException
     try:
         with open( os.devnull, 'a' ) as devnull:
             rows, columns = map( int, subprocess.check_output( [ 'stty', 'size' ],
@@ -674,29 +675,59 @@ def heredoc( s, indent=None ):
     return interpolate( s, skip_frames=1 )
 
 
-class thread_pool( object ):
-    """
-    A context manager that yields a thread pool of the given size. On normal closing,
-    this context manager closes the pool and joins all threads in it. On exceptions, the pool
-    will be terminated but threads won't be joined.
-    """
+try:
+    # noinspection PyUnresolvedReferences
+    from concurrent.futures import ThreadPoolExecutor
+except ImportError:
+    # Fall back to the old implementation that uses the undocument thread pool in
+    # multiprocessing. It does not allow interruption via Ctrl-C.
+    from contextlib import contextmanager
 
-    def __init__( self, size ):
-        self.executor = ThreadPoolExecutor( size )
 
-    def __enter__( self ):
-        return self
+    @contextmanager
+    def thread_pool( size ):
+        """
+        A context manager that yields a thread pool of the given size. On normal closing,
+        this context manager closes the pool and joins all threads in it. On exceptions, the pool
+        will be terminated but threads won't be joined.
+        """
+        pool = multiprocessing.pool.ThreadPool( processes=size )
+        try:
+            yield pool
+        except:
+            pool.terminate( )
+            raise
+        else:
+            pool.close( )
+            pool.join( )
+else:
+    # If the futures backport is installed, use that as it is documented and handles Ctrl-C more
+    # gracefully.
+    # noinspection PyPep8Naming
+    class thread_pool( object ):
+        """
+        A context manager that yields a thread pool of the given size. On normal closing,
+        this context manager closes the pool and joins all threads in it. On exceptions, the pool
+        will be terminated but threads won't be joined.
+        """
 
-    def __exit__( self, exc_type, exc_val, exc_tb ):
-        self.executor.shutdown( wait=exc_type is None )
+        def __init__( self, size ):
+            self.executor = ThreadPoolExecutor( size )
 
-    def apply_async( self, fn, args, callback=None ):
-        future = self.executor.submit( fn, *args )
-        if callback is not None:
-            future.add_done_callback( lambda f: callback( f.result( ) ) )
+        def __enter__( self ):
+            return self
 
-    def map( self, fn, iterable ):
-        return list( self.executor.map( fn, iterable ) )
+        # noinspection PyUnusedLocal
+        def __exit__( self, exc_type, exc_val, exc_tb ):
+            self.executor.shutdown( wait=exc_type is None )
+
+        def apply_async( self, fn, args, callback=None ):
+            future = self.executor.submit( fn, *args )
+            if callback is not None:
+                future.add_done_callback( lambda f: callback( f.result( ) ) )
+
+        def map( self, fn, iterable ):
+            return list( self.executor.map( fn, iterable ) )
 
 
 def pmap( f, seq, pool_size=cores ):
