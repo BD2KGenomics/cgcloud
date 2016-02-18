@@ -22,6 +22,7 @@ setup(
     install_requires=[
         'bd2k-python-lib==' + bd2k_python_lib_version,
         'cgcloud-lib==' + cgcloud_version,
+        'futures==3.0.4', # such that cgcloud-lib can use the futures backport for its thread_pool
         'boto==' + boto_version,
         'Fabric==' + fabric_version,
         'futures==3.0.4',
