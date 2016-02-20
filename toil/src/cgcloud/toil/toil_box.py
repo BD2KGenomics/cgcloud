@@ -72,7 +72,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
     def __install_toil( self ):
         # Older versions of pip don't support the 'extra' mechanism used by Toil's setup.py
         pip( 'install --upgrade pip', use_sudo=True )
-        pip( 'install --pre s3am', use_sudo=True )
+        pip( 'install --pre s3am==1.0b1.dev49', use_sudo=True )
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
         self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
 
