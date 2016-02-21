@@ -48,6 +48,18 @@ the ``cgcloud-core`` package::
 
       sudo pip install --upgrade setuptools
 
+* If you get
+
+  ::
+
+      ImportError: cannot import name cgcloud_version
+
+  you may need to upgrade virtualenv
+
+  ::
+
+      sudo pip install --upgrade virtualenv
+
 * If, on Mountain Lion, you get::
 
    clang: error: unknown argument: '-mno-fused-madd' [-Wunused-command-line-argument-hard-error-in-future]
