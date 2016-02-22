@@ -88,8 +88,10 @@ class ToilClusterTests( MesosTestCase ):
             # noinspection PyUnresolvedReferences
             from toil.job import Job
             from subprocess import check_output
+            import os
 
             def hello( name ):
+                assert os.environ['TOIL_WORKDIR'] == '/var/lib/toil'
                 return check_output( [ 'docker', 'run', '-e', 'FOO=' + name, 'ubuntu',
                                          'bash', '-c', 'echo -n Hello, $FOO!' ] )
 
