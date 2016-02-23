@@ -139,7 +139,7 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
         log.info( '=== Creating leader ===' )
         preparation_kwargs = self.preparation_kwargs( options, leader )
         if options.leader_on_demand:
-            preparation_kwargs = { k: v for k, v in preparation_kwargs
+            preparation_kwargs = { k: v for k, v in preparation_kwargs.iteritems()
                 if not k.startswith( 'spot_' ) }
         spec = leader.prepare( **preparation_kwargs )
         creation_kwargs = dict( self.creation_kwargs( options, leader ),
