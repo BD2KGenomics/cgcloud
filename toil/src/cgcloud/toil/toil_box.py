@@ -7,7 +7,7 @@ from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterWorker, ClusterLeader
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.fabric.operations import pip, remote_sudo_popen
+from cgcloud.fabric.operations import pip, remote_sudo_popen, sudo
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 from cgcloud.mesos.mesos_box import MesosBoxSupport, user, persistent_dir
 
@@ -88,6 +88,8 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
         pip( 'install --pre s3am', use_sudo=True )
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
         self._lazy_mkdir( '/var/lib', 'toil', persistent=None )
+        # setup the env variable TOIL_WORKDIR. Write to /etc/environ so it persists
+        sudo('echo "TOIL_WORKDIR=/var/lib/toil" >> /etc/environment')
 
     def _toil_pip_args( self ):
         return [ 'toil[aws,mesos,encryption]==3.1.3' ]
