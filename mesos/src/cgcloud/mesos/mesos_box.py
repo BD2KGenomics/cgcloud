@@ -48,7 +48,8 @@ mesos_services = dict(
                             '--registry=in_memory',
                             # would use "--ip mesos-master" here but that option only supports
                             # IP addresses, not DNS names or /etc/hosts entries
-                            '--ip_discovery_command="hostname -i"' ) ],
+                            '--ip_discovery_command="hostname -i"',
+                            '--credentials=/etc/mesos/credentials') ],
     slave=[ mesos_service( 'slave',
                            '--master=mesos-master:5050',
                            '--no-switch_user',
@@ -157,11 +158,18 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
         sudo( "rm /etc/init/mesos-{master,slave}.conf" )
         self._lazy_mkdir( log_dir, 'mesos', persistent=False )
         self._lazy_mkdir( '/var/lib', 'mesos', persistent=True )
+        self.__prepare_credentials( )
         self.__register_upstart_jobs( mesos_services )
         self._post_install_mesos( )
 
     def _post_install_mesos( self ):
         pass
+
+    def __prepare_credentials(self):
+        # Create the credentials file and transfer ownership to mesosbox
+        sudo('mkdir -p /etc/mesos')
+        sudo('echo toil liot > /etc/mesos/credentials')
+        sudo('chown mesosbox:mesosbox /etc/mesos/credentials')
 
     @fabric_task
     def __install_tools( self ):
