@@ -112,7 +112,7 @@ class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
         sudo( '%s --no-install-recommends install %s' % (self.apt_get, packages) )
 
     def _get_package_installation_command( self, package ):
-        return [ 'apt-get', 'install', '-y', '--no-install-recommends' ] + list(
+        return [ 'apt-get', 'install', '-y', '--no-install-recommends', '--force-yes' ] + list(
             self._substitute_package( package ) )
 
     def _pre_install_packages( self ):
