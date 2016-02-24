@@ -49,6 +49,7 @@ class ToilClusterTests( MesosTestCase ):
             self._assert_remote_failure( leader )
             self._wait_for_workers( )
             self._assert_shared_dir( )
+            self._assert_s3am( )
             self._hello_world( )
         finally:
             if self.cleanup:
@@ -71,6 +72,9 @@ class ToilClusterTests( MesosTestCase ):
         self._ssh( leader, command )
         for i in xrange( num_workers ):
             self._ssh( worker, command, ordinal=i )
+
+    def _assert_s3am( self ):
+        self._ssh( leader, 's3am --help' )
 
     def _create_cluster( self, *args ):
         self._cgcloud( 'create-cluster', 'toil', '-s=%d' % num_workers,

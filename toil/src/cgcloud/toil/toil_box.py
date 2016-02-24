@@ -6,7 +6,7 @@ from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterWorker, ClusterLeader
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.fabric.operations import pip, remote_sudo_popen
+from cgcloud.fabric.operations import pip, remote_sudo_popen, sudo, virtualenv
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 from cgcloud.mesos.mesos_box import MesosBoxSupport, user, persistent_dir
 
@@ -28,6 +28,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
         super( ToilBox, self )._post_install_mesos( )
         # Override this method instead of _post_install_packages() such that this is run before
         self.__install_toil( )
+        self.__install_s3am( )
 
     def _docker_users( self ):
         return super( ToilBox, self )._docker_users( ) + [ user ]
@@ -70,11 +71,18 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
 
     @fabric_task
     def __install_toil( self ):
+        # FIXME: consider using a virtualenv for Toil like we do for s3am
         # Older versions of pip don't support the 'extra' mechanism used by Toil's setup.py
         pip( 'install --upgrade pip', use_sudo=True )
-        pip( 'install --pre s3am==1.0b1.dev49', use_sudo=True )
         pip( concat( 'install', self._toil_pip_args( ) ), use_sudo=True )
         self._lazy_mkdir( '/var/lib', 'toil', persistent=True )
+
+    @fabric_task
+    def __install_s3am( self ):
+        virtualenv( name='s3am',
+                    distributions=[ '--pre', 's3am==1.0b1.dev49' ],
+                    pip_distribution="pip==8.0.2",
+                    executable='s3am' )
 
     def _toil_pip_args( self ):
         return [ 'toil[aws,mesos,encryption]==3.1.3' ]
