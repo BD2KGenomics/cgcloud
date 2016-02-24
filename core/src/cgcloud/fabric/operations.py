@@ -1,14 +1,15 @@
+import os
+import sys
+import time
 from StringIO import StringIO
 from contextlib import contextmanager
 from fcntl import fcntl, F_GETFL, F_SETFL
 from pipes import quote
-import sys
-import os
 from threading import Thread
-import time
+
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
-
+from bd2k.util.strings import interpolate as fmt
 from fabric.operations import sudo as real_sudo, get, put, run
 from fabric.state import env
 import fabric.io
@@ -68,6 +69,42 @@ def pip( args, path='pip', use_sudo=False ):
 
 def join_argv( command ):
     return ' '.join( map( quote, command ) )
+
+
+def virtualenv( name, distributions=None, pip_distribution='pip', executable=None ):
+    """
+    Installs a set of distributions (aka PyPI packages) into a virtualenv under /opt and
+    optionally links an executable from that virtualenv into /usr/loca/bin.
+
+    :param name: the name of the directory under /opt that will hold the virtualenv
+
+    :param distributions: a list of distributions to be installed into the virtualenv. Defaults
+    to [ name ]
+
+    :param pip_distribution: if non-empty, the distribution and optional version spec to upgrade
+    pip to. Defaults to the latest version of pip. Set to empty string to prevent pip from being
+    upgraded. Downgrades from the system-wide pip version currently don't work.
+
+    :param executable: The name of an executable in the virtualenv's bin directory that should be
+    symlinked into /usr/local/bin. The executable must be provided by the distributions that are
+    installed in the virtualenv.
+    """
+    # FIXME: consider --no-pip and easy_installing pip to support downgrades
+    if distributions is None:
+        distributions = [ name ]
+    venv = '/opt/' + name
+    admin = run( 'whoami' )
+    sudo( fmt( 'mkdir -p {venv}' ) )
+    sudo( fmt( 'chown {admin}:{admin} {venv}' ) )
+    try:
+        run( fmt( 'virtualenv {venv}' ) )
+        if pip_distribution:
+            pip( path=venv + '/bin/pip', args=[ 'install', '--upgrade', pip_distribution ] )
+        pip( path=venv + '/bin/pip', args=concat( 'install', distributions ) )
+    finally:
+        sudo( fmt( 'chown -R root:root {venv}' ) )
+    if executable:
+        sudo( fmt( 'ln -snf {venv}/bin/{executable} /usr/local/bin/' ) )
 
 
 @contextmanager
