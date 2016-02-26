@@ -454,6 +454,15 @@ class CreationCommand( BoxCommand ):
                      help=heredoc( """Ignore --zone/CGCLOUD_ZONE and instead choose the best EC2
                      availability zone for spot instances based on a heuristic.""" ) )
 
+        self.option( '--spot-timeout', metavar='SECONDS', type=float,
+                     help=heredoc( """The maximum time to wait for spot instance requests to
+                     enter the active state. Requests that are not active when the timeout fires
+                     will be cancelled.""" ) )
+
+        self.option( '--spot-tentative', default=False, action='store_true',
+                     help=heredoc( """Give up on a spot request at the earliest indication of it
+                     not being fulfilled immediately.""" ) )
+
         self.option( '--list', default=False, action='store_true',
                      help=heredoc( """List all instances created by this command on success.""" ) )
 
@@ -514,7 +523,9 @@ class CreationCommand( BoxCommand ):
                      spot_auto_zone=options.spot_auto_zone )
 
     def creation_kwargs( self, options, box ):
-        return dict( terminate_on_error=options.terminate is not False )
+        return dict( terminate_on_error=options.terminate is not False,
+                     spot_timeout=options.spot_timeout,
+                     spot_tentative=options.spot_tentative )
 
     def run_on_box( self, options, box ):
         """

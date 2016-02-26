@@ -592,6 +592,8 @@ class Box( object ):
     def create( self, spec,
                 wait_ready=True,
                 terminate_on_error=True,
+                spot_timeout=None,
+                spot_tentative=False,
                 cluster_ordinal=0,
                 executor=None ):
         """
@@ -652,7 +654,9 @@ class Box( object ):
                 #  _create_spot_instances(), we will want to adopt every instance in it. Part of
                 # adoption is tagging which is crucial for cluster nodes.
                 # TODO: timeout
-                for batch in self._create_spot_instances( spec ):
+                for batch in self._create_spot_instances( spec,
+                                                          timeout=spot_timeout,
+                                                          tentative=spot_tentative ):
                     adopt( batch )
             else:
                 adopt( self._create_ondemand_instances( spec ) )
@@ -760,7 +764,7 @@ class Box( object ):
                 with attempt:
                     instances = self.ctx.ec2.get_only_instances( list( pending_ids ) )
 
-    def _create_spot_instances( self, spec ):
+    def _create_spot_instances( self, spec, timeout=None, tentative=False ):
         """
         :rtype: Iterator[list[Instance]]
         """
@@ -783,7 +787,10 @@ class Box( object ):
         num_active, num_other = 0, 0
         # noinspection PyUnboundLocalVariable,PyTypeChecker
         # request_spot_instances's type annotation is wrong
-        for batch in wait_spot_requests_active( self.ctx.ec2, requests ):
+        for batch in wait_spot_requests_active( self.ctx.ec2,
+                                                requests,
+                                                timeout=timeout,
+                                                tentative=tentative ):
             instance_ids = [ ]
             for request in batch:
                 if request.state == 'active':
