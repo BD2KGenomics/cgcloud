@@ -603,6 +603,8 @@ class ListRolesCommand( Command ):
 
     def run( self, options ):
         print( '\n'.join( self.application.roles.iterkeys( ) ) )
+        log.info( "If you are expecting to see more roles listed above, you may need to set/change "
+                  "the CGCLOUD_PLUGINS environment variable." )
 
 
 # noinspection PyAbstractClass
