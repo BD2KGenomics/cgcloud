@@ -85,7 +85,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
                     executable='s3am' )
 
     def _toil_pip_args( self ):
-        return [ 'toil[aws,mesos,encryption]==3.1.3' ]
+        return [ 'toil[aws,mesos,encryption]==3.1.4' ]
 
 
 class ToilLatestBox( ToilBox ):
