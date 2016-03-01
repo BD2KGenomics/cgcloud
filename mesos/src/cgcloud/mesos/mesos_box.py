@@ -53,6 +53,7 @@ mesos_services = dict(
                            '--master=mesos-master:5050',
                            '--no-switch_user',
                            '--work_dir=' + work_dir,
+                           '--executor_shutdown_grace_period=60secs',
                            '$(cat /var/lib/mesos/slave_args)' ) ] )
 
 
