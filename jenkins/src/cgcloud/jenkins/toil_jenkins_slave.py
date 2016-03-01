@@ -56,7 +56,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
 
     @fabric_task
     def __install_parasol( self ):
-        run( "git clone git@github.com:BD2KGenomics/parasol-binaries.git" )
+        run( "git clone https://github.com/BD2KGenomics/parasol-binaries.git" )
         sudo( "cp parasol-binaries/* /usr/local/bin" )
         run( "rm -rf parasol-binaries" )
 
