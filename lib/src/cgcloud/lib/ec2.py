@@ -370,10 +370,10 @@ def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
                     batch.append( r )
             if batch:
                 yield batch
-            log.info( '%i spot requests(s) open, %i active, %i other.',
-                      *map( len, (open_ids, active_ids, other_ids) ) )
+            log.info( '%i spot requests(s) are open (%i of which pending evaluation), %i active, '
+                      '%i other.', *map( len, (open_ids, pending_ids, active_ids, other_ids) ) )
             if not open_ids or tentative and not pending_ids:
-                return
+                break
             sleep_time = 2 * a_short_time
             if timeout is not None and time.time( ) + sleep_time >= timeout:
                 break
@@ -390,4 +390,4 @@ def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
         raise
     else:
         if open_ids:
-            cancel()
+            cancel( )
