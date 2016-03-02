@@ -48,7 +48,15 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         self.__install_parasol( )
         self.__patch_distutils( )
         self.__configure_gridengine( )
+        self.__createMesosCredentialsFile( )
 
+    @fabric_task
+    def __createMesosCredentialsFile(self):
+        # Create the credentials file and transfer ownership to mesosbox
+        sudo( 'echo toil liot > /var/lib/mesos/credentials.txt' )
+        sudo( 'chown jenkins:jenkins /var/lib/mesos/credentials.txt')
+        sudo( 'chmod 755 /var/lib/mesos/credentials.txt')
+        
     @fabric_task
     def __disable_mesos_daemons( self ):
         for daemon in ('master', 'slave'):
@@ -56,7 +64,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
 
     @fabric_task
     def __install_parasol( self ):
-        run( "git clone git@github.com:BD2KGenomics/parasol-binaries.git" )
+        run( "git clone https://github.com/BD2KGenomics/parasol-binaries.git" )
         sudo( "cp parasol-binaries/* /usr/local/bin" )
         run( "rm -rf parasol-binaries" )
 
