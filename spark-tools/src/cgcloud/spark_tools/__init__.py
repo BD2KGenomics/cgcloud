@@ -325,7 +325,7 @@ class SparkTools( object ):
         log.info( "Getting master's host key" )
         master_host_key = self.master_instance.tags.get( 'ssh_host_key' )
         if master_host_key:
-            self.__add_host_keys( [ 'mesos-master:' + master_host_key ] )
+            self.__add_host_keys( [ 'spark-master:' + master_host_key ] )
         else:
             log.warn( "Could not get master's host key" )
 
