@@ -7,6 +7,7 @@ import re
 import socket
 import stat
 import time
+from collections import OrderedDict
 from grp import getgrnam
 from pwd import getpwnam
 from subprocess import check_call, check_output, CalledProcessError, STDOUT
@@ -89,7 +90,7 @@ class SparkTools( object ):
             log.info( "Waiting for cloud-init to finish ..." )
             time.sleep( 1 )
         log.info( "Starting sparkbox" )
-        self.__patch_etc_hosts( { 'spark-master': self.master_ip } )
+        self.__setup_etc_hosts( )
         self.__mount_ebs_volume( )
         self.__create_lazy_dirs( )
 
@@ -436,6 +437,12 @@ class SparkTools( object ):
             else:
                 raise
 
+    def __setup_etc_hosts( self ):
+        hosts = self.instance_tag( 'etc_hosts_entries' ) or ""
+        hosts = parse_etc_hosts_entries( hosts )
+        hosts[ 'spark-master' ] = self.master_ip
+        self.__patch_etc_hosts( hosts )
+
     def __patch_etc_hosts( self, hosts ):
         log.info( "Patching /etc/host" )
         # FIXME: The handling of /etc/hosts isn't atomic
@@ -460,3 +467,16 @@ class SparkTools( object ):
                 if line[ 0 ] == device:
                     return line[ 1 ]
         return None
+
+def parse_etc_hosts_entries( hosts ):
+    """
+    >>> parse_etc_hosts_entries("").items()
+    []
+    >>> parse_etc_hosts_entries("foo:1.2.3.4").items()
+    [('foo', '1.2.3.4')]
+    >>> parse_etc_hosts_entries(" foo : 1.2.3.4 , bar : 2.3.4.5 ").items()
+    [('foo', '1.2.3.4'), ('bar', '2.3.4.5')]
+    """
+    return OrderedDict( (ip.strip( ), name.strip( ))
+        for ip, name in (entry.split( ':', 1 )
+        for entry in hosts.split( ',' ) if entry) )
