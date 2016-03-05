@@ -35,7 +35,7 @@ hdfs_replication = 1
 
 hadoop_version = '2.6.0'
 
-spark_version = '1.2.1'
+spark_version = '1.5.2'
 
 Service = namedtuple( 'Service', [
     'init_name',
@@ -261,7 +261,7 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
     @fabric_task
     def __install_spark( self ):
         # Download and extract Spark
-        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop2.4.tgz' )
+        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop2.6.tgz' )
         self.__install_apache_package( path )
 
         spark_dir = var_dir + "/spark"
