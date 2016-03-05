@@ -64,6 +64,16 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
     and port before starting up.
     """
 
+    @classmethod
+    def get_role_options( cls ):
+        return super( MesosBoxSupport, cls ).get_role_options( ) + [
+            cls.RoleOption( name='etc_hosts_entries',
+                            type=str,
+                            repr=str,
+                            inherited=True,
+                            help="Additional entries for /etc/hosts in the form "
+                                 "'foo:1.2.3.4,bar:2.3.4.5'" ) ]
+
     def other_accounts( self ):
         return super( MesosBoxSupport, self ).other_accounts( ) + [ user ]
 

@@ -85,6 +85,16 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
     the slaves can be started up.
     """
 
+    @classmethod
+    def get_role_options( cls ):
+        return super( SparkBox, cls ).get_role_options( ) + [
+            cls.RoleOption( name='etc_hosts_entries',
+                            type=str,
+                            repr=str,
+                            inherited=True,
+                            help="Additional entries for /etc/hosts in the form "
+                                 "'foo:1.2.3.4,bar:2.3.4.5'" ) ]
+
     def other_accounts( self ):
         return super( SparkBox, self ).other_accounts( ) + [ user ]
 

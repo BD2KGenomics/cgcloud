@@ -7,6 +7,7 @@ import re
 import socket
 import stat
 import time
+from collections import OrderedDict
 from grp import getgrnam
 from pwd import getpwnam
 from subprocess import check_call, check_output, CalledProcessError
@@ -77,7 +78,7 @@ class MesosTools( object ):
             log.info( "Waiting for cloud-init to finish ..." )
             time.sleep( 1 )
         log.info( "Starting mesosbox" )
-        self.__patch_etc_hosts( { 'mesos-master': self.master_ip } )
+        self.__setup_etc_hosts( )
         self.__mount_ebs_volume( )
         self.__create_lazy_dirs( )
 
@@ -347,6 +348,12 @@ class MesosTools( object ):
             os.chown( physical_path, self.uid, self.gid )
             check_call( [ 'mount', '--bind', physical_path, logical_path ] )
 
+    def __setup_etc_hosts( self ):
+        hosts = self.instance_tag( 'etc_hosts_entries' ) or ""
+        hosts = parse_etc_hosts_entries( hosts )
+        hosts[ 'mesos-master' ] = self.master_ip
+        self.__patch_etc_hosts( hosts )
+
     def __patch_etc_hosts( self, hosts ):
         log.info( "Patching /etc/host" )
         # FIXME: The handling of /etc/hosts isn't atomic
@@ -374,3 +381,16 @@ class MesosTools( object ):
             if attributes:
                 attributes = ';'.join( '%s:%r' % i for i in attributes.items( ) )
                 f.write( "--attributes='%s'" % attributes )
+
+def parse_etc_hosts_entries( hosts ):
+    """
+    >>> parse_etc_hosts_entries("").items()
+    []
+    >>> parse_etc_hosts_entries("foo:1.2.3.4").items()
+    [('foo', '1.2.3.4')]
+    >>> parse_etc_hosts_entries(" foo : 1.2.3.4 , bar : 2.3.4.5 ").items()
+    [('foo', '1.2.3.4'), ('bar', '2.3.4.5')]
+    """
+    return OrderedDict( (ip.strip( ), name.strip( ))
+        for ip, name in (entry.split( ':', 1 )
+        for entry in hosts.split( ',' ) if entry) )
