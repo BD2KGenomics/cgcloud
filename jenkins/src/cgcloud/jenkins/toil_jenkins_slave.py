@@ -32,7 +32,8 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         return super( ToilJenkinsSlave, self )._list_packages_to_install( ) + [
             'python-dev', 'gcc', 'make',
             'libffi-dev',  # pynacl -> toil, Azure client-side encryption
-            'libcurl4-openssl-dev'  # pycurl -> SPARQLWrapper -> rdflib>=4.2.0 -> cwltool -> toil
+            'libcurl4-openssl-dev',  # pycurl -> SPARQLWrapper -> rdflib>=4.2.0 -> cwltool -> toil
+            'slurm-llnl', # SLURM
         ] + [ 'gridengine-' + p for p in ('common', 'master', 'client', 'exec') ]
 
     def _get_debconf_selections( self ):
@@ -48,6 +49,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         self.__install_parasol( )
         self.__patch_distutils( )
         self.__configure_gridengine( )
+        self.__configure_slurm( )
 
     @fabric_task
     def __disable_mesos_daemons( self ):
@@ -229,6 +231,74 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         self._run_init_script( 'gridengine-post' )
         while 'execd is in unknown state' in run( 'qstat -f -q all.q -explain a', warn_only=True ):
             time.sleep( 1 )
+
+    @fabric_task
+    def __configure_slurm( self ):
+        """
+        Configures SLURM in a single-node configuration with text-file accounting
+        :return:
+        """
+        # Create munge key and start
+        sudo('/usr/sbin/create-munge-key')
+        sudo('/usr/sbin/service munge start')
+        #3a. Make config file: https://computing.llnl.gov/linux/slurm/configurator.html
+
+        slurm_conf = heredoc("""
+            ClusterName=jenkins-testing
+            ControlMachine=localhost
+            SlurmUser=slurm
+            SlurmctldPort=6817
+            SlurmdPort=6818
+            StateSaveLocation=/tmp
+            SlurmdSpoolDir=/tmp/slurmd
+            SwitchType=switch/none
+            MpiDefault=none
+            SlurmctldPidFile=/var/run/slurmctld.pid
+            SlurmdPidFile=/var/run/slurmd.pid
+            ProctrackType=proctrack/pgid
+            CacheGroups=0
+            ReturnToService=0
+            SlurmctldTimeout=300
+            SlurmdTimeout=300
+            InactiveLimit=0
+            MinJobAge=300
+            KillWait=30
+            Waittime=0
+            SchedulerType=sched/backfill
+            SelectType=select/linear
+            FastSchedule=1
+
+            # LOGGING
+            SlurmctldDebug=3
+            SlurmdDebug=3
+            JobCompType=jobcomp/none
+
+            # ACCOUNTING
+            AccountingStorageLoc=/var/run/slurm-llnl/slurm-acct.txt
+            AccountingStorageType=accounting_storage/filetxt
+            AccountingStoreJobComment=YES
+            JobAcctGatherFrequency=30
+            JobAcctGatherType=jobacct_gather/linux
+
+            # COMPUTE NODES
+            NodeName=localhost Procs=1 State=UNKNOWN
+            PartitionName=debug Nodes=localhost Default=YES MaxTime=INFINITE State=UP
+        """)
+        slurm_conf_tmp = '/tmp/slurm.conf'
+        slurm_conf_file = '/etc/slurm-llnl/slurm.conf'
+        # Put config file in: /etc/slurm-llnl/slurm.conf
+        put( remote_path=slurm_conf_tmp, local_path=StringIO( slurm_conf ) )
+        sudo( 'mkdir -p /etc/slurm-llnl')
+        sudo( 'mv %s %s' % (slurm_conf_tmp, slurm_conf_file ) )
+        sudo('chown root:root %s' % slurm_conf_file )
+
+        # Touch the accounting job file and make sure it's owned by slurm user
+        sudo('mkdir -p /var/run/slurm-llnl')
+        sudo('touch /var/run/slurm-llnl/slurm-acct.txt')
+        sudo('chown slurm:slurm /var/run/slurm-llnl/slurm-acct.txt')
+
+        # Start slurm services
+        sudo('/usr/sbin/service slurm-llnl start')
 
     def _docker_users( self ):
         return super( ToilJenkinsSlave, self )._docker_users( ) + [ self.default_account( ) ]
