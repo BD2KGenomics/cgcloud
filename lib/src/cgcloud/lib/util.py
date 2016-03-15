@@ -656,7 +656,7 @@ def heredoc( s, indent=None ):
     """
     Here-documents [1] for Python. Unindents the given string and interpolates format()-like
     placeholders with local variables from the calling method's stack frame. The interpolation
-    part is a bit like black magic but it tremendously useful.
+    part is a bit like black magic but it is tremendously useful.
 
     [1]: https://en.wikipedia.org/wiki/Here_document
 
