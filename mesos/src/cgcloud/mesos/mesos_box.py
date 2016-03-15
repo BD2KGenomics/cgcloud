@@ -1,5 +1,6 @@
 import logging
 from collections import namedtuple
+from pipes import quote
 
 from bd2k.util.iterables import concat
 from bd2k.util.strings import interpolate as fmt
@@ -55,6 +56,16 @@ mesos_services = dict(
                            '--no-switch_user',
                            '--work_dir=' + work_dir,
                            '--executor_shutdown_grace_period=60secs',
+                           # By default Mesos offers the total disk minus what it reserves for
+                           # itself, which is half the total disk or 5GiB whichever is smaller.
+                           # The code below mimicks that logic except that it uses available disk
+                           # space as opposed to total disk. NB: the default unit is MiB in Mesos.
+                           "--resources=disk:$(python -c %s)" % quote( heredoc( """
+                               import os
+                               df = os.statvfs( "{work_dir}" )
+                               free = df.f_frsize * df.f_bavail >> 20
+                               print max( 0, free - min( free / 2, 5120 ) )""" ).replace( '\n',
+                                                                                          ';' ) ),
                            '$(cat /var/lib/mesos/slave_args)' ) ] )
 
 
