@@ -402,10 +402,49 @@ class Context( object ):
             name = name[ len( self.namespace ): ]
         return name
 
+    def base_name(self,name):
+        """
+        Return the last component of a name, absolute or relative.
+
+        >>> ctx = Context( 'us-west-1b', namespace='/foo/bar/')
+        >>> ctx.base_name('')
+        ''
+        >>> ctx.base_name('/')
+        ''
+        >>> ctx.base_name('/a')
+        'a'
+        >>> ctx.base_name('/a/')
+        ''
+        >>> ctx.base_name('/a/b')
+        'b'
+        >>> ctx.base_name('/a/b/')
+        ''
+        """
+        return name.split('/')[-1]
+
     def contains_name( self, name ):
         return not self.is_absolute_name( name ) or name.startswith( self.namespace )
 
     def contains_aws_name( self, aws_name ):
+        """
+        >>> def c(n): return Context( 'us-west-1b', namespace=n)
+        >>> c('/foo/' ).contains_aws_name('bar_x')
+        False
+        >>> c('/foo/' ).contains_aws_name('foo_x')
+        True
+        >>> c('/foo/' ).contains_aws_name('foo_bar_x')
+        True
+        >>> c('/foo/' ).contains_aws_name('bar_foo_x')
+        False
+        >>> c('/' ).contains_aws_name('bar_x')
+        True
+        >>> c('/' ).contains_aws_name('foo_x')
+        True
+        >>> c('/' ).contains_aws_name('foo_bar_x')
+        True
+        >>> c('/' ).contains_aws_name('bar_foo_x')
+        True
+        """
         return self.contains_name( self.from_aws_name( aws_name ) )
 
     def try_contains_aws_name( self, aws_name ):
