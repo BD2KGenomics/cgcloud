@@ -168,6 +168,7 @@ class InstanceCommand( BoxCommand ):
                      help=heredoc( """This option can be used to restrict the selection to boxes
                      that are part of a cluster of the given name. Boxes that are not part of a
                      cluster use their own instance id as the cluster name.""" ) )
+        self.begin_mutex()
         self.option( '--ordinal', '-o', default=-1, type=int,
                      help=heredoc( """Selects an individual box from the list of boxes performing
                      the specified role in a cluster of the given name. The ordinal is a
@@ -177,13 +178,23 @@ class InstanceCommand( BoxCommand ):
                      the ordinal is negative, it will be converted to a positive ordinal by
                      adding the number of boxes performing the specified role. Passing -1,
                      for example, selects the most recently created box.""" ) )
+        self.option( '--instance-id', '-I', default=None, type=str,
+                     help=heredoc( """Selects an individual instance. When combined with
+                     --cluster-name, the specified instance needs to belong to a cluster of the
+                     specified name or an error will be raised.""" ) )
+        self.end_mutex()
 
     wait_ready = True
 
     def run_on_box( self, options, box ):
+        if options.instance_id:
+            # Mutual exclusivity is enforced by argparse but we need to unset the default value
+            # for the mutual exclusive options.
+            options.ordinal = None
         box.bind( ordinal=options.ordinal,
                   cluster_name=options.cluster_name,
-                  wait_ready=self.wait_ready )
+                  wait_ready=self.wait_ready,
+                  instance_id=options.instance_id )
         self.run_on_instance( options, box )
 
     @abstractmethod

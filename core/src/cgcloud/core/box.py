@@ -973,10 +973,31 @@ class Box( object ):
             if verbose: log.info( 'Binding to instance ... ' )
             if instance is not None:
                 assert ordinal is None and cluster_name is None and instance_id is None
+                name = instance.tags[ 'Name' ]
+                assert self.ctx.contains_aws_name( name )
+                assert self.ctx.base_name( self.ctx.from_aws_name( name ) ) == self.role( )
             elif instance_id is not None:
-                assert ordinal is None and cluster_name is None
-                reservations = self.ctx.ec2.get_only_instances( instance_id )
-                instance = unpack_singleton( unpack_singleton( reservations ).instances )
+                assert ordinal is None
+                try:
+                    instance = self.ctx.ec2.get_only_instances( instance_id )[ 0 ]
+                except EC2ResponseError as e:
+                    if e.error_code.startswith('InvalidInstanceID'):
+                        raise UserError( "No instance with ID '%s'." % instance_id )
+                try:
+                    name = instance.tags[ 'Name' ]
+                except KeyError:
+                    raise UserError( "Instance %s does not have a Name tag." % instance.id )
+                if not self.ctx.try_contains_aws_name( name ):
+                    raise UserError( "Instance %s with Name tag '%s' is not in namespace %s."
+                                     % (instance.id, name, self.ctx.namespace) )
+                if self.ctx.base_name( self.ctx.from_aws_name( name ) ) != self.role( ):
+                    raise UserError( "Instance %s with Name tag '%s' is not a %s." %
+                                     (instance.id, name, self.role( )) )
+                if cluster_name is not None:
+                    actual_cluster_name = instance.tags.get( 'cluster_name' )
+                    if actual_cluster_name is not None and actual_cluster_name != cluster_name:
+                        raise UserError( "Instance %s has cluster name '%s', not '%s'." %
+                                         (instance.id, actual_cluster_name, cluster_name) )
             else:
                 instance = self.__get_instance_by_ordinal( ordinal=ordinal,
                                                            cluster_name=cluster_name )
