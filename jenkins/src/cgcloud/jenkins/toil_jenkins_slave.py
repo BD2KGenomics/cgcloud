@@ -268,7 +268,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
             KillWait=30
             Waittime=0
             SchedulerType=sched/backfill
-            SelectType=select/linear
+            SelectType=select/cons_res
             FastSchedule=1
 
             # LOGGING
