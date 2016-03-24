@@ -241,7 +241,10 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         # Create munge key and start
         sudo('/usr/sbin/create-munge-key')
         sudo('/usr/sbin/service munge start')
-        #3a. Make config file: https://computing.llnl.gov/linux/slurm/configurator.html
+
+        # slurm.conf needs cpus and memory in order to handle jobs with these resource requests
+        cpus = int(run('/usr/bin/nproc'))
+        memory = int(run('cat /proc/meminfo | grep MemTotal | awk \'{print $2}\'')) / 1024
 
         slurm_conf = heredoc("""
             ClusterName=jenkins-testing
@@ -265,7 +268,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
             KillWait=30
             Waittime=0
             SchedulerType=sched/backfill
-            SelectType=select/linear
+            SelectType=select/cons_res
             FastSchedule=1
 
             # LOGGING
@@ -281,9 +284,9 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
             JobAcctGatherType=jobacct_gather/linux
 
             # COMPUTE NODES
-            NodeName=localhost Procs=1 State=UNKNOWN
+            NodeName=localhost CPUs=%d State=UNKNOWN RealMemory=%d
             PartitionName=debug Nodes=localhost Default=YES MaxTime=INFINITE State=UP
-        """)
+        """ % (cpus, memory))
         slurm_conf_tmp = '/tmp/slurm.conf'
         slurm_conf_file = '/etc/slurm-llnl/slurm.conf'
         # Put config file in: /etc/slurm-llnl/slurm.conf
