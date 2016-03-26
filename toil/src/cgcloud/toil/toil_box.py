@@ -80,7 +80,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
     @fabric_task
     def __install_s3am( self ):
         virtualenv( name='s3am',
-                    distributions=[ '--pre', 's3am==1.0b1.dev49' ],
+                    distributions=[ 's3am==1.1' ],
                     pip_distribution="pip==8.0.2",
                     executable='s3am' )
 
