@@ -86,7 +86,8 @@ class ClusterBox( Box ):
 
     def _get_instance_options( self ):
         return dict( super( ClusterBox, self )._get_instance_options( ),
-                     ebs_volume_size=str( self.ebs_volume_size ) )
+                     ebs_volume_size=str( self.ebs_volume_size ),
+                     leader_instance_id=self.instance_id)
 
     @classmethod
     def _get_node_role( cls ):
@@ -123,8 +124,7 @@ class ClusterLeader( ClusterBox ):
     A mixin for a box that serves as a leader in a cluster
     """
     def _get_instance_options( self ):
-        return dict( super( ClusterLeader, self )._get_instance_options( ),
-                     leader_instance_id=self.instance_id )
+        return dict( super( ClusterLeader, self )._get_instance_options( ) )
 
 
 class ClusterWorker( ClusterBox ):
