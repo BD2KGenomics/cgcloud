@@ -52,6 +52,16 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         self.__configure_slurm( )
 
     @fabric_task
+    def _setup_build_user( self ):
+        super( ToilJenkinsSlave, self )._setup_build_user( )
+        # Allow mount and umount such that Toil tests can use an isolated loopback filesystem for
+        # TMPDIR (and therefore Toil's work directory), thereby preventing the tracking of
+        # left-over files from being skewed by other activities on the ephemeral file system,
+        # like build logs, creation of .pyc files, etc.
+        for prog in ('mount', 'umount'):
+            sudo( "echo 'jenkins ALL=(ALL) NOPASSWD: /bin/%s' >> /etc/sudoers" % prog )
+
+    @fabric_task
     def __disable_mesos_daemons( self ):
         for daemon in ('master', 'slave'):
             sudo( 'echo manual > /etc/init/mesos-%s.override' % daemon )
