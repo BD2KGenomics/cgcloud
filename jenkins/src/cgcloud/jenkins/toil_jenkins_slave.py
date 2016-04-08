@@ -307,6 +307,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         sudo('/usr/sbin/service slurm-llnl start')
 
         # Ensure partition is up
+        sudo('scontrol update NodeName=localhost State=Down')
         sudo('scontrol update NodeName=localhost State=Resume')
 
     def _docker_users( self ):
