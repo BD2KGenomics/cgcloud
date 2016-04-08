@@ -300,8 +300,15 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         sudo('touch /var/run/slurm-llnl/slurm-acct.txt')
         sudo('chown slurm:slurm /var/run/slurm-llnl/slurm-acct.txt')
 
+        # Make sure accounting job can be read by anyone (users running sacct must have permission)
+        sudo('chmod 644 /var/run/slurm-llnl/slurm-acct.txt')
+
         # Start slurm services
         sudo('/usr/sbin/service slurm-llnl start')
+
+        # Ensure partition is up
+        sudo('scontrol update NodeName=localhost State=Down')
+        sudo('scontrol update NodeName=localhost State=Resume')
 
     def _docker_users( self ):
         return super( ToilJenkinsSlave, self )._docker_users( ) + [ self.default_account( ) ]
