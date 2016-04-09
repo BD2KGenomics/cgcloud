@@ -237,9 +237,9 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
                 mesos_tools.stop()
                 END
                 end script""" ) )
-        # Explicitly start the mesos box services to achieve creation of lazy dirs, etc right now.
-        log.info( "Starting the mesosbox service")
-        sudo( 'initctl start mesosbox' )
+        # Explicitly start the mesosbox service to achieve creation of lazy directoriess right
+        # now. This makes a generic mesosbox useful for adhoc tests that involve Mesos and Toil.
+        self._run_init_script( 'mesosbox' )
 
     @fabric_task
     def _lazy_mkdir( self, parent, name, persistent=False ):
