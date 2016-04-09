@@ -77,7 +77,7 @@ class ToilClusterTests( MesosTestCase ):
         self._ssh( leader, 's3am --help' )
 
     def _create_cluster( self, growth, *args ):
-        self._cgcloud( 'create-cluster', 'toil', '-s=%d' % ( num_workers - growth ),
+        self._cgcloud( 'create-cluster', 'toil', '-s=%d' % (num_workers - growth),
                        '--ssh-opts', self.ssh_opts_str( ), *args )
         if growth:
             self._cgcloud( 'grow-cluster', 'toil', '-s=%d' % growth )
@@ -95,7 +95,7 @@ class ToilClusterTests( MesosTestCase ):
             import os
 
             def hello( name ):
-                assert os.environ['TOIL_WORKDIR'] == '/var/lib/toil'
+                assert os.environ[ 'TOIL_WORKDIR' ] == '/var/lib/toil'
                 return check_output( [ 'docker', 'run', '-e', 'FOO=' + name, 'ubuntu',
                                          'bash', '-c', 'echo -n Hello, $FOO!' ] )
 
@@ -124,30 +124,37 @@ class ToilClusterTests( MesosTestCase ):
             with panic( log ):
                 self._ssh( leader, 'toil', 'clean', job_store )
 
-
     def test_persistence( self ):
         # Check that /var/lib/docker is on the persistent volume and that /var/lib/toil can be
         # switched between ephemeral and persistent. [ Would use docstring but confuses pytest ]
+        foo = '/var/lib/docker/foo'
+        bar = '/var/lib/toil/bar'
+
+        def compare_device( oper ):
+            return "test $(stat -c '%d' " + foo + ") " + oper + " $(stat -c '%d' " + bar + ")"
+
         volume_size_gb = 1
         self._create_cluster( 0, '--ebs-volume-size', str( volume_size_gb ),
                               '-O', 'persist_var_lib_toil=True' )
         try:
             try:
                 self._wait_for_workers( )
-                self._ssh( worker, 'sudo touch /var/lib/docker/foo', admin=True )
-                self._ssh( worker, 'touch /var/lib/toil/bar' )
+                for ordinal in range( num_workers ):
+                    self._ssh( worker, 'sudo touch ' + foo, admin=True, o=ordinal )
+                    self._ssh( worker, 'touch ' + bar, o=ordinal )
                 # Ensure both files are on the same device (/mnt/persistent)
-                self._ssh( worker, "test $(stat -c '%d' /var/lib/docker/foo) == $(stat -c '%d' /var/lib/toil/bar)" )
+                self._ssh( worker, compare_device( "==" ) )
             finally:
                 self._terminate_cluster( )
             self._create_cluster( 0, '--ebs-volume-size', str( volume_size_gb ),
                                   '-O', 'persist_var_lib_toil=False' )
             try:
                 self._wait_for_workers( )
-                self._ssh( worker, 'sudo test -f /var/lib/docker/foo', admin=True )
-                self._ssh( worker, 'touch /var/lib/toil/bar' )
+                for ordinal in range( num_workers ):
+                    self._ssh( worker, 'sudo test -f ' + foo, admin=True, o=ordinal )
+                    self._ssh( worker, 'touch ' + bar, o=ordinal )
                 # Ensure both files are on different devices (/mnt/persistent)
-                self._ssh( worker, "test $(stat -c '%d' /var/lib/docker/foo) != $(stat -c '%d' /var/lib/toil/bar)" )
+                self._ssh( worker, compare_device( "!=" ) )
             finally:
                 if self.cleanup:
                     self._terminate_cluster( )
