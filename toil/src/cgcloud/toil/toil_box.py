@@ -104,7 +104,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
 
 class ToilLatestBox( ToilBox ):
     def _toil_pip_args( self ):
-        return [ '--pre', 'toil[aws,mesos,encryption]<=3.2.0' ]
+        return [ '--pre', 'toil[aws,mesos,encryption,cwl]<=3.2.0' ]
 
 
 class ToilLeader( ToilBox, ClusterLeader ):
