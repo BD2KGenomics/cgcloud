@@ -288,16 +288,16 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
             JobCompType=jobcomp/none
 
             # ACCOUNTING
-            AccountingStorageLoc=%s
+            AccountingStorageLoc={slurm_acct_file}
             AccountingStorageType=accounting_storage/filetxt
             AccountingStoreJobComment=YES
             JobAcctGatherFrequency=30
             JobAcctGatherType=jobacct_gather/linux
 
             # COMPUTE NODES
-            NodeName=localhost CPUs=%d State=UNKNOWN RealMemory=%d
+            NodeName=localhost CPUs={cpus:d} State=UNKNOWN RealMemory={memory:d}
             PartitionName=debug Nodes=localhost Default=YES MaxTime=INFINITE State=UP
-        """ % (slurm_acct_file, cpus, memory))
+        """)
         slurm_conf_tmp = '/tmp/slurm.conf'
         slurm_conf_file = '/etc/slurm-llnl/slurm.conf'
         # Put config file in: /etc/slurm-llnl/slurm.conf
