@@ -255,6 +255,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         # slurm.conf needs cpus and memory in order to handle jobs with these resource requests
         cpus = int(run('/usr/bin/nproc'))
         memory = int(run('cat /proc/meminfo | grep MemTotal | awk \'{print $2}\'')) / 1024
+        slurm_acct_file = '/var/log/slurm-llnl/slurm-acct.txt'
 
         slurm_conf = heredoc("""
             ClusterName=jenkins-testing
@@ -287,16 +288,16 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
             JobCompType=jobcomp/none
 
             # ACCOUNTING
-            AccountingStorageLoc=/var/run/slurm-llnl/slurm-acct.txt
+            AccountingStorageLoc={slurm_acct_file}
             AccountingStorageType=accounting_storage/filetxt
             AccountingStoreJobComment=YES
             JobAcctGatherFrequency=30
             JobAcctGatherType=jobacct_gather/linux
 
             # COMPUTE NODES
-            NodeName=localhost CPUs=%d State=UNKNOWN RealMemory=%d
+            NodeName=localhost CPUs={cpus:d} State=UNKNOWN RealMemory={memory:d}
             PartitionName=debug Nodes=localhost Default=YES MaxTime=INFINITE State=UP
-        """ % (cpus, memory))
+        """)
         slurm_conf_tmp = '/tmp/slurm.conf'
         slurm_conf_file = '/etc/slurm-llnl/slurm.conf'
         # Put config file in: /etc/slurm-llnl/slurm.conf
@@ -306,12 +307,10 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         sudo('chown root:root %s' % slurm_conf_file )
 
         # Touch the accounting job file and make sure it's owned by slurm user
-        sudo('mkdir -p /var/run/slurm-llnl')
-        sudo('touch /var/run/slurm-llnl/slurm-acct.txt')
-        sudo('chown slurm:slurm /var/run/slurm-llnl/slurm-acct.txt')
-
-        # Make sure accounting job can be read by anyone (users running sacct must have permission)
-        sudo('chmod 644 /var/run/slurm-llnl/slurm-acct.txt')
+        sudo('mkdir -p /var/log/slurm-llnl')
+        sudo('touch %s' % slurm_acct_file)
+        sudo('chown slurm:slurm %s' % slurm_acct_file)
+        sudo('chmod 644 %s' % slurm_acct_file)
 
         # Start slurm services
         sudo('/usr/sbin/service slurm-llnl start')
