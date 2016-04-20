@@ -58,6 +58,39 @@ class RcLocalBox( Box ):
             out_file.seek( 0 )
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
 
+    @classmethod
+    def _patch_etc_environment( cls, env_file, dirs=None, env_pairs=None ):
+        r"""
+        >>> f=StringIO('FOO = " BAR " \n  PATH =foo:bar\nBLA="FASEL"')
+        >>> f.seek(0,2) # seek to end as if file was opened with 'a'
+        >>> SparkBox._patch_etc_environment( f, [ "new" ] )
+        >>> f.getvalue()
+        'BLA="FASEL"\nFOO=" BAR "\nPATH="foo:bar:new"\n'
+        """
+
+        def parse_entry( s ):
+            m = cls.env_entry_re.match( s )
+            return m.group( 1 ), m.group( 2 )
+
+        env_file.seek( 0 )
+        env = dict( parse_entry( _ ) for _ in env_file.read( ).splitlines( ) )
+
+        # do we have dirs to add to the path
+        if not dirs is None:
+            path = env[ 'PATH' ].split( ':' )
+            path.extend( dirs )
+            env[ 'PATH' ] = ':'.join( path )
+
+        # do we have environment variables to write?
+        if not env_pairs is None:
+            for (k, v) in env_pairs.iteritems():
+                env[k] = v
+
+        env_file.seek( 0 )
+        env_file.truncate( 0 )
+        for var in sorted( env.items( ) ): env_file.write( '%s="%s"\n' % var )
+
+
 # FIXME: This is here for an experimental feature (ordering commands that depend on each other)
 
 if False:

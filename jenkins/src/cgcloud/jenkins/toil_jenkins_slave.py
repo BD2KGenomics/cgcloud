@@ -4,6 +4,7 @@ import re
 
 from fabric.operations import run, put
 
+from cgcloud.core.apache import ApacheSoftwareBox
 from cgcloud.core.mesos_box import MesosBox
 from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
@@ -14,11 +15,14 @@ from cgcloud.core.docker_box import DockerBox
 from cgcloud.fabric.operations import sudo, remote_sudo_popen
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
+hadoop_version = '2.6.2'
+install_dir = '/opt/'
 
 class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
                         Python27UpdateUbuntuBox,
                         DockerBox,
-                        MesosBox ):
+                        MesosBox,
+                        ApacheSoftwareBox ):
     """
     A Jenkins slave suitable for running Toil unit tests, specifically the Mesos batch system and
     the AWS job store. Legacy batch systems (parasol, gridengine, ...) are not yet supported.
@@ -50,6 +54,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         self.__patch_distutils( )
         self.__configure_gridengine( )
         self.__configure_slurm( )
+        self.__install_yarn( )
 
     @fabric_task
     def _setup_build_user( self ):
@@ -71,6 +76,18 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         run( "git clone https://github.com/BD2KGenomics/parasol-binaries.git" )
         sudo( "cp parasol-binaries/* /usr/local/bin" )
         run( "rm -rf parasol-binaries" )
+
+    @fabric_task
+    def __install_yarn ( self ):
+        # Download and extract Hadoop
+        path = fmt( 'hadoop/common/hadoop-{hadoop_version}/hadoop-{hadoop_version}.tar.gz' )
+        self.__install_apache_package( path )
+
+        # patch path
+        with remote_open( '/etc/environment', use_sudo=True ) as f:
+            yarn_path = [ fmt( '{install_dir}/hadoop' ) ]
+            self._patch_etc_environment( f, env_pairs={ 'HADOOP_HOME': yarn_path } )
+
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
