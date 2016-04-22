@@ -31,10 +31,13 @@ from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
-from cgcloud.lib.ec2 import ec2_instance_types, wait_spot_requests_active
+from cgcloud.lib.ec2 import ec2_instance_types, wait_spot_requests_active, wait_instances_running
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
-from cgcloud.lib.util import (UserError, unpack_singleton, camel_to_snake, ec2_keypair_fingerprint,
-                              private_to_public_key, mean, std_dev)
+from cgcloud.lib.util import (UserError,
+                              camel_to_snake,
+                              ec2_keypair_fingerprint,
+                              private_to_public_key,
+                              mean, std_dev)
 
 log = logging.getLogger( __name__ )
 
@@ -691,7 +694,8 @@ class Box( object ):
                     # the executor where they are waited on concurrently.
                     num_running, num_other = 0, 0
                     # TODO: timeout
-                    for instance in self.__wait_instances_running( box.instance for box in boxes ):
+                    instances = (box.instance for box in boxes)
+                    for instance in wait_instances_running( self.ctx.ec2, instances ):
                         box = boxes_by_id[ instance.id ]
                         # equivalent to the instance.update() done in _wait_ready()
                         box.instance = instance
@@ -729,40 +733,6 @@ class Box( object ):
             clone = copy( self )
             clone.unbind( )
             yield clone
-
-    def __wait_instances_running( self, instances ):
-        """
-        Wait until no instance in the given iterable is 'pending'. Yield every instance that
-        entered the running state as soon as it does.
-
-        :type instances: Iterator[Instance]
-        :rtype: Iterator[Instance]
-        """
-        running_ids = set( )
-        other_ids = set( )
-        while True:
-            pending_ids = set( )
-            for i in instances:
-                if i.state == 'pending':
-                    pending_ids.add( i.id )
-                elif i.state == 'running':
-                    assert i.id not in running_ids
-                    running_ids.add( i.id )
-                    yield i
-                else:
-                    assert i.id not in other_ids
-                    other_ids.add( i.id )
-                    yield i
-            log.info( '%i instance(s) pending, %i running, %i other.',
-                      *map( len, (pending_ids, running_ids, other_ids) ) )
-            if not pending_ids:
-                break
-            seconds = max( a_short_time, min( len( pending_ids ), 10 * a_short_time ) )
-            log.info( 'Sleeping for %is', seconds )
-            time.sleep( seconds )
-            for attempt in retry_ec2( ):
-                with attempt:
-                    instances = self.ctx.ec2.get_only_instances( list( pending_ids ) )
 
     def _create_spot_instances( self, spec, timeout=None, tentative=False ):
         """
@@ -981,7 +951,7 @@ class Box( object ):
                 try:
                     instance = self.ctx.ec2.get_only_instances( instance_id )[ 0 ]
                 except EC2ResponseError as e:
-                    if e.error_code.startswith('InvalidInstanceID'):
+                    if e.error_code.startswith( 'InvalidInstanceID' ):
                         raise UserError( "No instance with ID '%s'." % instance_id )
                 try:
                     name = instance.tags[ 'Name' ]

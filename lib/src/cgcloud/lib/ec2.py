@@ -320,6 +320,42 @@ _ec2_instance_types = [
 ec2_instance_types = dict( (_.name, _) for _ in _ec2_instance_types )
 
 
+def wait_instances_running( ec2, instances ):
+    """
+    Wait until no instance in the given iterable is 'pending'. Yield every instance that
+    entered the running state as soon as it does.
+
+    :param boto.ec2.connection.EC2Connection ec2: the EC2 connection to use for making requests
+    :param Iterator[Instance] instances: the instances to wait on
+    :rtype: Iterator[Instance]
+    """
+    running_ids = set( )
+    other_ids = set( )
+    while True:
+        pending_ids = set( )
+        for i in instances:
+            if i.state == 'pending':
+                pending_ids.add( i.id )
+            elif i.state == 'running':
+                assert i.id not in running_ids
+                running_ids.add( i.id )
+                yield i
+            else:
+                assert i.id not in other_ids
+                other_ids.add( i.id )
+                yield i
+        log.info( '%i instance(s) pending, %i running, %i other.',
+                  *map( len, (pending_ids, running_ids, other_ids) ) )
+        if not pending_ids:
+            break
+        seconds = max( a_short_time, min( len( pending_ids ), 10 * a_short_time ) )
+        log.info( 'Sleeping for %is', seconds )
+        time.sleep( seconds )
+        for attempt in retry_ec2( ):
+            with attempt:
+                instances = ec2.get_only_instances( list( pending_ids ) )
+
+
 def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
     """
     Wait until no spot request in the given iterator is in the 'open' state or, optionally,
