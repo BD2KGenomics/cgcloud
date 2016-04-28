@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version, fabric_version
+from version import cgcloud_version, fabric_dep
 
 setup(
     name='cgcloud-jenkins',
@@ -19,4 +19,4 @@ setup(
     install_requires=[
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core=='  + cgcloud_version,
-        'Fabric==' + fabric_version ] )
+        fabric_dep ] )

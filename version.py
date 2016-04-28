@@ -1,7 +1,7 @@
 cgcloud_version = '1.4a1'
-bd2k_python_lib_version = '1.11.dev6'
-boto_version = '2.38.0'
-fabric_version = '1.10.2'
+bd2k_python_lib_dep = 'bd2k-python-lib>=1.11.dev6'
+boto_dep = 'boto==2.38.0'
+fabric_dep = 'Fabric==1.10.2'
 
 if __name__ == '__main__':
     import os
@@ -11,5 +11,5 @@ if __name__ == '__main__':
     for name, value in globals().items():
         if name.startswith('cgcloud_'):
             value += suffix
-        if name.endswith('_version'):
+        if name.endswith('_dep') or name.endswith('_version'):
             print "%s='%s'" % ( name, value )

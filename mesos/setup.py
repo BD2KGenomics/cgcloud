@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version, bd2k_python_lib_version, fabric_version
+from version import cgcloud_version, bd2k_python_lib_dep, fabric_dep
 
 setup(
     name='cgcloud-mesos',
@@ -19,5 +19,5 @@ setup(
     install_requires=[
         'cgcloud-lib==' + cgcloud_version,
         'cgcloud-core==' + cgcloud_version,
-        'bd2k-python-lib==' + bd2k_python_lib_version,
-        'Fabric==' + fabric_version ] )
+        bd2k_python_lib_dep,
+        fabric_dep ] )

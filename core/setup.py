@@ -2,7 +2,7 @@ from __future__ import absolute_import
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version, bd2k_python_lib_version, boto_version, fabric_version
+from version import cgcloud_version, bd2k_python_lib_dep, boto_dep, fabric_dep
 
 setup(
     name='cgcloud-core',
@@ -20,11 +20,11 @@ setup(
         'console_scripts': [
             'cgcloud = cgcloud.core.cli:main' ], },
     install_requires=[
-        'bd2k-python-lib==' + bd2k_python_lib_version,
+        bd2k_python_lib_dep,
         'cgcloud-lib==' + cgcloud_version,
         'futures==3.0.4', # such that cgcloud-lib can use the futures backport for its thread_pool
-        'boto==' + boto_version,
-        'Fabric==' + fabric_version,
+        boto_dep,
+        fabric_dep,
         'futures==3.0.4',
         'PyYAML==3.11',
         'subprocess32==3.2.7' ],
