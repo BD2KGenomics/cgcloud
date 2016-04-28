@@ -291,6 +291,7 @@ class Box( object ):
         return self.role( )
 
     def __setup_security_groups( self ):
+        log.info('Setting up security group ...')
         name = self.ctx.to_aws_name( self._security_group_name( ) )
         try:
             sg = self.ctx.ec2.create_security_group(
@@ -299,13 +300,17 @@ class Box( object ):
                     self.role( ), self.ctx.namespace) )
         except EC2ResponseError as e:
             if e.error_code == 'InvalidGroup.Duplicate':
-                sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
+                for attempt in retry_ec2( retry_while=self.__inconsistencies_detected,
+                                          retry_for=10 * 60 ):
+                    with attempt:
+                        sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
             else:
                 raise
         rules = self._populate_security_group( sg.name )
         for rule in rules:
             try:
-                for attempt in retry_ec2( retry_while=self.__inconsistencies_detected ):
+                for attempt in retry_ec2( retry_while=self.__inconsistencies_detected,
+                                          retry_for=10 * 60 ):
                     with attempt:
                         assert self.ctx.ec2.authorize_security_group( group_name=sg.name, **rule )
             except EC2ResponseError as e:
@@ -315,6 +320,7 @@ class Box( object ):
                     raise
         # FIXME: What about stale rules? I tried writing code that removes them but gave up. The
         # API in both boto and EC2 is just too brain-dead.
+        log.info('... finished setting up %s.', sg.id )
         return [ sg.name ]
 
     def _populate_security_group( self, group_name ):
