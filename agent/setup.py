@@ -4,7 +4,7 @@ import sys
 
 from setuptools import setup, find_packages
 
-from version import cgcloud_version, bd2k_python_lib_version, boto_version
+from version import cgcloud_version, bd2k_python_lib_dep, boto_dep
 
 setup(
     name='cgcloud-agent',
@@ -24,8 +24,8 @@ setup(
         'console_scripts': [
             'cgcloudagent = cgcloud.agent.cli:main' ], },
     install_requires=filter( None, [
-        'bd2k-python-lib==' + bd2k_python_lib_version,
+        bd2k_python_lib_dep,
         'cgcloud-lib==' + cgcloud_version,
-        'boto==' + boto_version,
+        boto_dep,
         'python-daemon==2.0.6',
         'argparse==1.4.0' if sys.version_info < (2, 7) else None ] ) )

@@ -427,3 +427,62 @@ def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
     else:
         if open_ids:
             cancel( )
+
+
+def create_spot_instances( ec2, price, image_id, spec,
+                           num_instances=1, timeout=None, tentative=False ):
+    """
+    :rtype: Iterator[list[Instance]]
+    """
+    for attempt in retry_ec2( retry_for=a_long_time,
+                              retry_while=inconsistencies_detected ):
+        with attempt:
+            requests = ec2.request_spot_instances( price, image_id, count=num_instances, **spec )
+
+    num_active, num_other = 0, 0
+    # noinspection PyUnboundLocalVariable,PyTypeChecker
+    # request_spot_instances's type annotation is wrong
+    for batch in wait_spot_requests_active( ec2,
+                                            requests,
+                                            timeout=timeout,
+                                            tentative=tentative ):
+        instance_ids = [ ]
+        for request in batch:
+            if request.state == 'active':
+                instance_ids.append( request.instance_id )
+                num_active += 1
+            else:
+                log.info( 'Request %s in unexpected state %s.', request.id, request.state )
+                num_other += 1
+        if instance_ids:
+            # This next line is the reason we batch. It's so we can get multiple instances in
+            # a single request.
+            yield ec2.get_only_instances( instance_ids )
+    if not num_active:
+        raise RuntimeError( 'None of the spot requests entered the active state' )
+    if num_other:
+        log.warn( '%i request(s) entered a state other than active.', num_other )
+
+
+def inconsistencies_detected( e ):
+    if e.code == 'InvalidGroup.NotFound': return True
+    m = e.error_message.lower( )
+    return 'invalid iam instance profile' in m or 'no associated iam roles' in m
+
+
+def create_ondemand_instances( ec2, image_id, spec, num_instances=1 ):
+    """
+    Requests the RunInstances EC2 API call but accounts for the race between recently created
+    instance profiles, IAM roles and an instance creation that refers to them.
+
+    :rtype: list[Instance]
+    """
+    instance_type = spec[ 'instance_type' ]
+    log.info( 'Creating %s instance(s) ... ', instance_type )
+    for attempt in retry_ec2( retry_for=a_long_time,
+                              retry_while=inconsistencies_detected ):
+        with attempt:
+            return ec2.run_instances( image_id,
+                                      min_count=num_instances,
+                                      max_count=num_instances,
+                                      **spec ).instances

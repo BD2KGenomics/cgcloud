@@ -96,6 +96,11 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
                      cluster_name=options.cluster_name,
                      ebs_volume_size=options.ebs_volume_size )
 
+    def creation_kwargs( self, options, box ):
+        return dict( super( CreateClusterCommand, self ).creation_kwargs( options, box ),
+                     num_instances=options.num_workers )
+
+
     def option( self, option_name, *args, **kwargs ):
         _super = super( CreateClusterCommand, self )
         if option_name in ('role', '--terminate'):
@@ -134,15 +139,16 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
 
     def run_on_box( self, options, leader ):
         """
-        :type leader: Box
+        :type leader: cgcloud.core.box.Box
         """
         log.info( '=== Creating leader ===' )
         preparation_kwargs = self.preparation_kwargs( options, leader )
         if options.leader_on_demand:
-            preparation_kwargs = { k: v for k, v in preparation_kwargs.iteritems()
+            preparation_kwargs = { k: v for k, v in preparation_kwargs.iteritems( )
                 if not k.startswith( 'spot_' ) }
         spec = leader.prepare( **preparation_kwargs )
         creation_kwargs = dict( self.creation_kwargs( options, leader ),
+                                num_instances=1,
                                 # We must always wait for the leader since workers depend on it.
                                 wait_ready=True )
         leader.create( spec, **creation_kwargs )
@@ -160,18 +166,15 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
             first_worker = self.cluster.worker_role( leader.ctx )
             preparation_kwargs = dict( self.preparation_kwargs( options, first_worker ),
                                        leader_instance_id=leader.instance_id,
-                                       instance_type=options.worker_instance_type,
-                                       num_instances=options.num_workers )
+                                       instance_type=options.worker_instance_type )
             spec = first_worker.prepare( **preparation_kwargs )
             with thread_pool( min( options.num_threads, options.num_workers ) ) as pool:
-                creation_kwargs = dict( self.creation_kwargs( options, first_worker ),
-                                        wait_ready=not options.quick )
                 workers = first_worker.create( spec,
                                                cluster_ordinal=leader.cluster_ordinal + 1,
                                                executor=pool.apply_async,
-                                               **creation_kwargs )
+                                               **self.creation_kwargs( options, first_worker ) )
         else:
-            workers = []
+            workers = [ ]
         if options.list:
             self.list( [ leader ] )
             self.list( workers, print_headers=False )
@@ -253,8 +256,8 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
         options.role = self.cluster.worker_role.role( )
         self.run_on_role( options, ctx, self.cluster.worker_role )
 
-    def preparation_kwargs( self, options, box ):
-        return dict( super( GrowClusterCommand, self ).preparation_kwargs( options, box ),
+    def creation_kwargs( self, options, box ):
+        return dict( super( GrowClusterCommand, self ).creation_kwargs( options, box ),
                      num_instances=options.num_workers )
 
     def run_on_box( self, options, first_worker ):

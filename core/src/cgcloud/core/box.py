@@ -31,7 +31,11 @@ from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib.context import Context
-from cgcloud.lib.ec2 import ec2_instance_types, wait_spot_requests_active, wait_instances_running
+from cgcloud.lib.ec2 import (ec2_instance_types,
+                             wait_instances_running,
+                             inconsistencies_detected,
+                             create_spot_instances,
+                             create_ondemand_instances)
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
 from cgcloud.lib.util import (UserError,
                               camel_to_snake,
@@ -291,7 +295,7 @@ class Box( object ):
         return self.role( )
 
     def __setup_security_groups( self ):
-        log.info('Setting up security group ...')
+        log.info( 'Setting up security group ...' )
         name = self.ctx.to_aws_name( self._security_group_name( ) )
         try:
             sg = self.ctx.ec2.create_security_group(
@@ -300,7 +304,7 @@ class Box( object ):
                     self.role( ), self.ctx.namespace) )
         except EC2ResponseError as e:
             if e.error_code == 'InvalidGroup.Duplicate':
-                for attempt in retry_ec2( retry_while=self.__inconsistencies_detected,
+                for attempt in retry_ec2( retry_while=inconsistencies_detected,
                                           retry_for=10 * 60 ):
                     with attempt:
                         sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
@@ -309,7 +313,7 @@ class Box( object ):
         rules = self._populate_security_group( sg.name )
         for rule in rules:
             try:
-                for attempt in retry_ec2( retry_while=self.__inconsistencies_detected,
+                for attempt in retry_ec2( retry_while=inconsistencies_detected,
                                           retry_for=10 * 60 ):
                     with attempt:
                         assert self.ctx.ec2.authorize_security_group( group_name=sg.name, **rule )
@@ -320,7 +324,7 @@ class Box( object ):
                     raise
         # FIXME: What about stale rules? I tried writing code that removes them but gave up. The
         # API in both boto and EC2 is just too brain-dead.
-        log.info('... finished setting up %s.', sg.id )
+        log.info( '... finished setting up %s.', sg.id )
         return [ sg.name ]
 
     def _populate_security_group( self, group_name ):
@@ -387,7 +391,7 @@ class Box( object ):
     # Note: The name of all spot-related keyword arguments should begin with 'spot_'
 
     def prepare( self, ec2_keypair_globs,
-                 instance_type=None, image_ref=None, virtualization_type=None, num_instances=1,
+                 instance_type=None, image_ref=None, virtualization_type=None,
                  spot_bid=None, spot_launch_group=None, spot_auto_zone=False,
                  **options ):
         """
@@ -454,9 +458,7 @@ class Box( object ):
                         key_name=ec2_keypairs[ 0 ].name,
                         placement=self.ctx.availability_zone,
                         security_groups=security_groups,
-                        instance_profile_arn=self.get_instance_profile_arn( ),
-                        min_count=num_instances,
-                        max_count=num_instances )
+                        instance_profile_arn=self.get_instance_profile_arn( ) )
         self._spec_block_device_mapping( spec, image )
         self._spec_spot_market( spec,
                                 bid=spot_bid,
@@ -599,6 +601,7 @@ class Box( object ):
         return spot_data
 
     def create( self, spec,
+                num_instances=1,
                 wait_ready=True,
                 terminate_on_error=True,
                 spot_timeout=None,
@@ -658,36 +661,40 @@ class Box( object ):
 
         try:
             if 'price' in spec:
+                price = spec.price
+                del spec.price
                 # Spot requests are fulfilled in batches. A batch could consist of one instance,
                 # all requested instances or a subset thereof. As soon as a batch comes back from
                 #  _create_spot_instances(), we will want to adopt every instance in it. Part of
                 # adoption is tagging which is crucial for cluster nodes.
                 # TODO: timeout
-                for batch in self._create_spot_instances( spec,
-                                                          timeout=spot_timeout,
-                                                          tentative=spot_tentative ):
+                for batch in create_spot_instances( self.ctx.ec2, price, self.image_id, spec,
+                                                    num_instances=num_instances,
+                                                    timeout=spot_timeout,
+                                                    tentative=spot_tentative ):
                     adopt( batch )
             else:
-                adopt( self._create_ondemand_instances( spec ) )
+                adopt( create_ondemand_instances( self.ctx.ec2, self.image_id, spec,
+                                                  num_instances=num_instances ) )
 
             assert boxes
             assert boxes[ 0 ] is self
 
-            def _wait_ready( box ):
-                try:
-                    # noinspection PyProtectedMember
-                    box._wait_ready( { 'pending' }, first_boot=True )
-                except:
-                    if terminate_on_error:
-                        with panic( log ):
-                            log.warn( 'Terminating instance ...' )
-                            self.ctx.ec2.terminate_instances( [ box.instance_id ] )
-                    raise
-                finally:
-                    with pending_ids_lock:
-                        pending_ids.remove( box.instance_id )
-
             if wait_ready:
+                def _wait_ready( box ):
+                    try:
+                        # noinspection PyProtectedMember
+                        box._wait_ready( { 'pending' }, first_boot=True )
+                    except:
+                        if terminate_on_error:
+                            with panic( log ):
+                                log.warn( 'Terminating instance ...' )
+                                self.ctx.ec2.terminate_instances( [ box.instance_id ] )
+                        raise
+                    finally:
+                        with pending_ids_lock:
+                            pending_ids.remove( box.instance_id )
+
                 if len( boxes ) == 1:
                     # For a single instance, self._wait_ready will wait for the instance to change to
                     # running ...
@@ -739,70 +746,6 @@ class Box( object ):
             clone = copy( self )
             clone.unbind( )
             yield clone
-
-    def _create_spot_instances( self, spec, timeout=None, tentative=False ):
-        """
-        :rtype: Iterator[list[Instance]]
-        """
-        # There is no min/max count parameter for request_spot_instances, just count
-        spec = spec.copy( )
-        try:
-            spec.count = spec.max_count
-            del spec.max_count
-            del spec.min_count
-        except AttributeError:
-            pass
-        # price is a positional argument, so we need to extract it
-        price = spec.price
-        del spec.price
-        for attempt in retry_ec2( retry_for=a_long_time,
-                                  retry_while=self.__inconsistencies_detected ):
-            with attempt:
-                requests = self.ctx.ec2.request_spot_instances( price, self.image_id, **spec )
-
-        num_active, num_other = 0, 0
-        # noinspection PyUnboundLocalVariable,PyTypeChecker
-        # request_spot_instances's type annotation is wrong
-        for batch in wait_spot_requests_active( self.ctx.ec2,
-                                                requests,
-                                                timeout=timeout,
-                                                tentative=tentative ):
-            instance_ids = [ ]
-            for request in batch:
-                if request.state == 'active':
-                    instance_ids.append( request.instance_id )
-                    num_active += 1
-                else:
-                    log.info( 'Request %s in unexpected state %s.', request.id, request.state )
-                    num_other += 1
-            if instance_ids:
-                # This next line is the reason we batch. It's so we can get multiple instances in
-                # a single request.
-                yield self.ctx.ec2.get_only_instances( instance_ids )
-        if not num_active:
-            raise RuntimeError( 'None of the spot requests entered the active state' )
-        if num_other:
-            log.warn( '%i request(s) entered a state other than active.', num_other )
-
-    def __inconsistencies_detected( self, e ):
-        if e.code == 'InvalidGroup.NotFound': return True
-        m = e.error_message.lower( )
-        return 'invalid iam instance profile' in m or 'no associated iam roles' in m
-
-    def _create_ondemand_instances( self, spec ):
-        """
-        Requests the RunInstances EC2 API call but accounts for the race between recently created
-        instance profiles, IAM roles and an instance creation that refers to them.
-
-        :rtype: list[Instance]
-        """
-        instance_type = spec[ 'instance_type' ]
-        log.info( 'Creating %s instance(s) ... ', instance_type )
-
-        for attempt in retry_ec2( retry_for=a_long_time,
-                                  retry_while=self.__inconsistencies_detected ):
-            with attempt:
-                return self.ctx.ec2.run_instances( self.image_id, **spec ).instances
 
     def adopt( self, instance, cluster_ordinal ):
         """
