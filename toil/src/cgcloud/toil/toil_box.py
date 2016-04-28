@@ -95,7 +95,7 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
     def __install_s3am( self ):
         virtualenv( name='s3am',
                     distributions=[ 's3am==1.1' ],
-                    pip_distribution="pip==8.0.2",
+                    pip_distribution='pip==8.0.2',
                     executable='s3am' )
 
     def _toil_pip_args( self ):

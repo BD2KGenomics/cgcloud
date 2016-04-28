@@ -7,6 +7,8 @@ from operator import attrgetter
 
 from bd2k.util.exceptions import panic
 from boto.ec2.spotinstancerequest import SpotInstanceRequest
+from boto.ec2.instance import Instance
+from boto.ec2.ec2object import TaggedEC2Object
 from boto.exception import EC2ResponseError
 
 from cgcloud.lib.util import UserError
@@ -486,3 +488,16 @@ def create_ondemand_instances( ec2, image_id, spec, num_instances=1 ):
                                       min_count=num_instances,
                                       max_count=num_instances,
                                       **spec ).instances
+
+
+def tag_object_persistently( tagged_ec2_object, tags_dict ):
+    """
+    Object tagging occasionally fails with "NotFound" types of errors so we need to
+    retry a few times. Sigh ...
+
+    :type tagged_ec2_object: TaggedEC2Object
+    """
+    for attempt in retry_ec2( ):
+        with attempt:
+            tagged_ec2_object.add_tags( tags_dict )
+

@@ -35,7 +35,8 @@ from cgcloud.lib.ec2 import (ec2_instance_types,
                              wait_instances_running,
                              inconsistencies_detected,
                              create_spot_instances,
-                             create_ondemand_instances)
+                             create_ondemand_instances,
+                             tag_object_persistently)
 from cgcloud.lib.ec2 import retry_ec2, a_short_time, a_long_time, wait_transition
 from cgcloud.lib.util import (UserError,
                               camel_to_snake,
@@ -832,24 +833,13 @@ class Box( object ):
         """
         return [ ]
 
-    def _tag_object_persistently( self, tagged_ec2_object, tags_dict ):
-        """
-        Object tagging occasionally fails with "NotFound" types of errors so we need to
-        retry a few times. Sigh ...
-
-        :type tagged_ec2_object: boto.ec2.TaggedEC2Object
-        """
-        for attempt in retry_ec2( ):
-            with attempt:
-                tagged_ec2_object.add_tags( tags_dict )
-
     def _on_instance_created( self ):
         """
         Invoked right after an instance was created.
         """
         log.info( 'Tagging instance ... ' )
         tags_dict = self._get_instance_options( )
-        self._tag_object_persistently( self.instance, tags_dict )
+        tag_object_persistently( self.instance, tags_dict )
         log.info( '... instance tagged %r.', tags_dict )
 
     def _on_instance_running( self, first_boot ):
@@ -1019,7 +1009,7 @@ class Box( object ):
         while True:
             try:
                 image = self.ctx.ec2.get_image( image_id )
-                self._tag_object_persistently( image, self._get_image_options( ) )
+                tag_object_persistently( image, self._get_image_options( ) )
                 wait_transition( image, { 'pending' }, 'available' )
                 log.info( "... created %s (%s).", image.id, image.name )
                 break

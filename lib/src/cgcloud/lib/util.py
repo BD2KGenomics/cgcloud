@@ -12,9 +12,11 @@ import sys
 from StringIO import StringIO
 from abc import ABCMeta, abstractmethod
 from collections import Sequence
+from itertools import islice, count
 from math import sqrt
 from textwrap import dedent
 
+from bd2k.util.iterables import concat
 from bd2k.util.strings import interpolate
 
 log = logging.getLogger( __name__ )
@@ -841,3 +843,45 @@ def papply( f, seq, pool_size=cores, callback=None ):
 def __check_pool_size( pool_size ):
     if pool_size < 0:
         raise ValueError( 'Pool size must be >= 0' )
+
+
+def allocate_cluster_ordinals( num, used ):
+    """
+    Return an iterator containing a given number of unused cluster ordinals. The result is
+    guaranteed to yield each ordinal exactly once, i.e. the result is set-like. The argument
+    set and the result iterator will be disjoint. The sum of all ordinals in the argument and
+    the result is guaranteed to be minimal, i.e. the function will first fill the gaps in the
+    argument before allocating higher values. The result will yield ordinal in ascending order.
+
+    :param int num: the number of ordinal to allocate
+    :param set[int] used: a set of currently used ordinal
+    :rtype: iterator
+
+    >>> f = allocate_cluster_ordinals
+
+    >>> list(f(0,set()))
+    []
+    >>> list(f(1,set()))
+    [0]
+    >>> list(f(0,{0}))
+    []
+    >>> list(f(1,{0}))
+    [1]
+    >>> list(f(0,{0,1}))
+    []
+    >>> list(f(1,{0,1}))
+    [2]
+    >>> list(f(0,{0,2}))
+    []
+    >>> list(f(1,{0,2}))
+    [1]
+    >>> list(f(2,{0,2}))
+    [1, 3]
+    >>> list(f(3,{0,2}))
+    [1, 3, 4]
+    """
+    assert isinstance( used, set )
+    first_free = max( used ) + 1 if used else 0
+    complete = set( range( 0, len( used ) ) )
+    gaps = sorted( complete - used )
+    return islice( concat( gaps, count( first_free ) ), num )

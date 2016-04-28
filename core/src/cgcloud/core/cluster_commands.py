@@ -1,19 +1,21 @@
-from abc import abstractmethod
-from functools import partial
 import logging
 import os
-
-from itertools import count, islice
-
 import sys
+from abc import abstractmethod
+from functools import partial
 
 from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
-from bd2k.util.iterables import concat
 
-from cgcloud.core.commands import (RecreateCommand, ContextCommand, SshCommandMixin,
+from cgcloud.core.commands import (RecreateCommand,
+                                   ContextCommand,
+                                   SshCommandMixin,
                                    RsyncCommandMixin)
-from cgcloud.lib.util import abreviated_snake_case_class_name, UserError, heredoc, thread_pool
+from cgcloud.lib.util import (abreviated_snake_case_class_name,
+                              UserError,
+                              heredoc,
+                              thread_pool,
+                              allocate_cluster_ordinals)
 
 log = logging.getLogger( __name__ )
 
@@ -99,7 +101,6 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
     def creation_kwargs( self, options, box ):
         return dict( super( CreateClusterCommand, self ).creation_kwargs( options, box ),
                      num_instances=options.num_workers )
-
 
     def option( self, option_name, *args, **kwargs ):
         _super = super( CreateClusterCommand, self )
@@ -275,8 +276,8 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
         assert len( used_cluster_ordinals ) == len( workers )  # check for collisions
         assert 0 not in used_cluster_ordinals  # master has 0
         used_cluster_ordinals.add( 0 )  # to make the math easier
-        cluster_ordinal = self.allocate_cluster_ordinals( num=options.num_workers,
-                                                          used=used_cluster_ordinals )
+        cluster_ordinal = allocate_cluster_ordinals( num=options.num_workers,
+                                                     used=used_cluster_ordinals )
         first_worker.unbind( )  # list() bound it
         spec = first_worker.prepare( leader_instance_id=leader.instance_id,
                                      cluster_name=leader.cluster_name,
@@ -288,48 +289,6 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
                                            **self.creation_kwargs( options, first_worker ) )
         if options.list:
             self.list( workers )
-
-    @staticmethod
-    def allocate_cluster_ordinals( num, used ):
-        """
-        Return an iterator containing a given number of unused cluster ordinals. The result is
-        guaranteed to yield each ordinal exactly once, i.e. the result is set-like. The argument
-        set and the result iterator will be disjoint. The sum of all ordinals in the argument and
-        the result is guaranteed to be minimal, i.e. the function will first fill the gaps in the
-        argument before allocating higher values. The result will yield ordinal in ascending order.
-
-        :param int num: the number of ordinal to allocate
-        :param set[int] used: a set of currently used ordinal
-        :rtype: iterator
-
-        >>> f = GrowClusterCommand.allocate_cluster_ordinals
-
-        >>> list(f(0,set()))
-        []
-        >>> list(f(1,set()))
-        [0]
-        >>> list(f(0,{0}))
-        []
-        >>> list(f(1,{0}))
-        [1]
-        >>> list(f(0,{0,1}))
-        []
-        >>> list(f(1,{0,1}))
-        [2]
-        >>> list(f(0,{0,2}))
-        []
-        >>> list(f(1,{0,2}))
-        [1]
-        >>> list(f(2,{0,2}))
-        [1, 3]
-        >>> list(f(3,{0,2}))
-        [1, 3, 4]
-        """
-        assert isinstance( used, set )
-        first_free = max( used ) + 1 if used else 0
-        complete = set( range( 0, len( used ) ) )
-        gaps = sorted( complete - used )
-        return islice( concat( gaps, count( first_free ) ), num )
 
 
 class ApplyClusterCommand( ClusterCommand ):
