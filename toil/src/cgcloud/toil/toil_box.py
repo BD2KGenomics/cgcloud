@@ -1,14 +1,17 @@
 import logging
+import os
 
+import re
 from bd2k.util import strict_bool
 from bd2k.util.iterables import concat
+from fabric.operations import put
 
 from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterWorker, ClusterLeader
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
 from cgcloud.fabric.operations import pip, remote_sudo_popen, sudo, virtualenv
-from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
+from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc, UserError
 from cgcloud.mesos.mesos_box import MesosBoxSupport, user, persistent_dir
 
 log = logging.getLogger( __name__ )
@@ -103,8 +106,52 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
 
 
 class ToilLatestBox( ToilBox ):
+    default_spec = 'toil[aws,mesos,encryption,cwl,cgcloud]<=3.2.0'
+
+    @classmethod
+    def get_role_options( cls ):
+        return super( ToilLatestBox, cls ).get_role_options( ) + [
+            cls.RoleOption( name='toil_sdists',
+                            type=cls.parse_sdists,
+                            repr=cls.unparse_sdists,
+                            inherited=False,
+                            help="A space-separated list of paths to sdists. If this option is "
+                                 "present, pip will be used to install the specified sdists "
+                                 "instead of %s. Each path may be immediately followed by a list "
+                                 "of extras enclosed in square brackets. The Toil sdist should "
+                                 "come last. An sdist is a .tar.gz file containing the source "
+                                 "distribution of a Python project. It is typically created by "
+                                 "running 'python setup.py sdist' from the project root, or, "
+                                 "in the case of Toil and CGCloud, running 'make sdist'. Example: "
+                                 "'%s'. " % (cls.default_spec, cls.unparse_sdists( [
+                                ('../cgcloud-lib-1.4a1.dev0.tar.gz', ''),
+                                ('dist/toil-3.2.0a2.tar.gz', '[aws,mesos,cgcloud]') ] )) ) ]
+
+    # Accepts "foo", "foo[bar]" and "foo[bar,bla]". Rejects "foo[]", "foo[bar]x"
+    sdist_re = re.compile( r'([^\[\]]+)((?:\[[^\]]+\])?)$' )
+
+    @classmethod
+    def parse_sdists( cls, s ):
+        try:
+            return [ cls.sdist_re.match( sdist ).groups( ) for sdist in s.split( ) ]
+        except:
+            raise UserError( "'%s' is not a valid value for the toil_sdists option." % s )
+
+    @classmethod
+    def unparse_sdists( cls, sdists ):
+        return ' '.join( path + extra for path, extra in sdists )
+
+    @fabric_task
     def _toil_pip_args( self ):
-        return [ '--pre', 'toil[aws,mesos,encryption,cwl]<=3.2.0' ]
+        sdists = self.role_options.get( 'toil_sdists' )
+        if sdists:
+            result = [ ]
+            for path, extra in sdists:
+                put( local_path=path )
+                result.append( os.path.basename( path ) + extra )
+            return result
+        else:
+            return [ '--pre', self.default_spec ]
 
 
 class ToilLeader( ToilBox, ClusterLeader ):
