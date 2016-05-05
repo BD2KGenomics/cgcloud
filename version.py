@@ -2,6 +2,7 @@ cgcloud_version = '1.4a1'
 bd2k_python_lib_dep = 'bd2k-python-lib>=1.11.dev6'
 boto_dep = 'boto==2.38.0'
 fabric_dep = 'Fabric==1.10.3'
+s3am_dep = 's3am>=2.0a1.dev99,<2.1'
 
 if __name__ == '__main__':
     import os

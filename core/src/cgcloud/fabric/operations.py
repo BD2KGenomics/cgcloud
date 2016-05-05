@@ -79,7 +79,7 @@ def virtualenv( name, distributions=None, pip_distribution='pip', executable=Non
     :param name: the name of the directory under /opt that will hold the virtualenv
 
     :param distributions: a list of distributions to be installed into the virtualenv. Defaults
-    to [ name ]
+    to [ name ]. You can also list other "pip install" options, like --pre.
 
     :param pip_distribution: if non-empty, the distribution and optional version spec to upgrade
     pip to. Defaults to the latest version of pip. Set to empty string to prevent pip from being
