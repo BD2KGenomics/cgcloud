@@ -454,6 +454,22 @@ class CreationCommand( BoxCommand ):
                      accepted. By default on-demand instances are used. Note that some instance
                      types are not available on the spot market!""" ) )
 
+        self.option( '--vpc', metavar='VPC_ID', type=str, dest='vpc_id',
+                     help=heredoc( """The ID of a VPC to create the instance and associated 
+                     security group in. If this option is absent and the AWS account has a 
+                     default VPC, the default VPC will be used. This is the most common case. If 
+                     this option is absent and the AWS account has EC2 Classic enabled and the 
+                     selected instance type supports EC2 classic mode, no VPC will be used. If 
+                     this option is absent and the AWS account has no default VPC and an instance 
+                     type that only supports VPC is used, an exception will be raised.""" ) )
+
+        self.option( '--subnet', metavar='SUBNET_ID', type=str, dest='subnet_id',
+                     help=heredoc( """The ID of a subnet to allocate the instance's private IP 
+                     address from. Can't be combined with --spot-auto-zone. The specified subnet 
+                     must belong to the specified VPC (or the default VPC if none was given) and 
+                     reside in the availability zone given via CGCLOUD_ZONE or --zone. If this 
+                     option is absent, cgcloud will attempt to choose a subnet automatically.""" ) ) 
+
         self.option( '--spot-launch-group', metavar='NAME',
                      help=heredoc( """The name of an EC2 spot instance launch group. If
                      specified, the spot request will only be fullfilled once all instances in
@@ -529,6 +545,8 @@ class CreationCommand( BoxCommand ):
                      ec2_keypair_globs=map( resolve_me, options.ec2_keypair_names ),
                      instance_type=options.instance_type,
                      virtualization_type=options.virtualization_type,
+                     vpc_id=options.vpc_id,
+                     subnet_id=options.subnet_id,
                      spot_bid=options.spot_bid,
                      spot_launch_group=options.spot_launch_group,
                      spot_auto_zone=options.spot_auto_zone )

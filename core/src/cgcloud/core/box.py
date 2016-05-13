@@ -295,22 +295,30 @@ class Box( object ):
         """
         return self.role( )
 
-    def __setup_security_groups( self ):
+    def __setup_security_groups( self, vpc_id=None ):
         log.info( 'Setting up security group ...' )
         name = self.ctx.to_aws_name( self._security_group_name( ) )
         try:
             sg = self.ctx.ec2.create_security_group(
                 name=name,
+                vpc_id=vpc_id,
                 description="Security group for box of role %s in namespace %s" % (
                     self.role( ), self.ctx.namespace) )
         except EC2ResponseError as e:
             if e.error_code == 'InvalidGroup.Duplicate':
+                filters = { 'group-name': name }
+                if vpc_id is not None:
+                    filters[ 'vpc-id' ] = vpc_id
                 for attempt in retry_ec2( retry_while=inconsistencies_detected,
                                           retry_for=10 * 60 ):
                     with attempt:
-                        sg = self.ctx.ec2.get_all_security_groups( groupnames=[ name ] )[ 0 ]
+                        sgs = self.ctx.ec2.get_all_security_groups( filters=filters )
+                        assert len( sgs ) == 1
+                        sg = sgs[ 0 ]
             else:
                 raise
+        # It's OK to have two security groups of the same name as long as their VPC is distinct.
+        assert vpc_id is None or sg.vpc_id == vpc_id
         rules = self._populate_security_group( sg.name )
         for rule in rules:
             try:
@@ -326,7 +334,7 @@ class Box( object ):
         # FIXME: What about stale rules? I tried writing code that removes them but gave up. The
         # API in both boto and EC2 is just too brain-dead.
         log.info( '... finished setting up %s.', sg.id )
-        return [ sg.name ]
+        return [ sg.id ]
 
     def _populate_security_group( self, group_name ):
         """
@@ -394,6 +402,7 @@ class Box( object ):
     def prepare( self, ec2_keypair_globs,
                  instance_type=None, image_ref=None, virtualization_type=None,
                  spot_bid=None, spot_launch_group=None, spot_auto_zone=False,
+                 vpc_id=None, subnet_id=None,
                  **options ):
         """
         Prepare to create an EC2 instance represented by this box. Return a dictionary with
@@ -421,6 +430,23 @@ class Box( object ):
         Amazon EC2 to launch a set of Spot instances only if it can launch them all. In addition,
         if the Spot service must terminate one of the instances in a launch group (for example,
         if the Spot price rises above your bid price), it must terminate them all.
+        
+        :param bool spot_auto_zone: Use heuristic to automatically choose the "best" availability 
+        zone to launch spot instances in. Can't be combined with subnet_id. Overrides the 
+        availability zone in the context.
+        
+        :param: str vpc_id: The ID of a VPC to create the instance and associated security group 
+        in. If this argument is None or absent and the AWS account has a default VPC, the default 
+        VPC will be used. This is the most common case. If this argument is None or absent and 
+        the AWS account has EC2 Classic enabled and the selected instance type supports EC2 
+        classic mode, no VPC will be used. If this argument is None or absent and the AWS account 
+        has no default VPC and an instance type that only supports VPC is used, an exception will 
+        be raised.
+        
+        :param: str subnet_id: The ID of a subnet to allocate instance's private IP address from. 
+        Can't be combined with spot_auto_zone. The specified subnet must belong to the specified 
+        VPC (or the default VPC if none was specified) and reside in the context's availability 
+        zone. If this argument is None or absent, a subnet will be chosen automatically.
 
         :param dict options: Additional, role-specific options can be specified. These options
         augment the options associated with the givem image.
@@ -430,6 +456,11 @@ class Box( object ):
 
         if spot_auto_zone and spot_bid is None:
             raise UserError( 'Need a spot bid for automatically chosing a zone for spot instances' )
+
+        if subnet_id is not None and spot_auto_zone:
+            raise UserError( 'Cannot automatically choose an availability zone for spot instances '
+                             'while placing them in an explicitly defined subnet since the subnet '
+                             'implies a specific availability zone.' )
 
         if self.instance_id is not None:
             raise AssertionError( 'Instance already bound or created' )
@@ -441,7 +472,19 @@ class Box( object ):
         image = self.__get_image( virtualization_types, image_ref )
         self.image_id = image.id
 
-        security_groups = self.__setup_security_groups( )
+        zone = self.ctx.availability_zone
+
+        security_group_ids = self.__setup_security_groups( vpc_id=vpc_id )
+        if vpc_id is not None and subnet_id is None:
+            log.info( 'Looking up suitable subnet for VPC %s in zone %s.', vpc_id, zone )
+            subnets = self.ctx.vpc.get_all_subnets( filters={ 'vpc-id': vpc_id,
+                                                              'availability-zone': zone } )
+            if subnets:
+                subnet_id = subnets[ 0 ].id
+            else:
+                raise UserError( 'There is no subnet belonging to VPC %s in availability zone %s. '
+                                 'Please create a subnet manually using the VPC console.'
+                                 % (vpc_id, zone) )
 
         options = dict( image.tags, **options )
         self._set_instance_options( options )
@@ -457,8 +500,9 @@ class Box( object ):
 
         spec = Expando( instance_type=instance_type,
                         key_name=ec2_keypairs[ 0 ].name,
-                        placement=self.ctx.availability_zone,
-                        security_groups=security_groups,
+                        placement=zone,
+                        security_group_ids=security_group_ids,
+                        subnet_id=subnet_id,
                         instance_profile_arn=self.get_instance_profile_arn( ) )
         self._spec_block_device_mapping( spec, image )
         self._spec_spot_market( spec,
