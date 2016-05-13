@@ -123,11 +123,10 @@ class Context( object ):
         super( Context, self ).__init__( )
 
         self.__iam = None
-        self.__ec2 = None
+        self.__vpc = None
         self.__s3 = None
         self.__sns = None
         self.__sqs = None
-        self.__vpc = None
 
         self.availability_zone = availability_zone
         m = self.availability_zone_re.match( availability_zone )
@@ -159,14 +158,7 @@ class Context( object ):
             self.__iam = self.__aws_connect( iam, 'universal' )
         return self.__iam
 
-    @property
-    def ec2( self ):
-        """
-        :rtype: EC2Connection
-        """
-        if self.__ec2 is None:
-            self.__ec2 = self.__aws_connect( ec2 )
-        return self.__ec2
+    # VPCConnection extends EC2Connection so we can use one instance of the former for both 
 
     @property
     def vpc( self ):
@@ -176,6 +168,8 @@ class Context( object ):
         if self.__vpc is None:
             self.__vpc = self.__aws_connect( vpc )
         return self.__vpc
+
+    ec2 = vpc
 
     @property
     def s3( self ):
@@ -223,7 +217,7 @@ class Context( object ):
         self.close( )
 
     def close( self ):
-        if self.__ec2 is not None: self.__ec2.close( )
+        if self.__vpc is not None: self.__vpc.close( )
         if self.__s3 is not None: self.__s3.close( )
         if self.__iam is not None: self.__iam.close( )
         if self.__sns is not None: self.__sns.close( )
