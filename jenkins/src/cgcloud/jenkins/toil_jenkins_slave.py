@@ -33,7 +33,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
             'python-dev', 'gcc', 'make',
             'libffi-dev',  # pynacl -> toil, Azure client-side encryption
             'libcurl4-openssl-dev',  # pycurl -> SPARQLWrapper -> rdflib>=4.2.0 -> cwltool -> toil
-            'slurm-llnl', # SLURM
+            'slurm-llnl', 'bc',  # SLURM
         ] + [ 'gridengine-' + p for p in ('common', 'master', 'client', 'exec') ]
 
     def _get_debconf_selections( self ):
@@ -252,11 +252,9 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         sudo('/usr/sbin/create-munge-key')
         sudo('/usr/sbin/service munge start')
 
-        # slurm.conf needs cpus and memory in order to handle jobs with these resource requests
-        cpus = int(run('/usr/bin/nproc'))
-        memory = int(run('cat /proc/meminfo | grep MemTotal | awk \'{print $2}\'')) / 1024
         slurm_acct_file = '/var/log/slurm-llnl/slurm-acct.txt'
 
+        # Default values placed into compute node config, will be replaced by pre script
         slurm_conf = heredoc("""
             ClusterName=jenkins-testing
             ControlMachine=localhost
@@ -295,7 +293,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
             JobAcctGatherType=jobacct_gather/linux
 
             # COMPUTE NODES
-            NodeName=localhost CPUs={cpus:d} State=UNKNOWN RealMemory={memory:d}
+            NodeName=localhost CPUs=1 State=UNKNOWN RealMemory=256
             PartitionName=debug Nodes=localhost Default=YES MaxTime=INFINITE State=UP
         """)
         slurm_conf_tmp = '/tmp/slurm.conf'
@@ -312,8 +310,22 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         sudo('chown slurm:slurm %s' % slurm_acct_file)
         sudo('chmod 644 %s' % slurm_acct_file)
 
+        # Register an init-script that sets the CPUs and RealMemory in slurm.conf
+        # slurm.conf needs cpus and memory in order to handle jobs with these resource requests
+        self._register_init_script( 'slurm-llnl-pre', heredoc( """
+            description "Slurm pre-start configuration"
+            console log
+            start on filesystem
+            pre-start script
+                CPUS=$(/usr/bin/nproc)
+                MEMORY=$(cat /proc/meminfo | grep MemTotal | awk '{{print $2, "/ 1024"}}' | bc)
+                sed -i "s/CPUs=[0-9]\+/CPUs=${{CPUS}}/" {slurm_conf_file}
+                sed -i "s/RealMemory=[0-9]\+/RealMemory=${{MEMORY}}/" {slurm_conf_file}
+            end script""" ) )
+
         # Start slurm services
-        sudo('/usr/sbin/service slurm-llnl start')
+        self._run_init_script('slurm-llnl-pre')
+        self._run_init_script('slurm-llnl')
 
         # Ensure partition is up
         sudo('scontrol update NodeName=localhost State=Down')
