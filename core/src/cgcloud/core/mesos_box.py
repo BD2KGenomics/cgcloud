@@ -12,6 +12,9 @@ class MesosBox( UbuntuBox ):
     """
 
     def _mesos_version( self ):
+        return '0.25.1'
+
+    def _mesos_egg_version( self ):
         return '0.25.0'
 
     @fabric_task
@@ -33,7 +36,7 @@ class MesosBox( UbuntuBox ):
 
     @fabric_task
     def __install_mesos_egg( self ):
-        egg = 'mesos-' + self._mesos_version( ) + '-py2.7-linux-x86_64.egg'
+        egg = 'mesos-' + self._mesos_egg_version( ) + '-py2.7-linux-x86_64.egg'
         version = self.release( ).version
         run( fmt( 'wget http://downloads.mesosphere.io/master/ubuntu/{version}/{egg}' ) )
         # We need a newer version of protobuf than what comes default on Ubuntu
