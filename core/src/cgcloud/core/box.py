@@ -325,7 +325,7 @@ class Box( object ):
                 for attempt in retry_ec2( retry_while=inconsistencies_detected,
                                           retry_for=10 * 60 ):
                     with attempt:
-                        assert self.ctx.ec2.authorize_security_group( group_name=sg.name, **rule )
+                        assert self.ctx.ec2.authorize_security_group( group_id=sg.id, **rule )
             except EC2ResponseError as e:
                 if e.error_code == 'InvalidPermission.Duplicate':
                     pass
