@@ -68,8 +68,12 @@ remote boxes. In development mode, these components are not installed from PyPI
 but are instead directly uploaded to the box in sdist form and then installed
 from the sdist.
 
-After changes to the agent, spark-tools or mesos-tools subprojects you must run
-`make sdist` again. Otherwise, `cgcloud create` will install a stale version of
-these on the remote box.
+After pulling changes from the remote, you need to run `make develop sdist` again.
+This step is easy to forget because you often get by without it.
+
+Specifically, `make develop` is necessary after any of the setup.py or
+version.py files have changed. And `make sdist` is necessary after changes to
+the agent, spark-tools or mesos-tools subprojects. Otherwise, `cgcloud create`
+will install a stale version of these on the remote box.
 
 To run the unittests, `pip install nose` and then do `make test`.
