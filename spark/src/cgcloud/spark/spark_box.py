@@ -105,12 +105,12 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         super( SparkBox, self ).__init__( ctx )
         self.lazy_dirs = set( )
 
-    def _populate_security_group( self, group_name ):
-        return super( SparkBox, self )._populate_security_group( group_name ) + [
+    def _populate_security_group( self, group_id ):
+        return super( SparkBox, self )._populate_security_group( group_id ) + [
             dict( ip_protocol='tcp', from_port=0, to_port=65535,
-                  src_security_group_name=group_name ),
+                  src_security_group_group_id=group_id ),
             dict( ip_protocol='udp', from_port=0, to_port=65535,
-                  src_security_group_name=group_name ) ]
+                  src_security_group_group_id=group_id ) ]
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( SparkBox, self )._get_iam_ec2_role( )

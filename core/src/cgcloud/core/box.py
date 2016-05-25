@@ -319,7 +319,7 @@ class Box( object ):
                 raise
         # It's OK to have two security groups of the same name as long as their VPC is distinct.
         assert vpc_id is None or sg.vpc_id == vpc_id
-        rules = self._populate_security_group( sg.name )
+        rules = self._populate_security_group( sg.id )
         for rule in rules:
             try:
                 for attempt in retry_ec2( retry_while=inconsistencies_detected,
@@ -336,7 +336,7 @@ class Box( object ):
         log.info( '... finished setting up %s.', sg.id )
         return [ sg.id ]
 
-    def _populate_security_group( self, group_name ):
+    def _populate_security_group( self, group_id ):
         """
         :return: A list of rules, each rule is a dict with keyword arguments to
         boto.ec2.connection.EC2Connection.authorize_security_group, namely
