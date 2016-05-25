@@ -169,7 +169,14 @@ class Context( object ):
             self.__vpc = self.__aws_connect( vpc )
         return self.__vpc
 
-    ec2 = vpc
+    # ec2 = vpc works, too, but confuses the type hinter in PyCharm
+
+    @property
+    def ec2( self ):
+        """
+        :rtype: VPCConnection
+        """
+        return self.vpc
 
     @property
     def s3( self ):
