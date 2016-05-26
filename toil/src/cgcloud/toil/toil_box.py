@@ -10,6 +10,7 @@ from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterWorker, ClusterLeader
 from cgcloud.core.common_iam_policies import ec2_full_policy, s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
+from cgcloud.core.version import s3am_dep
 from cgcloud.fabric.operations import pip, remote_sudo_popen, sudo, virtualenv
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc, UserError
 from cgcloud.mesos.mesos_box import MesosBoxSupport, user, persistent_dir
@@ -96,7 +97,6 @@ class ToilBox( MesosBoxSupport, DockerBox, ClusterBox ):
 
     @fabric_task
     def __install_s3am( self ):
-        from version import s3am_dep
         virtualenv( name='s3am',
                     distributions=[ s3am_dep ],
                     pip_distribution='pip==8.0.2',
