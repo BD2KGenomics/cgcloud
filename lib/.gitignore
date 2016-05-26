@@ -2,5 +2,5 @@
 /dist
 *.egg-info
 *.pyc
-MANIFEST.in
-version.py
+/MANIFEST.in
+/version.py
