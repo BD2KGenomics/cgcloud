@@ -286,4 +286,3 @@ class GenericFedora22Box( FedoraBox ):
         https://www.banym.de/linux/fedora/problems-with-missing-locale-files-on-fedora-20-made-libvirtd-service-not-starting
         """
         sudo( 'localedef -c -i en_US -f UTF-8 en_US.UTF-8' )
-

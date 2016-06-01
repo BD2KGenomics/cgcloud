@@ -16,6 +16,8 @@ from cgcloud.fabric.operations import sudo, remote_sudo_popen
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 hadoop_version = '2.6.2'
+short_hadoop_version = '2.6'
+spark_version = '1.6.1'
 install_dir = '/opt/'
 
 class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
@@ -55,6 +57,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         self.__configure_gridengine( )
         self.__configure_slurm( )
         self.__install_yarn( )
+        self.__install_spark( )
 
     @fabric_task
     def _setup_build_user( self ):
@@ -87,6 +90,20 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         with remote_open( '/etc/environment', use_sudo=True ) as f:
             yarn_path = [ fmt( '{install_dir}/hadoop' ) ]
             self._patch_etc_environment( f, env_pairs={ 'HADOOP_HOME': yarn_path } )
+
+
+    @fabric_task
+    def __install_spark ( self ):
+        # Download and extract Spark
+        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop{short_hadoop_version}.tgz' )
+        self.__install_apache_package( path )
+
+        # patch path
+        with remote_open( '/etc/environment', use_sudo=True ) as f:
+            spark_path = [ fmt( '{install_dir}/spark' ) ]
+            pyspark_path = [ fmt( '{spark_path}/python' ) ]
+            self._patch_etc_environment( f, env_pairs={ 'SPARK_HOME': spark_path } )
+            self._patch_etc_environment( f, pyspark_path, envar='PYTHONPATH' )
 
 
     def _get_iam_ec2_role( self ):

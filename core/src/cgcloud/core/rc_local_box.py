@@ -75,11 +75,17 @@ class RcLocalBox( Box ):
         env_file.seek( 0 )
         env = dict( parse_entry( _ ) for _ in env_file.read( ).splitlines( ) )
 
-        # do we have dirs to add to the path
+        # do we have dirs to add to a path
         if not dirs is None:
-            path = env[ 'PATH' ].split( ':' )
+            
+            # if envar is default (None), set to PATH
+            # else, the user is adding to a different path
+            if envar is None:
+                envar = 'PATH'
+
+            path = env[ envar ].split( ':' )
             path.extend( dirs )
-            env[ 'PATH' ] = ':'.join( path )
+            env[ envar ] = ':'.join( path )
 
         # do we have environment variables to write?
         if not env_pairs is None:
