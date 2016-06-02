@@ -4,6 +4,4 @@
 .eggs/
 nosetests.xml
 /venv/
-# emacs
-*~
-*#*
+.cache
