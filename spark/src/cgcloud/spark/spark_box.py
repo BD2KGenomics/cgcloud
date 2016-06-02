@@ -1,14 +1,13 @@
-import json
 import logging
-import re
 from StringIO import StringIO
 from collections import namedtuple
 
 from bd2k.util.iterables import concat
 from bd2k.util.strings import interpolate as fmt
 from fabric.context_managers import settings
-from fabric.operations import run, put, os
+from fabric.operations import run, put
 
+from cgcloud.core.apache import ApacheSoftwareBox
 from cgcloud.core.box import fabric_task
 from cgcloud.core.cluster import ClusterBox, ClusterLeader, ClusterWorker
 from cgcloud.core.common_iam_policies import ec2_read_only_policy
@@ -20,22 +19,16 @@ from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 log = logging.getLogger( __name__ )
 
 user = 'sparkbox'
-
 install_dir = '/opt/sparkbox'
-
 log_dir = "/var/log/sparkbox"
-
 ephemeral_dir = '/mnt/ephemeral'
-
 persistent_dir = '/mnt/persistent'
-
 var_dir = '/var/lib/sparkbox'
-
 hdfs_replication = 1
-
 hadoop_version = '2.6.0'
-
 spark_version = '1.5.2'
+# The major version of Hadoop that the Spark binaries were built against 
+spark_hadoop_version = '2.6'
 
 Service = namedtuple( 'Service', [
     'init_name',
@@ -76,7 +69,10 @@ spark_services = dict(
     slave=[ spark_service( 'slave', 'slaves' ) ] )
 
 
-class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
+class SparkBox( ApacheSoftwareBox,
+                ClusterBox,
+                GenericUbuntuTrustyBox,
+                Python27UpdateUbuntuBox ):
     """
     A node in a Spark cluster. Workers and the master undergo the same setup. Whether a node acts
     as a master or a slave is determined at boot time, via user data. All slave nodes will be
@@ -193,7 +189,7 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
     def __install_hadoop( self ):
         # Download and extract Hadoop
         path = fmt( 'hadoop/common/hadoop-{hadoop_version}/hadoop-{hadoop_version}.tar.gz' )
-        self.__install_apache_package( path )
+        self._install_apache_package( path, install_dir )
 
         # Add environment variables to hadoop_env.sh
         hadoop_env = dict(
@@ -261,8 +257,8 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
     @fabric_task
     def __install_spark( self ):
         # Download and extract Spark
-        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop2.6.tgz' )
-        self.__install_apache_package( path )
+        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop{spark_hadoop_version}.tgz' )
+        self._install_apache_package( path, install_dir )
 
         spark_dir = var_dir + "/spark"
 
@@ -299,47 +295,6 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
         # Install upstart jobs
         self.__register_upstart_jobs( spark_services )
 
-    def __install_apache_package( self, path ):
-        """
-        Download the given file from an Apache download mirror.
-
-        Some mirrors may be down or serve crap, so we may need to retry this a couple of times.
-        """
-        # TODO: run Fabric tasks with a different manager, so we don't need to catch SystemExit
-        components = path.split( '/' )
-        package, tarball = components[ 0 ], components[ -1 ]
-        tries = iter( xrange( 3 ) )
-        while True:
-            try:
-                mirror_url = self.__apache_s3_mirror_url( path )
-                if run( "curl -Ofs '%s'" % mirror_url, warn_only=True ).failed:
-                    mirror_url = self.__apache_official_mirror_url( path )
-                    run( "curl -Ofs '%s'" % mirror_url )
-                try:
-                    sudo( fmt( 'mkdir -p {install_dir}/{package}' ) )
-                    sudo( fmt( 'tar -C {install_dir}/{package} '
-                               '--strip-components=1 -xzf {tarball}' ) )
-                    return
-                finally:
-                    run( fmt( 'rm {tarball}' ) )
-            except SystemExit:
-                if next( tries, None ) is None:
-                    raise
-                else:
-                    log.warn( "Could not download or extract the package, retrying ..." )
-
-    # FIMXE: this might have more general utility
-
-    def __apache_official_mirror_url( self, path ):
-        mirrors = run( "curl -fs 'http://www.apache.org/dyn/closer.cgi?path=%s&asjson=1'" % path )
-        mirrors = json.loads( mirrors )
-        mirror = mirrors[ 'preferred' ]
-        url = mirror + path
-        return url
-
-    def __apache_s3_mirror_url( self, path ):
-        file_name = os.path.basename( path )
-        return 'https://s3-us-west-2.amazonaws.com/bd2k-artifacts/cgcloud/' + file_name
 
     @fabric_task
     def __install_tools( self ):
@@ -463,7 +418,7 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
             with remote_open( '/etc/environment', use_sudo=True ) as f:
                 new_path = [ fmt( '{install_dir}/{package}/bin' )
                     for package in ('spark', 'hadoop') ]
-                self.__patch_etc_environment( f, new_path )
+                self._patch_etc_environment( f, dirs=new_path )
         else:
             for _user in (user, self.admin_account( )):
                 with settings( user=_user ):
@@ -473,31 +428,6 @@ class SparkBox( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, ClusterBox ):
                             # We don't include sbin here because too many file names collide in
                             # Spark's and Hadoop's sbin
                             f.write( fmt( 'PATH="$PATH:{install_dir}/{package}/bin"\n' ) )
-
-    env_entry_re = re.compile( r'^\s*([^=\s]+)\s*=\s*"?(.*?)"?\s*$' )
-
-    @classmethod
-    def __patch_etc_environment( cls, env_file, dirs ):
-        r"""
-        >>> f=StringIO('FOO = " BAR " \n  PATH =foo:bar\nBLA="FASEL"')
-        >>> f.seek(0,2) # seek to end as if file was opened with 'a'
-        >>> SparkBox._SparkBox__patch_etc_environment( f, [ "new" ] )
-        >>> f.getvalue()
-        'BLA="FASEL"\nFOO=" BAR "\nPATH="foo:bar:new"\n'
-        """
-
-        def parse_entry( s ):
-            m = cls.env_entry_re.match( s )
-            return m.group( 1 ), m.group( 2 )
-
-        env_file.seek( 0 )
-        env = dict( parse_entry( _ ) for _ in env_file.read( ).splitlines( ) )
-        path = env[ 'PATH' ].split( ':' )
-        path.extend( dirs )
-        env[ 'PATH' ] = ':'.join( path )
-        env_file.seek( 0 )
-        env_file.truncate( 0 )
-        for var in sorted( env.items( ) ): env_file.write( '%s="%s"\n' % var )
 
 
 class SparkMaster( SparkBox, ClusterLeader ):

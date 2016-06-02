@@ -3,7 +3,9 @@ import time
 import re
 
 from fabric.operations import run, put
+from bd2k.util.strings import interpolate as fmt
 
+from cgcloud.core.apache import ApacheSoftwareBox
 from cgcloud.core.mesos_box import MesosBox
 from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
 from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
@@ -11,14 +13,20 @@ from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.fabric.operations import sudo, remote_sudo_popen
+from cgcloud.fabric.operations import sudo, remote_sudo_popen, remote_open
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
+hadoop_version = '2.6.2'
+# The major version of Hadoop that the Spark binaries were built against 
+spark_hadoop_version = '2.6'
+spark_version = '1.6.1'
+install_dir = '/opt'
 
 class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
                         Python27UpdateUbuntuBox,
                         DockerBox,
-                        MesosBox ):
+                        MesosBox,
+                        ApacheSoftwareBox ):
     """
     A Jenkins slave suitable for running Toil unit tests, specifically the Mesos batch system and
     the AWS job store. Legacy batch systems (parasol, gridengine, ...) are not yet supported.
@@ -50,6 +58,8 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         self.__patch_distutils( )
         self.__configure_gridengine( )
         self.__configure_slurm( )
+        self.__install_yarn( )
+        self.__install_spark( )
 
     @fabric_task
     def _setup_build_user( self ):
@@ -71,6 +81,38 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
         run( "git clone https://github.com/BD2KGenomics/parasol-binaries.git" )
         sudo( "cp parasol-binaries/* /usr/local/bin" )
         run( "rm -rf parasol-binaries" )
+
+    @fabric_task
+    def __install_yarn ( self ):
+        # Download and extract Hadoop
+        path = fmt( 'hadoop/common/hadoop-{hadoop_version}/hadoop-{hadoop_version}.tar.gz' )
+        self._install_apache_package( path, install_dir )
+
+        # patch path
+        with remote_open( '/etc/environment', use_sudo=True ) as f:
+            yarn_path = fmt( '{install_dir}/hadoop' )
+            self._patch_etc_environment( f, env_pairs=dict( HADOOP_HOME=yarn_path ) )
+
+
+    @fabric_task
+    def __install_spark ( self ):
+        # Download and extract Spark
+        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop{spark_hadoop_version}.tgz' )
+        self._install_apache_package( path, install_dir )
+
+        # Patch paths
+        with remote_open( '/etc/environment', use_sudo=True ) as f:
+            spark_home = fmt( '{install_dir}/spark' )
+            # These two PYTHONPATH entries are also added by the 'pyspark' wrapper script.
+            # We need to replicate them globally because we want to be able to just do 
+            # 'import pyspark' in Toil's Spark service code and associated tests.
+            python_path = [ fmt( '{spark_home}/python' ),
+                            run( fmt( 'ls {spark_home}/python/lib/py4j-*-src.zip' ).strip() ) ]
+            self._patch_etc_environment( f,
+                                         env_pairs=dict( SPARK_HOME=spark_home ),
+                                         dirs=python_path,
+                                         dirs_var='PYTHONPATH' )
+
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )

@@ -2,6 +2,7 @@ from collections import namedtuple
 from contextlib import closing
 from StringIO import StringIO
 
+import re
 from fabric.operations import get, put, sudo
 
 from cgcloud.lib.util import prepend_shell_script
@@ -57,6 +58,57 @@ class RcLocalBox( Box ):
                 prepend_shell_script( '\n' + script, in_file, out_file )
             out_file.seek( 0 )
             put( remote_path=remote_path, local_path=out_file, **put_kwargs )
+
+    env_entry_re = re.compile( r'^\s*([^=\s]+)\s*=\s*"?(.*?)"?\s*$' )
+
+    @classmethod
+    def _patch_etc_environment( cls, env_file, dirs=None, dirs_var='PATH', env_pairs=None ):
+        r"""
+        Patch /etc/environment by A) adding a list of directories to a PATH o PATH-like variable 
+        and/or B) adding other environment variables to it.
+        
+        :param env_file: A seekable file handle to /etc/environment or a file of that format
+         
+        :param list dirs: A list of directory paths to be added to the /etc/environment entry for 
+               PATH, or the entry referenced by dirs_var
+                
+        :param str dirs_var: The name of the variable to append `dirs` to
+        
+        :param dict env_pairs: A dictionary with other environment variable to append 
+        
+        >>> f=StringIO( 'FOO = " BAR " \n  PATH =foo:bar\nBLA="FASEL"' )
+        >>> f.seek( 0, 2 ) # seek to end as if file was opened with mode 'a'
+        >>> RcLocalBox._patch_etc_environment( f, dirs=[ "new1" ] )
+        >>> f.getvalue()
+        'BLA="FASEL"\nFOO=" BAR "\nPATH="foo:bar:new1"\n'
+        >>> RcLocalBox._patch_etc_environment( f, dirs=[ "new2" ], dirs_var='PATH2' )
+        >>> f.getvalue()
+        'BLA="FASEL"\nFOO=" BAR "\nPATH="foo:bar:new1"\nPATH2="new2"\n'
+        """
+
+        def parse_entry( s ):
+            m = cls.env_entry_re.match( s )
+            return m.group( 1 ), m.group( 2 )
+
+        env_file.seek( 0 )
+        env = dict( parse_entry( _ ) for _ in env_file.read( ).splitlines( ) )
+
+        # Do we have directories to add to a path?
+        if dirs is not None:
+            path = filter( None, env.get( dirs_var, '' ).split( ':' ) )
+            path.extend( dirs )
+            env[ dirs_var ] = ':'.join( path )
+
+        # Do we have other environment variables to write?
+        if env_pairs is not None:
+            for (k, v) in env_pairs.iteritems():
+                env[k] = v
+
+        env_file.seek( 0 )
+        env_file.truncate( 0 )
+        for var in sorted( env.items( ) ): 
+            env_file.write( '%s="%s"\n' % var )
+
 
 # FIXME: This is here for an experimental feature (ordering commands that depend on each other)
 
