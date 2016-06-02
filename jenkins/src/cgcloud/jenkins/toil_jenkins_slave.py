@@ -3,6 +3,7 @@ import time
 import re
 
 from fabric.operations import run, put
+from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.apache import ApacheSoftwareBox
 from cgcloud.core.mesos_box import MesosBox
@@ -12,13 +13,14 @@ from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
 from cgcloud.core.docker_box import DockerBox
-from cgcloud.fabric.operations import sudo, remote_sudo_popen
+from cgcloud.fabric.operations import sudo, remote_sudo_popen, remote_open
 from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 hadoop_version = '2.6.2'
-short_hadoop_version = '2.6'
+# The major version of Hadoop that the Spark binaries were built against 
+spark_hadoop_version = '2.6'
 spark_version = '1.6.1'
-install_dir = '/opt/'
+install_dir = '/opt'
 
 class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
                         Python27UpdateUbuntuBox,
@@ -84,26 +86,32 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
     def __install_yarn ( self ):
         # Download and extract Hadoop
         path = fmt( 'hadoop/common/hadoop-{hadoop_version}/hadoop-{hadoop_version}.tar.gz' )
-        self.__install_apache_package( path )
+        self._install_apache_package( path, install_dir )
 
         # patch path
         with remote_open( '/etc/environment', use_sudo=True ) as f:
-            yarn_path = [ fmt( '{install_dir}/hadoop' ) ]
-            self._patch_etc_environment( f, env_pairs={ 'HADOOP_HOME': yarn_path } )
+            yarn_path = fmt( '{install_dir}/hadoop' )
+            self._patch_etc_environment( f, env_pairs=dict( HADOOP_HOME=yarn_path ) )
 
 
     @fabric_task
     def __install_spark ( self ):
         # Download and extract Spark
-        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop{short_hadoop_version}.tgz' )
-        self.__install_apache_package( path )
+        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop{spark_hadoop_version}.tgz' )
+        self._install_apache_package( path, install_dir )
 
-        # patch path
+        # Patch paths
         with remote_open( '/etc/environment', use_sudo=True ) as f:
-            spark_path = [ fmt( '{install_dir}/spark' ) ]
-            pyspark_path = [ fmt( '{spark_path}/python' ) ]
-            self._patch_etc_environment( f, env_pairs={ 'SPARK_HOME': spark_path } )
-            self._patch_etc_environment( f, pyspark_path, envar='PYTHONPATH' )
+            spark_home = fmt( '{install_dir}/spark' )
+            # These two PYTHONPATH entries are also added by the 'pyspark' wrapper script.
+            # We need to replicate them globally because we want to be able to just do 
+            # 'import pyspark' in Toil's Spark service code and associated tests.
+            python_path = [ fmt( '{spark_home}/python' ),
+                            run( fmt( 'ls {spark_home}/python/lib/py4j-*-src.zip' ).strip() ) ]
+            self._patch_etc_environment( f,
+                                         env_pairs=dict( SPARK_HOME=spark_home ),
+                                         dirs=python_path,
+                                         dirs_var='PYTHONPATH' )
 
 
     def _get_iam_ec2_role( self ):

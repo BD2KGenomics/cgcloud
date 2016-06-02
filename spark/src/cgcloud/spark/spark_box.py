@@ -1,13 +1,11 @@
-import json
 import logging
-import re
 from StringIO import StringIO
 from collections import namedtuple
 
 from bd2k.util.iterables import concat
 from bd2k.util.strings import interpolate as fmt
 from fabric.context_managers import settings
-from fabric.operations import run, put, os
+from fabric.operations import run, put
 
 from cgcloud.core.apache import ApacheSoftwareBox
 from cgcloud.core.box import fabric_task
@@ -21,22 +19,16 @@ from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 log = logging.getLogger( __name__ )
 
 user = 'sparkbox'
-
 install_dir = '/opt/sparkbox'
-
 log_dir = "/var/log/sparkbox"
-
 ephemeral_dir = '/mnt/ephemeral'
-
 persistent_dir = '/mnt/persistent'
-
 var_dir = '/var/lib/sparkbox'
-
 hdfs_replication = 1
-
 hadoop_version = '2.6.0'
-
 spark_version = '1.5.2'
+# The major version of Hadoop that the Spark binaries were built against 
+spark_hadoop_version = '2.6'
 
 Service = namedtuple( 'Service', [
     'init_name',
@@ -197,7 +189,7 @@ class SparkBox( ApacheSoftwareBox,
     def __install_hadoop( self ):
         # Download and extract Hadoop
         path = fmt( 'hadoop/common/hadoop-{hadoop_version}/hadoop-{hadoop_version}.tar.gz' )
-        self.__install_apache_package( path )
+        self._install_apache_package( path, install_dir )
 
         # Add environment variables to hadoop_env.sh
         hadoop_env = dict(
@@ -265,8 +257,8 @@ class SparkBox( ApacheSoftwareBox,
     @fabric_task
     def __install_spark( self ):
         # Download and extract Spark
-        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop2.6.tgz' )
-        self.__install_apache_package( path )
+        path = fmt( 'spark/spark-{spark_version}/spark-{spark_version}-bin-hadoop{spark_hadoop_version}.tgz' )
+        self._install_apache_package( path, install_dir )
 
         spark_dir = var_dir + "/spark"
 
@@ -436,8 +428,6 @@ class SparkBox( ApacheSoftwareBox,
                             # We don't include sbin here because too many file names collide in
                             # Spark's and Hadoop's sbin
                             f.write( fmt( 'PATH="$PATH:{install_dir}/{package}/bin"\n' ) )
-
-    env_entry_re = re.compile( r'^\s*([^=\s]+)\s*=\s*"?(.*?)"?\s*$' )
 
 
 class SparkMaster( SparkBox, ClusterLeader ):
