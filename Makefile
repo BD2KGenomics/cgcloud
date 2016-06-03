@@ -80,7 +80,9 @@ sdist: $(foreach project,$(sdist_projects),sdist_$(project))
 define _pypi
 .PHONY: pypi_$1
 pypi_$1: _check_venv _check_running_on_jenkins _check_clean_working_copy $1/version.py $1/MANIFEST.in
-	cd $1 && $(python) setup.py egg_info sdist bdist_egg upload
+	test "$$ghprbActualCommit" \
+	&& echo "We're building a PR, skipping PyPI." || ( \
+	cd $1 && $(python) setup.py egg_info sdist bdist_egg upload )
 endef
 $(foreach project,$(all_projects),$(eval $(call _pypi,$(project))))
 .PHONY: pypi
