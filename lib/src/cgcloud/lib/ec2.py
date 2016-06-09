@@ -390,14 +390,18 @@ def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
 
     try:
         while True:
-            open_ids = set( )
-            pending_ids = set( )
+            open_ids, eval_ids, fulfill_ids = set(), set(), set()
             batch = [ ]
             for r in requests:
                 if r.state == 'open':
                     open_ids.add( r.id )
                     if r.status.code == 'pending-evaluation':
-                        pending_ids.add( r.id )
+                        eval_ids.add( r.id )
+                    elif r.status.code == 'pending-fulfillment':
+                        fulfill_ids.add( r.id )
+                    else:
+                        log.info('Request %s entered status %s indicating that it will not be '
+                                 'fulfilled anytime soon.', r.id, r.status.code )
                 elif r.state == 'active':
                     assert r.id not in active_ids
                     active_ids.add( r.id )
@@ -408,19 +412,20 @@ def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
                     batch.append( r )
             if batch:
                 yield batch
-            log.info( '%i spot requests(s) are open (%i of which pending evaluation), %i active, '
-                      '%i other.', *map( len, (open_ids, pending_ids, active_ids, other_ids) ) )
-            if not open_ids or tentative and not pending_ids:
+            log.info( '%i spot requests(s) are open (%i of which are pending evaluation and %i '
+                      'are pending fulfillment), %i are active and %i are in another state.',
+                      *map( len, (open_ids, eval_ids, fulfill_ids, active_ids, other_ids) ) )
+            if not open_ids or tentative and not eval_ids and not fulfill_ids:
                 break
             sleep_time = 2 * a_short_time
             if timeout is not None and time.time( ) + sleep_time >= timeout:
+                log.warn( 'Timed out waiting for spot requests.' )
                 break
             log.info( 'Sleeping for %is', sleep_time )
             time.sleep( sleep_time )
             for attempt in retry_ec2( retry_while=spot_request_not_found ):
                 with attempt:
                     requests = ec2.get_all_spot_instance_requests( list( open_ids ) )
-        log.warn( 'Timed out waiting for spot requests.' )
     except:
         if open_ids:
             with panic( log ):
@@ -461,7 +466,11 @@ def create_spot_instances( ec2, price, image_id, spec,
             # a single request.
             yield ec2.get_only_instances( instance_ids )
     if not num_active:
-        raise RuntimeError( 'None of the spot requests entered the active state' )
+        message = 'None of the spot requests entered the active state'
+        if tentative:
+            log.warn( message + '.' )
+        else:
+            raise RuntimeError( message )
     if num_other:
         log.warn( '%i request(s) entered a state other than active.', num_other )
 
