@@ -126,6 +126,7 @@ class JenkinsSlave( SourceControlClient, AgentBox ):
                   E.subnetId( '' ),
                   E.idleTerminationMinutes( '30' ),
                   E.iamInstanceProfile( self.get_instance_profile_arn( ) ),
+                  E.useEphemeralDevices( 'true' ),
                   E.instanceCap( '1' ),
                   E.stopOnTerminate( 'false' ),
                   E.tags( *[
