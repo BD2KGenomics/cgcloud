@@ -179,6 +179,9 @@ class CreateClusterCommand( ClusterTypeCommand, RecreateCommand ):
         if options.list:
             self.list( [ leader ] )
             self.list( workers, print_headers=False )
+        if not workers:
+            log.warn("This cluster has no workers. You may ssh into the leader now but you should "
+                     "use 'cgcloud grow-cluster' to add worker instances before doing real work." )
         self.log_ssh_hint( options )
 
     def run_on_creation( self, leader, options ):
@@ -289,6 +292,9 @@ class GrowClusterCommand( ClusterCommand, RecreateCommand ):
                                            **self.creation_kwargs( options, first_worker ) )
         if options.list:
             self.list( workers )
+        if not workers:
+            log.warn( 'No workers were added to the cluster.' )
+
 
 
 class ApplyClusterCommand( ClusterCommand ):

@@ -721,12 +721,14 @@ class Box( object ):
             else:
                 adopt( create_ondemand_instances( self.ctx.ec2, self.image_id, spec,
                                                   num_instances=num_instances ) )
-
-            assert boxes
+            if spot_tentative:
+                if not boxes: return boxes
+            else:
+                assert boxes
             assert boxes[ 0 ] is self
 
             if wait_ready:
-                def _wait_ready( box ):
+                def wait_ready_callback( box ):
                     try:
                         # noinspection PyProtectedMember
                         box._wait_ready( { 'pending' }, first_boot=True )
@@ -740,35 +742,7 @@ class Box( object ):
                         with pending_ids_lock:
                             pending_ids.remove( box.instance_id )
 
-                if len( boxes ) == 1:
-                    # For a single instance, self._wait_ready will wait for the instance to change to
-                    # running ...
-                    executor( _wait_ready, (self,) )
-                else:
-                    # .. but for multiple instances it is more efficient to wait for all of the
-                    # instances together.
-                    boxes_by_id = { box.instance_id: box for box in boxes }
-                    # Wait for instances to enter the running state and as they do, pass them to
-                    # the executor where they are waited on concurrently.
-                    num_running, num_other = 0, 0
-                    # TODO: timeout
-                    instances = (box.instance for box in boxes)
-                    for instance in wait_instances_running( self.ctx.ec2, instances ):
-                        box = boxes_by_id[ instance.id ]
-                        # equivalent to the instance.update() done in _wait_ready()
-                        box.instance = instance
-                        if instance.state == 'running':
-                            executor( _wait_ready, (box,) )
-                            num_running += 1
-                        else:
-                            log.info( 'Instance %s in unexpected state %s.',
-                                      instance.id, instance.state )
-                            num_other += 1
-                    assert num_running + num_other == len( boxes )
-                    if not num_running:
-                        raise RuntimeError( 'None of the instances entered the running state.' )
-                    if num_other:
-                        log.warn( '%i instance(s) entered a state other than running.', num_other )
+                self._batch_wait_ready( boxes, executor, wait_ready_callback )
         except:
             if terminate_on_error:
                 with panic( log ):
@@ -780,6 +754,37 @@ class Box( object ):
             raise
         else:
             return boxes
+
+    def _batch_wait_ready( self, boxes, executor, callback ):
+        if len( boxes ) == 1:
+            # For a single instance, self._wait_ready will wait for the instance to change to
+            # running ...
+            executor( callback, (self,) )
+        else:
+            # .. but for multiple instances it is more efficient to wait for all of the
+            # instances together.
+            boxes_by_id = { box.instance_id: box for box in boxes }
+            # Wait for instances to enter the running state and as they do, pass them to
+            # the executor where they are waited on concurrently.
+            num_running, num_other = 0, 0
+            # TODO: timeout
+            instances = (box.instance for box in boxes)
+            for instance in wait_instances_running( self.ctx.ec2, instances ):
+                box = boxes_by_id[ instance.id ]
+                # equivalent to the instance.update() done in _wait_ready()
+                box.instance = instance
+                if instance.state == 'running':
+                    executor( callback, (box,) )
+                    num_running += 1
+                else:
+                    log.info( 'Instance %s in unexpected state %s.',
+                              instance.id, instance.state )
+                    num_other += 1
+            assert num_running + num_other == len( boxes )
+            if not num_running:
+                raise RuntimeError( 'None of the instances entered the running state.' )
+            if num_other:
+                log.warn( '%i instance(s) entered a state other than running.', num_other )
 
     def clones( self ):
         """
