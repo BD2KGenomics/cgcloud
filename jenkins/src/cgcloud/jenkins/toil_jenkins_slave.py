@@ -19,7 +19,7 @@ from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 hadoop_version = '2.6.2'
 # The major version of Hadoop that the Spark binaries were built against 
 spark_hadoop_version = '2.6'
-spark_version = '1.6.1'
+spark_version = '1.5.2'
 install_dir = '/opt'
 
 class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
