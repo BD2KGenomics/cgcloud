@@ -28,8 +28,7 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
                         MesosBox,
                         ApacheSoftwareBox ):
     """
-    A Jenkins slave suitable for running Toil unit tests, specifically the Mesos batch system and
-    the AWS job store. Legacy batch systems (parasol, gridengine, ...) are not yet supported.
+    Jenkins slave for running the Toil build and tests on
     """
 
     @classmethod

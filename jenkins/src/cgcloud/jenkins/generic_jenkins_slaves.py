@@ -7,14 +7,14 @@ from cgcloud.core.ubuntu_box import UbuntuBox
 
 class GenericJenkinsSlave( JenkinsSlave ):
     """
-    A generic Jenkins slave
+    Generic Jenkins slave
     """
     pass
 
 
 class CentosGenericJenkinsSlave( CentosBox, GenericJenkinsSlave ):
     """
-    A generic Jenkins slave for CentOS
+    Generic Jenkins slave for CentOS
     """
 
     def _list_packages_to_install( self ):
@@ -41,21 +41,21 @@ class CentosGenericJenkinsSlave( CentosBox, GenericJenkinsSlave ):
 
 class Centos5GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos5Box ):
     """
-    A generic Jenkins slave for CentOS 5
+    Generic Jenkins slave for CentOS 5
     """
     pass
 
 
 class Centos6GenericJenkinsSlave( CentosGenericJenkinsSlave, GenericCentos6Box ):
     """
-    A generic Jenkins slave for CentOS 6
+    Generic Jenkins slave for CentOS 6
     """
     pass
 
 
 class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
     """
-    A generic Jenkins slave for Ubuntu
+    Generic Jenkins slave for Ubuntu
     """
 
     def _list_packages_to_install( self ):
@@ -81,7 +81,7 @@ class UbuntuGenericJenkinsSlave( UbuntuBox, GenericJenkinsSlave ):
 
 class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLucidBox ):
     """
-    A generic Jenkins slave for Ubuntu 10.04 LTS (EOL April 2015)
+    Generic Jenkins slave for Ubuntu 10.04 LTS (EOL April 2015)
     """
 
     def _setup_package_repos( self ):
@@ -110,21 +110,21 @@ class UbuntuLucidGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuLu
 
 class UbuntuPreciseGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuPreciseBox ):
     """
-    A generic Jenkins slave for Ubuntu 12.04 LTS (EOL April 2017)
+    Generic Jenkins slave for Ubuntu 12.04 LTS (EOL April 2017)
     """
     pass
 
 
 class UbuntuTrustyGenericJenkinsSlave( UbuntuGenericJenkinsSlave, GenericUbuntuTrustyBox ):
     """
-    A generic Jenkins slave for Ubuntu 14.04 LTS (EOL April 2019)
+    Generic Jenkins slave for Ubuntu 14.04 LTS (EOL April 2019)
     """
     pass
 
 
 class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
     """
-    A generic Jenkins slave for Fedora
+    Generic Jenkins slave for Fedora
     """
 
     def _list_packages_to_install( self ):
@@ -141,13 +141,13 @@ class FedoraGenericJenkinsSlave( FedoraBox, GenericJenkinsSlave ):
 
 class Fedora19GenericJenkinsSlave( FedoraGenericJenkinsSlave, GenericFedora19Box ):
     """
-    A generic Jenkins slave for Fedora 19
+    Generic Jenkins slave for Fedora 19
     """
     pass
 
 
 class Fedora20GenericJenkinsSlave( FedoraGenericJenkinsSlave, GenericFedora20Box ):
     """
-    A generic Jenkins slave for Fedora 20
+    Generic Jenkins slave for Fedora 20
     """
     pass

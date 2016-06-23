@@ -289,12 +289,21 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
 
 
 class MesosBox( MesosBoxSupport, ClusterBox ):
+    """
+    A node in a Mesos cluster; used only to create an image for master and worker boxes
+    """
     pass
 
 
 class MesosMaster( MesosBox, ClusterLeader ):
+    """
+    The master of a cluster of boxes created from a mesos-box image
+    """
     pass
 
 
 class MesosSlave( MesosBox, ClusterWorker ):
+    """
+    A slave in a cluster of boxes created from a mesos-box image
+    """
     pass

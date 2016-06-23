@@ -27,5 +27,6 @@ setup( name='cgcloud-core',
                           'paramiko==1.16.0',
                           'futures==3.0.4',
                           'PyYAML==3.11',
-                          'subprocess32==3.2.7' ],
+                          'subprocess32==3.2.7',
+                          'tabulate==0.7.5'],
        test_suite='cgcloud.core.test' )

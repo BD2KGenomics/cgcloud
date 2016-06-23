@@ -8,7 +8,7 @@ from cgcloud.jenkins.jenkins_slave import JenkinsSlave
 
 class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):
     """
-    A Jenkins slave for building RPMs on CentOS
+    Jenkins slave for building RPMs on CentOS
     """
 
     def _list_packages_to_install(self):
@@ -44,7 +44,13 @@ class CentosRpmbuildJenkinsSlave( CentosBox, JenkinsSlave ):
 
 
 class Centos5RpmbuildJenkinsSlave(CentosRpmbuildJenkinsSlave, GenericCentos5Box):
+    """
+    Jenkins slave for building RPMs on CentOS 5
+    """
     pass
 
 class Centos6RpmbuildJenkinsSlave(CentosRpmbuildJenkinsSlave, GenericCentos6Box):
+    """
+    Jenkins slave for building RPMs on CentOS 6
+    """
     pass
