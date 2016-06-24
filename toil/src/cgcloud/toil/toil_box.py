@@ -77,7 +77,8 @@ class ToilBoxSupport( MesosBoxSupport, DockerBox, ClusterBox ):
 
     def _get_iam_ec2_role( self ):
         role_name, policies = super( ToilBoxSupport, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( ToilBoxSupport )
+        # Cheating with the name here. ToilBoxSupport was pushing it beyond the 64 character limit.
+        role_name += '--' + abreviated_snake_case_class_name( ToilBox )
         policies.update( dict(
             ec2_full=ec2_full_policy,
             s3_full=s3_full_policy,
