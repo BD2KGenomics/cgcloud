@@ -86,7 +86,7 @@ class GenericCentos5Box( CentosBox ):
 
 class GenericCentos6Box( CentosBox ):
     """
-    The slightly newer CentOS 6 from 1999 ;-)
+    Generic box with Centos 6.4
     """
 
     def release( self ):
@@ -166,6 +166,9 @@ class GenericUbuntuOneiricBox( UpstartUbuntuBox ):
 
 
 class GenericUbuntuPreciseBox( UpstartUbuntuBox ):
+    """
+    Generic box with Ubuntu 12.04 LTS (EOL April 2017)
+    """
     def release( self ):
         return self.Release( codename='precise', version='12.04' )
 
@@ -189,6 +192,9 @@ class GenericUbuntuSaucyBox( UpstartUbuntuBox ):
 
 
 class GenericUbuntuTrustyBox( UpstartUbuntuBox ):
+    """
+    Generic box with Ubuntu 14.04 LTS (EOL April 2019)
+    """
     def release( self ):
         return self.Release( codename='trusty', version='14.04' )
 
@@ -200,6 +206,9 @@ class GenericUbuntuUtopicBox( UpstartUbuntuBox ):
 
 
 class GenericUbuntuVividBox( SystemdUbuntuBox ):
+    """
+    Generic box with Ubuntu 15.04 (EOL February 4, 2016)
+    """
     def release( self ):
         return self.Release( codename='vivid', version='15.04' )
 
@@ -263,11 +272,17 @@ class GenericFedora20Box( FedoraBox ):
 
 
 class GenericFedora21Box( FedoraBox ):
+    """
+    Generic box with Fedora 21
+    """
     def release( self ):
         return 21
 
 
 class GenericFedora22Box( FedoraBox ):
+    """
+    Generic box with Fedora 22
+    """
     def release( self ):
         return 22
 

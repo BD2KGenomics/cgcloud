@@ -74,11 +74,12 @@ class SparkBox( ApacheSoftwareBox,
                 GenericUbuntuTrustyBox,
                 Python27UpdateUbuntuBox ):
     """
-    A node in a Spark cluster. Workers and the master undergo the same setup. Whether a node acts
-    as a master or a slave is determined at boot time, via user data. All slave nodes will be
-    passed the IP of the master node. This implies that the master is started first. As soon as
-    its private IP is assigned, typically seconds after the reservation has been submitted,
-    the slaves can be started up.
+    A node in a Spark cluster; used only to create an image for master and worker boxes
+
+    Workers and the master undergo the same setup. Whether a node acts as a master or a slave is
+    determined at boot time, via user data. All slave nodes will be passed the IP of the master
+    node. This implies that the master is started first. As soon as its private IP is assigned,
+    typically seconds after the reservation has been submitted, the slaves can be started up.
     """
 
     @classmethod
@@ -431,8 +432,14 @@ class SparkBox( ApacheSoftwareBox,
 
 
 class SparkMaster( SparkBox, ClusterLeader ):
+    """
+    The master of a cluster of boxes created from a spark-box image
+    """
     pass
 
 
 class SparkSlave( SparkBox, ClusterWorker ):
+    """
+    A slave in a cluster of boxes created from a spark-box image
+    """
     pass

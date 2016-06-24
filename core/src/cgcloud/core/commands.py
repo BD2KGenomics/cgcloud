@@ -1,24 +1,28 @@
 from __future__ import print_function
-from abc import abstractmethod
+
 import argparse
 import functools
 import logging
-from operator import itemgetter
 import os
 import re
 import sys
+from abc import abstractmethod
+from operator import itemgetter
+
 from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
-from boto.ec2.connection import EC2Connection
 from boto.ec2.blockdevicemapping import BlockDeviceType
+from boto.ec2.connection import EC2Connection
 from boto.ec2.group import Group
 from fabric.operations import prompt
+from tabulate import tabulate
+
+from cgcloud.core.box import Box
+from cgcloud.lib.context import Context
 from cgcloud.lib.ec2 import ec2_instance_types
 from cgcloud.lib.util import Application, heredoc
-from cgcloud.lib.context import Context
 from cgcloud.lib.util import UserError, Command
-from cgcloud.core.box import Box
 
 log = logging.getLogger( __name__ )
 
@@ -642,7 +646,8 @@ class ListRolesCommand( Command ):
     """
 
     def run( self, options ):
-        print( '\n'.join( self.application.roles.iterkeys( ) ) )
+        print( tabulate( (name , (role.__doc__ or '').strip().split('\n')[0].strip())
+                         for name, role in self.application.roles.iteritems( ) ) )
         log.info( "If you are expecting to see more roles listed above, you may need to set/change "
                   "the CGCLOUD_PLUGINS environment variable." )
 

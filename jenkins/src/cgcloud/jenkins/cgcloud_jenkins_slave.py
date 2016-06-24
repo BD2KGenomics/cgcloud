@@ -8,7 +8,7 @@ from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSla
 
 class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntuBox ):
     """
-    A Jenkins slave for runing CGCloud's unit tests
+    Jenkins slave for runing CGCloud's unit tests
     """
 
     @classmethod

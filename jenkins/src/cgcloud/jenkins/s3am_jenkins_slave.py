@@ -8,7 +8,7 @@ from cgcloud.lib.util import abreviated_snake_case_class_name, heredoc
 
 class S3amJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntuBox ):
     """
-    A Jenkins slave for running the S3AM build
+    Jenkins slave for running the S3AM build
     """
 
     @classmethod
