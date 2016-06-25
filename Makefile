@@ -36,6 +36,7 @@ help:
 
 
 python=python2.7
+tests=src
 
 develop_projects=lib core jenkins spark mesos toil
 sdist_projects=lib agent spark-tools mesos-tools
@@ -114,7 +115,7 @@ undevelop: $(foreach project,$(develop_projects),undevelop_$(project))
 define _test
 .PHONY: test_$1
 test_$1: _check_venv _check_pytest sdist develop_$1
-	cd $1 && $(python) ../run_tests.py src
+	cd $1 && $(python) ../run_tests.py "$$(tests)"
 	@echo "$(green)Tests succeeded.$(normal)"
 endef
 $(foreach project,$(develop_projects),$(eval $(call _test,$(project))))
