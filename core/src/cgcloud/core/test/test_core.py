@@ -51,5 +51,16 @@ class CoreTests( CgcloudTestCase ):
             self.assertRaises( SystemExit,
                                self._cgcloud, 'delete-image', self.roles[ 0 ].role( ), '-1' )
 
+    def test_pytest_capture_workaround( self ):
+        # To see this test fail, comment out the workaround in conftest.py and run this test from
+        # the command line. Note that when running the test from PyCharm you will not be able to
+        # see it fail because PyCharm's runner is hard-wired to disable PyTest's capture.
+        from fabric.operations import run
+        from fabric.context_managers import settings
+        with settings( host_string='localhost' ):
+            # We need a command that doesn't exit immediately such that the loop body in Fabric's
+            # input_loop() is actually run at least once.
+            run( 'sleep 1' )
+
 
 CoreTests.make_tests( )

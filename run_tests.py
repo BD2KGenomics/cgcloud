@@ -21,7 +21,7 @@ except ImportError:
 
 
 def run_tests( index, keywords=None, args=None ):
-    cmd = [ sys.executable, '-m', 'pytest', '--capture=no', '-vv',
+    cmd = [ sys.executable, '-m', 'pytest', '-vv',
             '--junitxml', 'nosetests-%s.xml' % index ]
     if keywords:
         cmd.extend( [ '-k', keywords ] )
