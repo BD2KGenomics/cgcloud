@@ -121,7 +121,7 @@ class ToilLegacyBox( ToilBoxSupport ):
 
 class ToilBox( ToilBoxSupport ):
     """
-    A box with Mesos, Toil 3.2.0 and their dependencies installed.
+    A box with Mesos, the latest stable Toil release and their dependencies installed.
     """
 
     default_spec = 'toil[aws,mesos,encryption,cwl]==3.2.1'
