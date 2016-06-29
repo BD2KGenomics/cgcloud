@@ -23,7 +23,7 @@ BASE_URL = 'http://cloud-images.ubuntu.com'
 log = logging.getLogger( __name__ )
 
 
-class UbuntuBox( AgentBox, PackageManagerBox, CloudInitBox, RcLocalBox ):
+class UbuntuBox( AgentBox, CloudInitBox, RcLocalBox ):
     """
     A box representing EC2 instances that boot from one of Ubuntu's cloud-image AMIs
     """
