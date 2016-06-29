@@ -10,13 +10,14 @@ from fabric.operations import put
 from paramiko import Channel
 
 from cgcloud.core.box import Box, fabric_task
+from cgcloud.core.package_manager_box import PackageManagerBox
 from cgcloud.lib.ec2 import ec2_instance_types
 from cgcloud.lib.util import heredoc
 
 log = logging.getLogger( __name__ )
 
 
-class CloudInitBox( Box ):
+class CloudInitBox( PackageManagerBox ):
     """
     A box that uses Canonical's cloud-init to initialize the EC2 instance.
     """
@@ -80,9 +81,14 @@ class CloudInitBox( Box ):
 
         commands = [ ]
 
-        # On instances booted from a stock image we will likely need to install mdadm. And we
-        # need to install mdadm on every instance type since an image taken from an instance with
-        # one ephemeral volume may be used to spawn an instance with multiple ephemeral volumes.
+        # On instances booted from a stock image, mdadm will likely be missing. So we should
+        # install it. And we should install it early during boot, before the ephemeral drives are
+        # RAIDed. Furthermore, we need to install mdadm on every instance type, not just the
+        # ones with multiple ephemeral drives, since an image taken from an instance with one
+        # ephemeral volume may be used to spawn an instance with multiple ephemeral volumes.
+        # However, since we don't run `apt-get update`, there is a chance that the package index
+        # is stale and that the installation fails. We therefore also install it during regular
+        # setup.
         if self.generation == 0:
             commands.append( self._get_package_installation_command( 'mdadm' ) )
         num_disks = instance_type.disks
@@ -164,7 +170,7 @@ class CloudInitBox( Box ):
     @fabric_task
     def __add_per_boot_script( self ):
         """
-        Ensure that the cloud-init.done file is always created, even on 2nd boot and there-after.
+        Ensure that the cloud-init.done file is always created, even on 2nd boot and thereafter.
         On the first boot of an instance, the .done file creation is preformed by the runcmd
         stanza in cloud-config. On subsequent boots this per-boot script takes over (runcmd is
         skipped on those boots).
@@ -239,3 +245,10 @@ class CloudInitBox( Box ):
                 assert 0 == chan.recv_exit_status( )
         finally:
             client.close( )
+
+    def _list_packages_to_install( self ):
+        # As a fallback from failed installations of mdadm at boot time, we should install mdadm
+        # unconditionally: https://github.com/BD2KGenomics/cgcloud/issues/194
+        return super( CloudInitBox, self )._list_packages_to_install( ) + [
+            'mdadm' ]
+
