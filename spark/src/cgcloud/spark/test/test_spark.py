@@ -4,10 +4,8 @@ from textwrap import dedent
 import time
 import logging
 import unittest
-from tempfile import mkstemp
 
 from cgcloud.core.test import CgcloudTestCase
-from cgcloud.lib.util import heredoc
 from cgcloud.spark.spark_box import install_dir, SparkBox, SparkMaster, SparkSlave
 
 log = logging.getLogger( __name__ )
@@ -78,7 +76,7 @@ class SparkClusterTests( CgcloudTestCase ):
                 self._delete_volumes( )
 
     def _create_cluster( self, *args ):
-        self._cgcloud( 'create-cluster', 'spark', '-s', str( num_slaves ), *args )
+        self._cgcloud( 'create-cluster', 'spark', '-t=m3.medium', '-s', str( num_slaves ), *args )
 
     def _terminate_cluster( self ):
         self._cgcloud( 'terminate-cluster', 'spark' )
