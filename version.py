@@ -1,4 +1,4 @@
-cgcloud_version = '1.4.1'
+cgcloud_version = '1.4.2a1'
 bd2k_python_lib_dep = 'bd2k-python-lib>=1.11.dev6'
 boto_dep = 'boto==2.38.0'
 fabric_dep = 'Fabric==1.10.3'
