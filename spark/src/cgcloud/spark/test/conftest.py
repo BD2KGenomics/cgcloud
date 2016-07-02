@@ -1,1 +1,1 @@
-../../../../../core/src/cgcloud/core/test/conftest.py
+from cgcloud.core.test.conftest import pytest_configure
