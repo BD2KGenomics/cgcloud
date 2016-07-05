@@ -114,7 +114,7 @@ undevelop: $(foreach project,$(develop_projects),undevelop_$(project))
 
 define _test
 .PHONY: test_$1
-test_$1: _check_venv _check_pytest sdist develop_$1
+test_$1: _check_venv _check_pytest
 	cd $1 && $(python) ../run_tests.py "$$(tests)"
 	@echo "$(green)Tests succeeded.$(normal)"
 endef
