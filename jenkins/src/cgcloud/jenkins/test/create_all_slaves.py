@@ -290,7 +290,7 @@ class LoadTest( BaseTest ):
             # recreate( "-t %s" % self.instance_type ),
             # rsync( '-v %s :' % self.key_file ),
             # ssh( self._gtdownload ),
-            terminate( '-q' ),
+            terminate( '--quick' ),
         )
 
     def _gtdownload( self, role, ordinal ):
@@ -321,7 +321,7 @@ class TrackerStressTest( BaseTest ):
             # recreate( '-t %s' % self.instance_type ),
             # rsync( '-v %s :' % self.stress_tracker_script ),
             # ssh( 'python %s' % os.path.basename( self.stress_tracker_script ) ),
-            terminate( '-q' ),
+            terminate( '--quick' ),
         )
 
     def _init_panes( self ):

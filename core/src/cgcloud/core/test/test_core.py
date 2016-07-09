@@ -36,7 +36,7 @@ class CoreTests( CgcloudTestCase ):
                 self._cgcloud( 'delete-image', role )
         except:
             with panic( log ):
-                self._cgcloud( 'terminate', '-q', role )
+                self._cgcloud( 'terminate', '--quick', role )
 
     @classmethod
     def make_tests( cls ):
