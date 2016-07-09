@@ -733,11 +733,10 @@ class Box( object ):
                         # noinspection PyProtectedMember
                         box._wait_ready( { 'pending' }, first_boot=True )
                     except:
-                        if terminate_on_error:
-                            with panic( log ):
+                        with panic( log ):
+                            if terminate_on_error:
                                 log.warn( 'Terminating instance ...' )
                                 self.ctx.ec2.terminate_instances( [ box.instance_id ] )
-                        raise
                     finally:
                         with pending_ids_lock:
                             pending_ids.remove( box.instance_id )
