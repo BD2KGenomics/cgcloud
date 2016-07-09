@@ -101,7 +101,7 @@ class ToilClusterTests( MesosTestCase ):
 
             if __name__ == '__main__':
                 options = Job.Runner.getDefaultArgumentParser( ).parse_args( )
-                job = Job.wrapFn( hello, "world", cores=1, memory=1e6, disk=1e6, cache=1e6 )
+                job = Job.wrapFn( hello, "world", cores=1, memory=1e6, disk=1e6 )
                 result = Job.Runner.startToil( job, options )
                 assert result == 'Hello, world!'
 
