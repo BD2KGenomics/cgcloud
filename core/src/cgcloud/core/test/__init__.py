@@ -1,63 +1,25 @@
 import os
 import sys
-import time
 from contextlib import contextmanager
 from itertools import ifilter
-from struct import pack
 from tempfile import mkstemp
-from unittest import TestCase
 
 import subprocess32
-from bd2k.util.d64 import D64
 from bd2k.util.iterables import concat
-from boto.utils import get_instance_metadata, logging
+from boto.utils import logging
 
-from cgcloud.core import test_namespace_suffix_length
 from cgcloud.core.cli import main, CGCloud
-from cgcloud.lib import aws_d64
-from cgcloud.lib.context import Context
-from cgcloud.lib.ec2 import running_on_ec2
+from cgcloud.lib.test import CgcloudTestCase
 
 log = logging.getLogger( __name__ )
 
 
-
-class CgcloudTestCase( TestCase ):
-    """
-    A base class for CGCloud test cases. When run with CGCLOUD_NAMESPACE unset, a new test
-    namespace will be prepared during setup and cleaned up during teardown. Otherwise,
-    the configured namespace will be used and not
-    """
-    cleanup = True
-    ctx = None
-    __namespace = None
-
+class CoreTestCase( CgcloudTestCase ):
     @classmethod
     def setUpClass( cls ):
         CGCloud.setup_logging( )
         CGCloud.silence_boto_and_paramiko( )
-        super( CgcloudTestCase, cls ).setUpClass( )
-        if running_on_ec2( ):
-            os.environ.setdefault( 'CGCLOUD_ZONE',
-                                   get_instance_metadata( )[ 'placement' ][ 'availability-zone' ] )
-        # Using the d64 of a binary string that starts with a 4-byte, big-endian time stamp
-        # yields compact names whose lexicographical sorting is consistent with the historical
-        # order. We add the process ID so we can run tests concurrently in child processes using
-        # the pytest-xdist plugin.
-        suffix = aws_d64.encode( pack( '>II', int( time.time( ) ), os.getpid( ) ) )
-        assert len( suffix ) == test_namespace_suffix_length
-        cls.__namespace = '/test/%s/' % suffix
-        os.environ.setdefault( 'CGCLOUD_NAMESPACE', cls.__namespace )
-        cls.ctx = Context( os.environ[ 'CGCLOUD_ZONE' ], os.environ[ 'CGCLOUD_NAMESPACE' ] )
-
-    @classmethod
-    def tearDownClass( cls ):
-        # Only cleanup if the context is using the default test namespace. If another namespace
-        # is configured, we can't assume that all resources were created by the test and that
-        # they can therefore be removed.
-        if cls.cleanup and cls.ctx.namespace == cls.__namespace:
-            cls.ctx.reset_namespace_security( )
-        super( CgcloudTestCase, cls ).tearDownClass( )
+        super( CoreTestCase, cls ).setUpClass( )
 
     ssh_opts = ('-o', 'UserKnownHostsFile=/dev/null', '-o', 'StrictHostKeyChecking=no')
 
@@ -107,8 +69,9 @@ class CgcloudTestCase( TestCase ):
         else:
             main( args )
 
+
 @contextmanager
-def out_stderr():
+def out_stderr( ):
     with open( os.devnull, 'a' ) as f:
         f, sys.stderr = sys.stderr, f
         try:

@@ -5,7 +5,7 @@ import time
 import logging
 import unittest
 
-from cgcloud.core.test import CgcloudTestCase
+from cgcloud.core.test import CoreTestCase
 from cgcloud.spark.spark_box import install_dir, SparkBox, SparkMaster, SparkSlave
 
 log = logging.getLogger( __name__ )
@@ -17,7 +17,7 @@ node = SparkBox.role( )
 num_slaves = 2
 
 
-class SparkClusterTests( CgcloudTestCase ):
+class SparkClusterTests( CoreTestCase ):
     """
     Covers the creation of a Spark cluster from scratch and running a simple Spark job on it.
     Also covers persistant HDFS between two cluster incarnations.

@@ -4,12 +4,12 @@ import os
 from bd2k.util.exceptions import panic
 
 from cgcloud.core import roles
-from cgcloud.core.test import CgcloudTestCase, out_stderr
+from cgcloud.core.test import CoreTestCase, out_stderr
 
 log = logging.getLogger( __name__ )
 
 
-class CoreTests( CgcloudTestCase ):
+class CoreTests( CoreTestCase ):
     """
     Tests the typical life-cycle of instances and images
     """

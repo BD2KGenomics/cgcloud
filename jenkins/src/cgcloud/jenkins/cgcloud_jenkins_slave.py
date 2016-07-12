@@ -1,6 +1,6 @@
-from cgcloud.core import test_namespace_suffix_length
 from cgcloud.core.common_iam_policies import ec2_full_policy
 from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
+from cgcloud.lib import test_namespace_suffix_length
 from cgcloud.lib.util import abreviated_snake_case_class_name
 
 from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave

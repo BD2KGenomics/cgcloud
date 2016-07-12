@@ -1,10 +1,10 @@
 import time
 
-from cgcloud.core.test import CgcloudTestCase
+from cgcloud.core.test import CoreTestCase
 from cgcloud.mesos.mesos_box import log_dir
 
 
-class MesosTestCase( CgcloudTestCase ):
+class MesosTestCase( CoreTestCase ):
     """
     Common functionality between Toil and Mesos tests
     """
