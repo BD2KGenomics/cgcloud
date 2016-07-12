@@ -14,7 +14,6 @@ from boto.exception import S3ResponseError, BotoServerError
 from boto.s3.connection import S3Connection
 from boto.sqs.connection import SQSConnection
 from boto.sns.connection import SNSConnection
-from boto.ec2.connection import EC2Connection
 from boto.vpc import VPCConnection
 from boto.iam.connection import IAMConnection
 from boto.ec2.keypair import KeyPair
@@ -671,7 +670,6 @@ class Context( object ):
                 pass
             else:
                 raise
-
         self.__setup_entity_policies( user_name, policies,
                                       list_policies=self.iam.get_all_user_policies,
                                       delete_policy=self.iam.delete_user_policy,

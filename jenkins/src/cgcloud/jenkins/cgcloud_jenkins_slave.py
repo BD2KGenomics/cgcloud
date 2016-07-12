@@ -45,20 +45,19 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntu
                 # This assumes that if instance lives in /, then tests running on the instance
                 # will run in /test-5571439d. If the instance lives in /foo, then tests running
                 # on the instance will run in /foo/test-5571439d.
-                dict( Effect="Allow",
-                      Resource=pass_role_arn,
-                      Action="iam:PassRole" ) ] ),
+                dict( Effect="Allow", Resource=pass_role_arn, Action="iam:PassRole" ) ] ),
             register_keypair=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="arn:aws:s3:::*", Action="s3:ListAllMyBuckets" ),
-                dict( Effect="Allow", Action="s3:*", Resource=[
-                    cgcloud_bucket_arn,
-                    cgcloud_bucket_arn + "/*" ] ),
                 dict( Effect="Allow",
-                      Resource='arn:aws:sns:*:%s:cgcloud-agent-notifications' % self.ctx.account,
-                      Action=[ "sns:Publish", "sns:CreateTopic" ] ) ] ),
+                      Action="s3:*",
+                      Resource=[ cgcloud_bucket_arn, cgcloud_bucket_arn + "/*" ] ),
+                dict( Effect="Allow",
+                      Action=[ "sns:Publish", "sns:CreateTopic" ],
+                      Resource='arn:aws:sns:*:%s:cgcloud-agent-notifications' % self.ctx.account ) ] ),
             iam_cgcloud_jenkins_slave=dict( Version="2012-10-17", Statement=[
-                dict( Effect="Allow", Resource="*", Action=[
-                    "iam:ListRoles",
+                dict( Effect="Allow",
+                      Resource="*",
+                      Action=[ "iam:ListRoles",
                     "iam:CreateRole",
                     "iam:DeleteRole",
                     "iam:ListRolePolicies",
