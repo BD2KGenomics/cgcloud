@@ -1357,13 +1357,10 @@ class Box( object ):
         Prepares the instance profile to be used for this box and returns its ARN
         """
         iam_role_name, policies = self._get_iam_ec2_role( )
-        # An IAM role name is limited to 64 characters so we hash it with D64 to get a short,
-        # but still unique identifier. Note that Box subclasses typically append their role name
-        # to the IAM role name.
-        hashed_iam_role_name = aws_d64.encode( hashlib.sha1( iam_role_name ).digest( ) )
-        log.info('Setting up instance profile using IAM role name %s, a hash of %s.',
-                 hashed_iam_role_name, iam_role_name)
-        aws_role_name = self.ctx.setup_iam_ec2_role( hashed_iam_role_name, policies )
+        aws_role_name = self.ctx.setup_iam_ec2_role( self._hash_iam_role_name( iam_role_name ),
+                                                     policies )
+        log.info( 'Set up instance profile using hashed IAM role name %s, derived from %s.',
+                  aws_role_name, iam_role_name )
         aws_instance_profile_name = self.ctx.to_aws_name( self.role( ) )
         try:
             profile = self.ctx.iam.get_instance_profile( aws_instance_profile_name )
