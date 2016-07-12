@@ -104,15 +104,15 @@ class MesosBoxSupport( GenericUbuntuTrustyBox, Python27UpdateUbuntuBox, CoreMeso
                   src_security_group_group_id=group_id ) ]
 
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( MesosBoxSupport, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( MesosBoxSupport )
+        iam_role_name, policies = super( MesosBoxSupport, self )._get_iam_ec2_role( )
+        iam_role_name += '--' + abreviated_snake_case_class_name( MesosBoxSupport )
         policies.update( dict(
             ec2_read_only=ec2_read_only_policy,
             ec2_mesos_box=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
                 dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
                 dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
-        return role_name, policies
+        return iam_role_name, policies
 
     def _pre_install_packages( self ):
         super( MesosBoxSupport, self )._pre_install_packages( )

@@ -76,9 +76,8 @@ class ToilBoxSupport( MesosBoxSupport, DockerBox, ClusterBox ):
                             help='True if /var/lib/toil should be persistent.' ) ]
 
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( ToilBoxSupport, self )._get_iam_ec2_role( )
-        # Cheating with the name here. ToilBoxSupport was pushing it beyond the 64 character limit.
-        role_name += '--' + abreviated_snake_case_class_name( ToilBox )
+        iam_role_name, policies = super( ToilBoxSupport, self )._get_iam_ec2_role( )
+        iam_role_name += '--' + abreviated_snake_case_class_name( ToilBoxSupport )
         policies.update( dict(
             ec2_full=ec2_full_policy,
             s3_full=s3_full_policy,
@@ -87,7 +86,7 @@ class ToilBoxSupport( MesosBoxSupport, DockerBox, ClusterBox ):
                 dict( Effect="Allow", Resource="*", Action="ec2:CreateTags" ),
                 dict( Effect="Allow", Resource="*", Action="ec2:CreateVolume" ),
                 dict( Effect="Allow", Resource="*", Action="ec2:AttachVolume" ) ] ) ) )
-        return role_name, policies
+        return iam_role_name, policies
 
     @abstractmethod
     def _toil_pip_args( self ):

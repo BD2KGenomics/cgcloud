@@ -267,8 +267,8 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
         return bdm
 
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( JenkinsMaster, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( JenkinsMaster )
+        iam_role_name, policies = super( JenkinsMaster, self )._get_iam_ec2_role( )
+        iam_role_name += '--' + abreviated_snake_case_class_name( JenkinsMaster )
         policies.update( dict(
             ec2_full=dict(
                 Version="2012-10-17",
@@ -286,7 +286,7 @@ class JenkinsMaster( GenericUbuntuTrustyBox, SourceControlClient ):
                     dict( Effect="Allow", Action="s3:*", Resource=[
                         "arn:aws:s3:::public-artifacts.cghub.ucsc.edu",
                         "arn:aws:s3:::public-artifacts.cghub.ucsc.edu/*" ] ) ] ) ) )
-        return role_name, policies
+        return iam_role_name, policies
 
     @contextmanager
     def __patch_jenkins_config( self ):

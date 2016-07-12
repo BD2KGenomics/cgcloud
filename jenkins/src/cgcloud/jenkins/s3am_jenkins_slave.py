@@ -26,10 +26,10 @@ class S3amJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntuBox
         self.__patch_asynchat( )
 
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( S3amJenkinsSlave, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( S3amJenkinsSlave )
+        iam_role_name, policies = super( S3amJenkinsSlave, self )._get_iam_ec2_role( )
+        iam_role_name += '--' + abreviated_snake_case_class_name( S3amJenkinsSlave )
         policies.update( dict( s3_full=s3_full_policy ) )
-        return role_name, policies
+        return iam_role_name, policies
 
     @fabric_task
     def __patch_asynchat( self ):

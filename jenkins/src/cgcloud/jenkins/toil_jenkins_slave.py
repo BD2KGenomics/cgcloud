@@ -7,8 +7,7 @@ from bd2k.util.strings import interpolate as fmt
 
 from cgcloud.core.apache import ApacheSoftwareBox
 from cgcloud.core.mesos_box import MesosBox
-from cgcloud.core.ubuntu_box import Python27UpdateUbuntuBox
-from cgcloud.jenkins.generic_jenkins_slaves import UbuntuTrustyGenericJenkinsSlave
+from cgcloud.jenkins.cgcloud_jenkins_slave import CgcloudJenkinsSlave
 from cgcloud.jenkins.jenkins_master import Jenkins
 from cgcloud.core.box import fabric_task
 from cgcloud.core.common_iam_policies import s3_full_policy, sdb_full_policy
@@ -22,8 +21,10 @@ spark_hadoop_version = '2.6'
 spark_version = '1.5.2'
 install_dir = '/opt'
 
-class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
-                        Python27UpdateUbuntuBox,
+# Inherits CgcloudJenkinsSlave because the Toil integration tests invoke cgcloud to launch more
+# instances, similar to what the CGCloud tests do.
+
+class ToilJenkinsSlave( CgcloudJenkinsSlave,
                         DockerBox,
                         MesosBox,
                         ApacheSoftwareBox ):
@@ -112,12 +113,11 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
                                          dirs=python_path,
                                          dirs_var='PYTHONPATH' )
 
-
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( ToilJenkinsSlave )
+        iam_role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
+        iam_role_name += '--' + abreviated_snake_case_class_name( ToilJenkinsSlave )
         policies.update( dict( s3_full=s3_full_policy, sdb_full=sdb_full_policy ) )
-        return role_name, policies
+        return iam_role_name, policies
 
     @fabric_task
     def __patch_distutils( self ):

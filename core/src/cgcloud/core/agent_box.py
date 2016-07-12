@@ -136,9 +136,9 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
         self._run_init_script( 'cgcloudagent' )
 
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( AgentBox, self )._get_iam_ec2_role( )
+        iam_role_name, policies = super( AgentBox, self )._get_iam_ec2_role( )
         if self.enable_agent:
-            role_name += '--' + abreviated_snake_case_class_name( AgentBox )
+            iam_role_name += '--' + abreviated_snake_case_class_name( AgentBox )
             policies.update( dict(
                 ec2_read_only=ec2_read_only_policy,
                 s3_read_only=s3_read_only_policy,
@@ -162,7 +162,7 @@ class AgentBox( PackageManagerBox, AbstractInitBox ):
                         'cloudwatch:Get*',
                         'cloudwatch:List*',
                         'cloudwatch:PutMetricData' ] ) ] ) ) )
-        return role_name, policies
+        return iam_role_name, policies
 
     @staticmethod
     def __gunzip_base64_decode( s ):
