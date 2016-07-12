@@ -112,12 +112,11 @@ class ToilJenkinsSlave( UbuntuTrustyGenericJenkinsSlave,
                                          dirs=python_path,
                                          dirs_var='PYTHONPATH' )
 
-
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( ToilJenkinsSlave )
+        iam_role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
+        iam_role_name += '--' + abreviated_snake_case_class_name( ToilJenkinsSlave )
         policies.update( dict( s3_full=s3_full_policy, sdb_full=sdb_full_policy ) )
-        return role_name, policies
+        return iam_role_name, policies
 
     @fabric_task
     def __patch_distutils( self ):

@@ -28,8 +28,8 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntu
         ]
 
     def _get_iam_ec2_role( self ):
-        role_name, policies = super( CgcloudJenkinsSlave, self )._get_iam_ec2_role( )
-        role_name += '--' + abreviated_snake_case_class_name( CgcloudJenkinsSlave )
+        iam_role_name, policies = super( CgcloudJenkinsSlave, self )._get_iam_ec2_role( )
+        iam_role_name += '--' + abreviated_snake_case_class_name( CgcloudJenkinsSlave )
         cgcloud_bucket_arn = "arn:aws:s3:::%s" % self.ctx.s3_bucket_name
         # This is a bit convoluted, but it is still better than optionally allowing wildcards in
         # the name validation in Context.absolute_name(). The ? wildcard is not very well
@@ -58,17 +58,17 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntu
                 dict( Effect="Allow",
                       Resource="*",
                       Action=[ "iam:ListRoles",
-                    "iam:CreateRole",
-                    "iam:DeleteRole",
-                    "iam:ListRolePolicies",
-                    "iam:DeleteRolePolicy",
-                    "iam:GetRolePolicy",
-                    "iam:PutRolePolicy",
-                    "iam:ListInstanceProfiles",
-                    "iam:GetInstanceProfile",
-                    "iam:CreateInstanceProfile",
-                    "iam:DeleteInstanceProfile",
-                    "iam:RemoveRoleFromInstanceProfile",
-                    "iam:AddRoleToInstanceProfile",
-                    "iam:DeleteInstanceProfile" ] ) ] ) ) )
-        return role_name, policies
+                               "iam:CreateRole",
+                               "iam:DeleteRole",
+                               "iam:ListRolePolicies",
+                               "iam:DeleteRolePolicy",
+                               "iam:GetRolePolicy",
+                               "iam:PutRolePolicy",
+                               "iam:ListInstanceProfiles",
+                               "iam:GetInstanceProfile",
+                               "iam:CreateInstanceProfile",
+                               "iam:DeleteInstanceProfile",
+                               "iam:RemoveRoleFromInstanceProfile",
+                               "iam:AddRoleToInstanceProfile",
+                               "iam:DeleteInstanceProfile" ] ) ] ) ) )
+        return iam_role_name, policies

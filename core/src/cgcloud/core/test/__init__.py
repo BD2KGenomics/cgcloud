@@ -14,12 +14,12 @@ from boto.utils import get_instance_metadata, logging
 
 from cgcloud.core import test_namespace_suffix_length
 from cgcloud.core.cli import main, CGCloud
+from cgcloud.lib import aws_d64
 from cgcloud.lib.context import Context
 from cgcloud.lib.ec2 import running_on_ec2
 
 log = logging.getLogger( __name__ )
 
-d64 = D64( '.-' )  # hopefully the dot is supported for all AWS resource names
 
 
 class CgcloudTestCase( TestCase ):
@@ -44,7 +44,7 @@ class CgcloudTestCase( TestCase ):
         # yields compact names whose lexicographical sorting is consistent with the historical
         # order. We add the process ID so we can run tests concurrently in child processes using
         # the pytest-xdist plugin.
-        suffix = d64.encode( pack( '>II', int( time.time( ) ), os.getpid( ) ) )
+        suffix = aws_d64.encode( pack( '>II', int( time.time( ) ), os.getpid( ) ) )
         assert len( suffix ) == test_namespace_suffix_length
         cls.__namespace = '/test/%s/' % suffix
         os.environ.setdefault( 'CGCLOUD_NAMESPACE', cls.__namespace )
