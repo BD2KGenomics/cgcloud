@@ -22,7 +22,7 @@ class CgcloudTestCase( TestCase ):
 
     @classmethod
     def setUpClass( cls ):
-        super( CgcloudTestCase, cls ).tearDownClass( )
+        super( CgcloudTestCase, cls ).setUpClass( )
         if running_on_ec2( ):
             os.environ.setdefault( 'CGCLOUD_ZONE',
                                    get_instance_metadata( )[ 'placement' ][ 'availability-zone' ] )
@@ -44,4 +44,4 @@ class CgcloudTestCase( TestCase ):
         # they can therefore be removed.
         if cls.cleanup and cls.ctx.namespace == cls.__namespace:
             cls.ctx.reset_namespace_security( )
-        super( CgcloudTestCase, cls ).setUpClass( )
+        super( CgcloudTestCase, cls ).tearDownClass( )
