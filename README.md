@@ -76,4 +76,4 @@ version.py files have changed. And `make sdist` is necessary after changes to
 the agent, spark-tools or mesos-tools subprojects. Otherwise, `cgcloud create`
 will install a stale version of these on the remote box.
 
-To run the unittests, `pip install nose` and then do `make test`.
+To run the unittests, `pip install pytest` and then do `make test`.
