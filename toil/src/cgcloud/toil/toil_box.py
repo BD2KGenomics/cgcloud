@@ -79,6 +79,10 @@ class ToilBoxSupport( MesosBoxSupport, DockerBox, ClusterBox ):
         iam_role_name, policies = super( ToilBoxSupport, self )._get_iam_ec2_role( )
         iam_role_name += '--' + abreviated_snake_case_class_name( ToilBoxSupport )
         policies.update( dict(
+            toil_iam_pass_role=dict(
+                Version="2012-10-17",
+                Statement=[
+                    dict( Effect="Allow", Resource=self._role_arn( ), Action="iam:PassRole" ) ] ),
             ec2_full=ec2_full_policy,
             s3_full=s3_full_policy,
             sbd_full=sdb_full_policy,
