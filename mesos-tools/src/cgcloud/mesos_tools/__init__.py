@@ -380,7 +380,7 @@ class MesosTools( object ):
         with open( '/var/lib/mesos/slave_args', 'w' ) as f:
             if attributes:
                 attributes = ';'.join( '%s:%r' % i for i in attributes.items( ) )
-                f.write( "--attributes='%s'" % attributes )
+                f.write( "--attributes=%s" % attributes )
 
 def parse_etc_hosts_entries( hosts ):
     """
