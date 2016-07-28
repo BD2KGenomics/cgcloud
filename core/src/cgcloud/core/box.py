@@ -656,12 +656,14 @@ class Box( object ):
                 cluster_ordinal=0,
                 executor=None ):
         """
-        Create the EC2 instance represented by this box, and optionally waits for the instance to
-        be ready. If the box was prepared to launch multiple instances, and multiple instances
-        were indeed launched by EC2, adoptees of this box will be created, one clone for each
-        additional instance. This box will represent the first instance while the adoptees will
-        represent the subsequent instances. The given executor will be used to handle
-        post-creation activity on each instance.
+        Create the EC2 instance represented by this box, and optionally, any number of clones of
+        that instance. Optionally wait for the instances to be ready.
+
+        If this box was prepared to launch clones, and multiple instances were indeed launched by
+        EC2, clones of this Box instance will be created, one clone for each additional instance.
+        This Box instance will represent the first EC2 instance while the clones will represent
+        the additional EC2 instances. The given executor will be used to handle post-creation
+        activity on each instance.
 
         :param spec: a dictionary with keyword arguments to request_spot_instances,
         if the 'price' key is present, or run_instances otherwise.
@@ -712,9 +714,8 @@ class Box( object ):
                 del spec.price
                 # Spot requests are fulfilled in batches. A batch could consist of one instance,
                 # all requested instances or a subset thereof. As soon as a batch comes back from
-                #  _create_spot_instances(), we will want to adopt every instance in it. Part of
-                # adoption is tagging which is crucial for cluster nodes.
-                # TODO: timeout
+                # _create_spot_instances(), we will want to adopt every instance in it. Part of
+                # adoption is tagging which is crucial for the boot code running on cluster nodes.
                 for batch in create_spot_instances( self.ctx.ec2, price, self.image_id, spec,
                                                     num_instances=num_instances,
                                                     timeout=spot_timeout,
