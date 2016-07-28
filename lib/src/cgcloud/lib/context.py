@@ -472,11 +472,18 @@ class Context( object ):
 
     ssh_pubkey_s3_key_prefix = 'ssh_pubkey:'
 
+    @property
+    def s3_location( self ):
+        if self.region == 'us-east-1':
+            return ''
+        else:
+            return self.region
+
     def upload_ssh_pubkey( self, ssh_pubkey, fingerprint ):
         bucket = self.s3.lookup( self.s3_bucket_name )
         if bucket is None:
             bucket = self.s3.create_bucket( self.s3_bucket_name,
-                                            location=self.region )
+                                            location=self.s3_location )
         s3_entry = S3Key( bucket )
         s3_entry.key = self.ssh_pubkey_s3_key_prefix + fingerprint
         s3_entry.set_contents_from_string( ssh_pubkey )
