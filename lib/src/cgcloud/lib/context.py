@@ -403,7 +403,7 @@ class Context( object ):
             name = name[ len( self.namespace ): ]
         return name
 
-    def base_name(self,name):
+    def base_name( self, name ):
         """
         Return the last component of a name, absolute or relative.
 
@@ -421,7 +421,7 @@ class Context( object ):
         >>> ctx.base_name('/a/b/')
         ''
         """
-        return name.split('/')[-1]
+        return name.split( '/' )[ -1 ]
 
     def contains_name( self, name ):
         return not self.is_absolute_name( name ) or name.startswith( self.namespace )
@@ -630,7 +630,7 @@ class Context( object ):
         placeholder = self.current_user_placeholder
         if placeholder in s:
             try:
-                me = os.environ['CGCLOUD_ME']
+                me = os.environ[ 'CGCLOUD_ME' ]
             except KeyError:
                 me = self.iam_user_name
             if not me:
@@ -747,26 +747,45 @@ class Context( object ):
         self.delete_security_groups( self.local_security_groups( ) )
 
     def local_instance_profiles( self ):
-        return [ p
-            for p in self.iam.list_instance_profiles( ).instance_profiles
-            if self.try_contains_aws_name( p.instance_profile_name ) ]
+        return [ p for p in self._get_all_instance_profiles( )
+                 if self.try_contains_aws_name( p.instance_profile_name ) ]
+
+    def _get_all_instance_profiles( self ):
+        return self._pager( self.iam.list_instance_profiles, 'instance_profiles' )
+
+    def _pager( self, requestor_callable, result_attribute_name ):
+        marker = None
+        while True:
+            result = requestor_callable( marker=marker )
+            for p in getattr( result, result_attribute_name ):
+                yield p
+            if result.is_truncated == 'true':
+                marker = result.marker
+            else:
+                break
 
     def delete_instance_profiles( self, instance_profiles ):
+        log.debug( 'Deleting profiles %r', instance_profiles )
         for p in instance_profiles:
-            with out_exception( 'instance profile', p.instance_profile_name ):
+            profile_name = p.instance_profile_name
+            with out_exception( 'instance profile', profile_name ):
                 # currently EC2 allows only one role per profile
                 if p.roles:
-                    self.iam.remove_role_from_instance_profile( p.instance_profile_name,
-                                                                p.roles.member.role_name )
-                self.iam.delete_instance_profile( p.instance_profile_name )
+                    role_name = p.roles.member.role_name
+                    log.debug( 'Removing role %s from profile %s', role_name, profile_name )
+                    self.iam.remove_role_from_instance_profile( profile_name, role_name )
+                log.debug( 'Deleting profile %s', profile_name )
+                self.iam.delete_instance_profile( profile_name )
 
     def local_roles( self ):
-        return [ r
-            for r in self.iam.list_roles( ).roles
-            if self.try_contains_aws_name( r.role_name ) ]
+        return [ r for r in self._get_all_roles( ) if self.try_contains_aws_name( r.role_name ) ]
 
-    def delete_roles( self, local_roles ):
-        for r in local_roles:
+    def _get_all_roles( self ):
+        return self._pager( self.iam.list_roles, 'roles' )
+
+    def delete_roles( self, roles ):
+        log.debug( 'Deleting roles %r', roles )
+        for r in roles:
             with out_exception( 'role', r.role_name ):
                 for policy_name in self.iam.list_role_policies( r.role_name ).policy_names:
                     self.iam.delete_role_policy( r.role_name, policy_name )
@@ -774,9 +793,10 @@ class Context( object ):
 
     def local_security_groups( self ):
         return [ sg for sg in self.ec2.get_all_security_groups( )
-            if self.try_contains_aws_name( sg.name ) ]
+                 if self.try_contains_aws_name( sg.name ) ]
 
     def delete_security_groups( self, security_groups ):
+        log.debug( 'Deleting security groups %r', security_groups )
         for sg in security_groups:
             with out_exception( 'security group', sg.name ):
                 sg.delete( )
@@ -819,9 +839,9 @@ class Context( object ):
             filters=dict( description='Created by CreateImage*' ) )
         all_snapshots = set( snapshot.id for snapshot in all_snapshots )
         used_snapshots = set( bdt.snapshot_id
-                                  for image in self.ec2.get_all_images( owners=[ 'self' ] )
-                                  for bdt in image.block_device_mapping.itervalues( )
-                                  if bdt.snapshot_id is not None )
+                              for image in self.ec2.get_all_images( owners=[ 'self' ] )
+                              for bdt in image.block_device_mapping.itervalues( )
+                              if bdt.snapshot_id is not None )
         return all_snapshots - used_snapshots
 
     def delete_snapshots( self, unused_snapshots ):
