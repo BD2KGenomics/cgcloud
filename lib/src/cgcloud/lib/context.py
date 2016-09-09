@@ -403,7 +403,7 @@ class Context( object ):
             name = name[ len( self.namespace ): ]
         return name
 
-    def base_name(self,name):
+    def base_name( self, name ):
         """
         Return the last component of a name, absolute or relative.
 
@@ -421,7 +421,7 @@ class Context( object ):
         >>> ctx.base_name('/a/b/')
         ''
         """
-        return name.split('/')[-1]
+        return name.split( '/' )[ -1 ]
 
     def contains_name( self, name ):
         return not self.is_absolute_name( name ) or name.startswith( self.namespace )
@@ -630,7 +630,7 @@ class Context( object ):
         placeholder = self.current_user_placeholder
         if placeholder in s:
             try:
-                me = os.environ['CGCLOUD_ME']
+                me = os.environ[ 'CGCLOUD_ME' ]
             except KeyError:
                 me = self.iam_user_name
             if not me:
