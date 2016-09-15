@@ -197,10 +197,10 @@ key pairs to be injected into boxes. You can do so as using the ``-k`` command
 line option to ``cgcloud create`` or by setting the ``CGCLOUD_KEYPAIRS``
 environment variable. The latter will inject those key pairs by default into
 every box that you create. The default for ``-k`` is the special string
-``__me__`` which is substituted with the name of the current IAM user. This
-only works your IAM user account and your SSH key pair in EC2 have the same
-name, a practice that is highly recommended. The ``cgcloud register-key``
-command follows that convention by default.
+``__me__`` which is substituted with the name of the current IAM user, i.e.
+you. This only works your IAM user account and your SSH key pair in EC2 have
+the same name, a practice that is highly recommended. The ``cgcloud
+register-key`` command follows that convention by default.
 
 The most useful shortcut for ``-k`` and ``CGCLOUD_KEYPAIRS`` however is to list
 the name of an IAM group by prefixing the group name with ``@@``. Assuming that
@@ -210,12 +210,19 @@ your ``.profile`` or ``.bash_profile``::
    export CGCLOUD_KEYPAIRS="__me__ @@developers"
 
 will inject your own key pair and the key pair of every user in the
-``developers`` IAM group into every box that you create. Obviously, this only
-works if EC2 key pairs and IAM usernames are identical. If a user is removed
-from the IAM group or their key pair deleted from EC2, and within minutes his
-or her key pair will automatically be removed from every box that is running
-the agent. Unless you specifically tell CGCloud not to, it installs the agent
-on boxes by default.
+``developers`` IAM group into every box that you create from that point
+onwards. Obviously, this only works if EC2 key pairs and IAM usernames are
+identical but as mentioned above, if you used ``cgcloud register-key`` this
+should be the case.
+
+In the above example, if a user is removed from the IAM group ``developers`` or
+if their key pair is deleted from EC2, his or her key pair will be
+automatically removed from every box that was created with that value of
+``CGCLOUD_KEYPAIRS``.
+
+Note that a change to ``CGCLOUD_KEYPAIRS`` does not affect boxes created with
+``cgcloud recreate ROLE``. You will need to create a new image using ``cgcloud
+create -IT ROLE`` for the change to take effect.
 
 First steps
 ===========
