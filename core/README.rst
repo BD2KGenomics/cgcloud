@@ -76,6 +76,7 @@ the virtualenv. Before you can invoke ``cgcloud``, you have to activate the
 virtualenv as shown above. Alternatively, create a per-user bin directory and
 symlink the ``cgcloud`` executable into it::
 
+      deactivate
       mkdir -p ~/bin
       ln -snf ~/cgcloud/bin/cgcloud ~/bin
       
