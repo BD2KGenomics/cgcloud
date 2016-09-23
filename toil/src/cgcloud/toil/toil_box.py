@@ -127,7 +127,7 @@ class ToilBox( ToilBoxSupport ):
     A box with Mesos, the latest stable Toil release and their dependencies installed.
     """
 
-    default_spec = 'toil[aws,mesos,encryption,cwl]==3.3.1'
+    default_spec = 'toil[aws,mesos,encryption,cwl]==3.3.3'
 
     @classmethod
     def get_role_options( cls ):
