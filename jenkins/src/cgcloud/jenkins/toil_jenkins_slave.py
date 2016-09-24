@@ -113,6 +113,11 @@ class ToilJenkinsSlave( CgcloudJenkinsSlave,
                                          dirs=python_path,
                                          dirs_var='PYTHONPATH' )
 
+    def _pass_role_arn( self ):
+        # Very permissive. But it is needed to accommodate the appliance based provisioning tests
+        # in Toil as they don't use CGCloud's concept of namespaces.
+        return 'arn:aws:iam::%s:role/*' % self.ctx.account
+
     def _get_iam_ec2_role( self ):
         iam_role_name, policies = super( ToilJenkinsSlave, self )._get_iam_ec2_role( )
         iam_role_name += '--' + abreviated_snake_case_class_name( ToilJenkinsSlave )
