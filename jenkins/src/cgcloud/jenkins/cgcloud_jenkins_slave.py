@@ -31,21 +31,14 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntu
         iam_role_name, policies = super( CgcloudJenkinsSlave, self )._get_iam_ec2_role( )
         iam_role_name += '--' + abreviated_snake_case_class_name( CgcloudJenkinsSlave )
         cgcloud_bucket_arn = "arn:aws:s3:::%s" % self.ctx.s3_bucket_name
-        # This is a bit convoluted, but it is still better than optionally allowing wildcards in
-        # the name validation in Context.absolute_name(). The ? wildcard is not very well
-        # documented but I found evidence for it here:
-        # http://docs.aws.amazon.com/IAM/latest/UserGuide/PolicyVariables.html#policy-vars-specialchars
-        test_namespace_suffix_pattern = "?" * test_namespace_suffix_length
-        pass_role_arn = self._role_arn( iam_role_name_prefix='test/testnamespacesuffixpattern/' )
-        pass_role_arn = pass_role_arn.replace( 'testnamespacesuffixpattern',
-                                               test_namespace_suffix_pattern )
         policies.update( dict(
             ec2_full=ec2_full_policy,  # FIXME: Be more specific
             iam_cgcloud_jenkins_slave_pass_role=dict( Version="2012-10-17", Statement=[
                 # This assumes that if instance lives in /, then tests running on the instance
                 # will run in /test-5571439d. If the instance lives in /foo, then tests running
                 # on the instance will run in /foo/test-5571439d.
-                dict( Effect="Allow", Resource=pass_role_arn, Action="iam:PassRole" ) ] ),
+                dict( Effect="Allow", Resource=self._pass_role_arn(),
+                      Action="iam:PassRole" ) ] ),
             register_keypair=dict( Version="2012-10-17", Statement=[
                 dict( Effect="Allow", Resource="arn:aws:s3:::*", Action="s3:ListAllMyBuckets" ),
                 dict( Effect="Allow",
@@ -72,3 +65,17 @@ class CgcloudJenkinsSlave( UbuntuTrustyGenericJenkinsSlave, Python27UpdateUbuntu
                                "iam:AddRoleToInstanceProfile",
                                "iam:DeleteInstanceProfile" ] ) ] ) ) )
         return iam_role_name, policies
+
+    def _pass_role_arn( self ):
+        """
+        Return a pattern that a role name must match if it is to be passed to an instance created
+        by code running on this Jenkins slave.
+        """
+        # This is a bit convoluted, but it is still better than optionally allowing wildcards in
+        # the name validation in Context.absolute_name(). The ? wildcard is not very well
+        # documented but I found evidence for it here:
+        # http://docs.aws.amazon.com/IAM/latest/UserGuide/PolicyVariables.html#policy-vars-specialchars
+        pass_role_arn = self._role_arn( iam_role_name_prefix='test/testnamespacesuffixpattern/' )
+        pass_role_arn = pass_role_arn.replace( 'testnamespacesuffixpattern',
+                                               "?" * test_namespace_suffix_length )
+        return pass_role_arn
