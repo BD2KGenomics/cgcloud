@@ -26,7 +26,7 @@ persistent_dir = '/mnt/persistent'
 var_dir = '/var/lib/sparkbox'
 hdfs_replication = 1
 hadoop_version = '2.6.0'
-spark_version = '1.5.2'
+spark_version = '1.6.2'
 # The major version of Hadoop that the Spark binaries were built against 
 spark_hadoop_version = '2.6'
 
@@ -127,7 +127,7 @@ class SparkBox( ApacheSoftwareBox,
 
     def _list_packages_to_install( self ):
         return super( SparkBox, self )._list_packages_to_install( ) + [
-            'oracle-java7-set-default' ]
+            'oracle-java8-set-default' ]
 
     def _get_debconf_selections( self ):
         return super( SparkBox, self )._get_debconf_selections( ) + [
@@ -195,7 +195,7 @@ class SparkBox( ApacheSoftwareBox,
         # Add environment variables to hadoop_env.sh
         hadoop_env = dict(
             HADOOP_LOG_DIR=self._lazy_mkdir( log_dir, "hadoop" ),
-            JAVA_HOME='/usr/lib/jvm/java-7-oracle' )
+            JAVA_HOME='/usr/lib/jvm/java-8-oracle' )
         hadoop_env_sh_path = fmt( "{install_dir}/hadoop/etc/hadoop/hadoop-env.sh" )
         with remote_open( hadoop_env_sh_path, use_sudo=True ) as hadoop_env_sh:
             hadoop_env_sh.write( '\n' )
@@ -270,7 +270,7 @@ class SparkBox( ApacheSoftwareBox,
             SPARK_LOG_DIR=self._lazy_mkdir( log_dir, "spark" ),
             SPARK_WORKER_DIR=self._lazy_mkdir( spark_dir, "work" ),
             SPARK_LOCAL_DIRS=self._lazy_mkdir( spark_dir, "local" ),
-            JAVA_HOME='/usr/lib/jvm/java-7-oracle',
+            JAVA_HOME='/usr/lib/jvm/java-8-oracle',
             SPARK_MASTER_IP='spark-master',
             HADOOP_CONF_DIR=fmt( "{install_dir}/hadoop/etc/hadoop" ) )
         with remote_open( spark_env_sh_path, use_sudo=True ) as spark_env_sh:
