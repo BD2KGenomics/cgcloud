@@ -343,14 +343,23 @@ def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
 
 
 def create_spot_instances( ec2, price, image_id, spec,
-                           num_instances=1, timeout=None, tentative=False ):
+                           num_instances=1, timeout=None, tentative=False, tag=''):
     """
     :rtype: Iterator[list[Instance]]
     """
+    def spotRequestNotFound(e):
+        return e.error_code == "InvalidSpotInstanceRequestID.NotFound"
+
     for attempt in retry_ec2( retry_for=a_long_time,
                               retry_while=inconsistencies_detected ):
         with attempt:
             requests = ec2.request_spot_instances( price, image_id, count=num_instances, **spec )
+
+    if tag:
+        for requestID in (request.id for request in requests):
+            for attempt in retry_ec2(retry_while=spotRequestNotFound):
+                with attempt:
+                    ec2.create_tags([requestID], {'clusterName': tag})
 
     num_active, num_other = 0, 0
     # noinspection PyUnboundLocalVariable,PyTypeChecker
