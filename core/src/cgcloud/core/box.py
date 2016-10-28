@@ -712,6 +712,7 @@ class Box( object ):
             if 'price' in spec:
                 price = spec.price
                 del spec.price
+                tags = dict(cluster_name=self.cluster_name) if self.cluster_name else None
                 # Spot requests are fulfilled in batches. A batch could consist of one instance,
                 # all requested instances or a subset thereof. As soon as a batch comes back from
                 # _create_spot_instances(), we will want to adopt every instance in it. Part of
@@ -719,7 +720,8 @@ class Box( object ):
                 for batch in create_spot_instances( self.ctx.ec2, price, self.image_id, spec,
                                                     num_instances=num_instances,
                                                     timeout=spot_timeout,
-                                                    tentative=spot_tentative ):
+                                                    tentative=spot_tentative,
+                                                    tags=tags):
                     adopt( batch )
             else:
                 adopt( create_ondemand_instances( self.ctx.ec2, self.image_id, spec,
