@@ -176,7 +176,7 @@ class ToilLatestBox( ToilBox ):
     """
     A box with Mesos, the latest unstable release of Toil and their dependencies installed
     """
-    default_spec = 'toil[aws,mesos,encryption,cwl]<=3.4.0'
+    default_spec = 'toil[aws,mesos,encryption,cwl]<=3.5.0'
 
 
 class ToilLeader( ToilBox, ClusterLeader ):
