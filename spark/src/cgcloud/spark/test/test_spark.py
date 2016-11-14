@@ -123,7 +123,7 @@ class SparkClusterTests( CoreTestCase ):
         body = dedent( '\n'.join( getsource( word_count ).split( '\n' )[ 1: ] ) )
         self._send_file( master, body, script )
 
-        self._ssh( master, 'spark-submit --driver-memory 64m --executor-memory 64m ' + script )
+        self._ssh( master, 'spark-submit ' + script )
         self._ssh( master, 'hdfs dfs -get /test.txt.counts' )
         self._ssh( master, 'test -f test.txt.counts/_SUCCESS' )
         for i in xrange( num_slaves ):
