@@ -9,7 +9,7 @@ from bd2k.util.retry import retry
 from boto.ec2.ec2object import TaggedEC2Object
 from boto.ec2.instance import Instance
 from boto.ec2.spotinstancerequest import SpotInstanceRequest
-from boto.exception import EC2ResponseError
+from boto.exception import EC2ResponseError, BotoServerError
 
 from cgcloud.lib.util import UserError
 
@@ -391,6 +391,7 @@ def create_spot_instances( ec2, price, image_id, spec,
 
 
 def inconsistencies_detected( e ):
+    if not isinstance( e, BotoServerError ): return False
     if e.code == 'InvalidGroup.NotFound': return True
     m = e.error_message.lower( )
     return 'invalid iam instance profile' in m or 'no associated iam roles' in m
