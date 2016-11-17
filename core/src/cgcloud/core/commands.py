@@ -59,7 +59,11 @@ class ContextCommand( Command ):
         self.option( '--namespace', '-n', metavar='PREFIX', default=self.default_namespace,
                      help=heredoc( """Optional prefix for naming EC2 resource like instances,
                      images, volumes, etc. Use this option to create a separate namespace in
-                     order to avoid collisions, e.g. when running tests. The value of the
+                     order to avoid collisions, e.g. when running tests. A namespace begins with
+                     a slash, followed by zero or more names, each name followed by a slash. Note
+                     that this implies that the namespace begins and ends with a slash. Each name
+                     must begin with a a digit or lowercase letter followed by zero or more
+                     digits, lowercase letters, periods, underscores or dashes. The value of the
                      environment variable CGCLOUD_NAMESPACE, if that variable is present,
                      overrides the default. The string __me__ anywhere in the namespace will be
                      replaced by the name of the IAM user whose credentials are used to issue

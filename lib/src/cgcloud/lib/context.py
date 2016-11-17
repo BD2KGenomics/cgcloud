@@ -34,7 +34,7 @@ class Context( object ):
     """
     availability_zone_re = re.compile( r'^([a-z]{2}-[a-z]+-[1-9][0-9]*)([a-z])$' )
 
-    name_prefix_re = re.compile( r'^(/([0-9a-zA-Z.-][_0-9a-zA-Z.-]*))*' )
+    name_prefix_re = re.compile( r'^(/([0-9a-z][0-9a-z._-]*))*' )
     name_re = re.compile( name_prefix_re.pattern + '/?$' )
     namespace_re = re.compile( name_prefix_re.pattern + '/$' )
 
@@ -115,7 +115,7 @@ class Context( object ):
         ValueError: 'ascii' codec can't encode characters in position 2-3: ordinal not in range(128)
 
         >>> import string
-        >>> component = string.ascii_letters + string.digits + '-_.'
+        >>> component = string.ascii_lowercase + string.digits + '-_.'
         >>> namespace = '/' + component + '/'
         >>> Context('us-west-1b', namespace=namespace).namespace == namespace
         True
@@ -642,6 +642,7 @@ class Context( object ):
                     'http://boto.readthedocs.org/en/latest/boto_config_tut.html' )
             if drop_hostname:
                 me = self.drop_hostname( me )
+            me = me.lower() # namespaces must be lower case
             return s.replace( placeholder, me )
         else:
             return s
