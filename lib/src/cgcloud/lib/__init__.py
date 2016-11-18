@@ -1,5 +1,5 @@
-from bd2k.util.d64 import D64
+from bd2k.util.d32 import standard as d32
 
-aws_d64 = D64( '.-' )  # hopefully the dot is supported for all AWS resource names
+aws_d32 = d32
 
-test_namespace_suffix_length = 11
+test_namespace_suffix_length = 13

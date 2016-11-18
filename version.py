@@ -1,5 +1,5 @@
 cgcloud_version = '1.6.0a1'
-bd2k_python_lib_dep = 'bd2k-python-lib>=1.14a1.dev35'
+bd2k_python_lib_dep = 'bd2k-python-lib>=1.14a1.dev37'
 boto_dep = 'boto==2.38.0'
 fabric_dep = 'Fabric==1.10.3'
 s3am_dep = 's3am==2.0a1.dev105'

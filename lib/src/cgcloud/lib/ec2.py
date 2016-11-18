@@ -9,7 +9,7 @@ from bd2k.util.retry import retry
 from boto.ec2.ec2object import TaggedEC2Object
 from boto.ec2.instance import Instance
 from boto.ec2.spotinstancerequest import SpotInstanceRequest
-from boto.exception import EC2ResponseError
+from boto.exception import EC2ResponseError, BotoServerError
 
 from cgcloud.lib.util import UserError
 
@@ -26,7 +26,7 @@ def not_found( e ):
 
 def retry_ec2( retry_after=a_short_time, retry_for=10 * a_short_time, retry_while=not_found ):
     t = retry_after
-    return retry( delays=(t,t,t*2,t*4), timeout=retry_for, predicate=retry_while )
+    return retry( delays=(t, t, t * 2, t * 4), timeout=retry_for, predicate=retry_while )
 
 
 class EC2VolumeHelper( object ):
@@ -343,11 +343,12 @@ def wait_spot_requests_active( ec2, requests, timeout=None, tentative=False ):
 
 
 def create_spot_instances( ec2, price, image_id, spec,
-                           num_instances=1, timeout=None, tentative=False, tags=None):
+                           num_instances=1, timeout=None, tentative=False, tags=None ):
     """
     :rtype: Iterator[list[Instance]]
     """
-    def spotRequestNotFound(e):
+
+    def spotRequestNotFound( e ):
         return e.error_code == "InvalidSpotInstanceRequestID.NotFound"
 
     for attempt in retry_ec2( retry_for=a_long_time,
@@ -357,9 +358,9 @@ def create_spot_instances( ec2, price, image_id, spec,
 
     if tags is not None:
         for requestID in (request.id for request in requests):
-            for attempt in retry_ec2(retry_while=spotRequestNotFound):
+            for attempt in retry_ec2( retry_while=spotRequestNotFound ):
                 with attempt:
-                    ec2.create_tags([requestID], tags)
+                    ec2.create_tags( [ requestID ], tags )
 
     num_active, num_other = 0, 0
     # noinspection PyUnboundLocalVariable,PyTypeChecker
@@ -391,6 +392,7 @@ def create_spot_instances( ec2, price, image_id, spec,
 
 
 def inconsistencies_detected( e ):
+    if not isinstance( e, BotoServerError ): return False
     if e.code == 'InvalidGroup.NotFound': return True
     m = e.error_message.lower( )
     return 'invalid iam instance profile' in m or 'no associated iam roles' in m

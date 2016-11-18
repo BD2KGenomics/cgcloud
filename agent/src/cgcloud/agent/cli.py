@@ -32,12 +32,11 @@ def main( ):
                         required=True,
                         help='Optional prefix for naming EC2 resource like instances, images, '
                              'volumes, etc. Use this option to create a separate namespace in '
-                             'order to avoid collisions, e.g. when running tests. The default '
-                             'represents the root namespace. The value of the environment '
-                             'variable CGCLOUD_NAMESPACE, if that variable is present, overrides '
-                             'the default. The string __me__ anywhere in the namespace will be '
-                             'replaced by the name of the IAM user whose credentials are used to '
-                             'issue requests to AWS.' )
+                             'order to avoid collisions, e.g. when running tests. The value of '
+                             'the environment variable CGCLOUD_NAMESPACE, if that variable is '
+                             'present, overrides the default. The string __me__ anywhere in the '
+                             'namespace will be replaced by the name of the IAM user whose '
+                             'credentials are used to issue requests to AWS.' )
     default_zone = os.environ.get( 'CGCLOUD_ZONE', None )
     group.add_argument( '--zone', '-z', metavar='AVAILABILITY_ZONE',
                         default=default_zone,
