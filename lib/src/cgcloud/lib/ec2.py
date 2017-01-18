@@ -157,10 +157,13 @@ variable_ecu = -1  # variable ecu
 
 _ec2_instance_types = [
     # current generation instance types
+    InstanceType( 't2.nano', 1, variable_ecu, 0.5, [ hvm ], 0, None, 0, False ),
     InstanceType( 't2.micro', 1, variable_ecu, 1, [ hvm ], 0, None, 0, False ),
     InstanceType( 't2.small', 1, variable_ecu, 2, [ hvm ], 0, None, 0, False ),
     InstanceType( 't2.medium', 2, variable_ecu, 4, [ hvm ], 0, None, 0, False ),
     InstanceType( 't2.large', 2, variable_ecu, 8, [ hvm ], 0, None, 0, False ),
+    InstanceType( 't2.xlarge', 4, variable_ecu, 16, [ hvm ], 0, None, 0, False ),
+    InstanceType( 't2.2xlarge', 8, variable_ecu, 32, [ hvm ], 0, None, 0, False ),
 
     InstanceType( 'm3.medium', 1, 3, 3.75, [ hvm, pv ], 1, ssd, 4, True ),
     InstanceType( 'm3.large', 2, 6.5, 7.5, [ hvm, pv ], 1, ssd, 32, True ),
