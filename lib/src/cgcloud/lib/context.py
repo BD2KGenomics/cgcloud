@@ -9,7 +9,7 @@ import socket
 import itertools
 import logging
 
-from bd2k.util import retry
+from bd2k.util.retry import retry
 from boto import ec2, iam, sns, sqs, vpc
 from boto.s3.key import Key as S3Key
 from boto.exception import S3ResponseError, BotoServerError
