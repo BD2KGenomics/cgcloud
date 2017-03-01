@@ -9,6 +9,7 @@ import socket
 import itertools
 import logging
 
+from bd2k.util import retry
 from boto import ec2, iam, sns, sqs, vpc
 from boto.s3.key import Key as S3Key
 from boto.exception import S3ResponseError, BotoServerError
@@ -704,7 +705,9 @@ class Context( object ):
                 else:
                     raise
             if current_policy != policy:
-                put_policy( entity_name, policy_name, json.dumps( policy ) )
+                for attempt in retry(predicate=throttlePredicate):
+                    with attempt:
+                        put_policy( entity_name, policy_name, json.dumps( policy ) )
 
     _agent_topic_name = "cgcloud-agent-notifications"
 
@@ -855,6 +858,14 @@ class Context( object ):
             log.info( 'Deleting snapshot %s', snapshot_id )
             self.ec2.delete_snapshot( snapshot_id )
 
+
+def throttlePredicate(e):
+    # boto/AWS gives multiple messages for the same error...
+    if e.status == 503 and 'Request limit exceeded' in e.body:
+        return True
+    elif e.status == 400 and 'Rate exceeded' in e.body:
+        return True
+    return False
 
 @contextmanager
 def out_exception( object_type, object_name ):
