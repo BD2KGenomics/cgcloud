@@ -19,6 +19,7 @@ from bd2k.util.collections import OrderedSet
 from bd2k.util.exceptions import panic
 from bd2k.util.expando import Expando
 from bd2k.util.iterables import concat
+from bd2k.util.retry import retry
 from boto import logging
 from boto.ec2.blockdevicemapping import BlockDeviceType, BlockDeviceMapping
 from boto.ec2.instance import Instance
@@ -32,7 +33,7 @@ from paramiko.client import MissingHostKeyPolicy
 
 from cgcloud.core.project import project_artifacts
 from cgcloud.lib import aws_d32
-from cgcloud.lib.context import Context
+from cgcloud.lib.context import Context, throttlePredicate
 from cgcloud.lib.ec2 import (ec2_instance_types,
                              wait_instances_running,
                              inconsistencies_detected,
@@ -1369,7 +1370,9 @@ class Box( object ):
             profile = self.ctx.iam.get_instance_profile( aws_instance_profile_name )
         except BotoServerError as e:
             if e.status == 404:
-                profile = self.ctx.iam.create_instance_profile( aws_instance_profile_name )
+                for attempt in retry(predicate=throttlePredicate):
+                    with attempt:
+                        profile = self.ctx.iam.create_instance_profile( aws_instance_profile_name )
                 profile = profile.create_instance_profile_response.create_instance_profile_result
             else:
                 raise
