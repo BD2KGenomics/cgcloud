@@ -1396,7 +1396,9 @@ class Box( object ):
             else:
                 self.ctx.iam.remove_role_from_instance_profile( aws_instance_profile_name,
                                                                 profile.roles.member.role_name )
-        self.ctx.iam.add_role_to_instance_profile( aws_instance_profile_name, aws_role_name )
+        for attempt in retry(predicate=throttlePredicate):
+            with attempt:
+                self.ctx.iam.add_role_to_instance_profile( aws_instance_profile_name, aws_role_name )
         return profile_arn
 
     def _hash_iam_role_name( self, iam_role_name ):
