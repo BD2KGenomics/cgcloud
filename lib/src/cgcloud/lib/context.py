@@ -860,6 +860,8 @@ class Context( object ):
 
 
 def throttlePredicate(e):
+    if not isinstance(e, BotoServerError):
+        return False
     # boto/AWS gives multiple messages for the same error...
     if e.status == 503 and 'Request limit exceeded' in e.body:
         return True
