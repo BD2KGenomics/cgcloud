@@ -1,7 +1,7 @@
 CGCloud lets you automate the creation, management and provisioning of VMs and
 clusters of VMs in Amazon EC2. While allowing for easy programmatic
-customization of VMs in developement, it also provides rock-solid
-reproducability in production.
+customization of VMs in development, it also provides rock-solid
+reproducibility in production.
 
 Features
 ========
@@ -35,7 +35,7 @@ So what does it not offer? What are its limitations? First and foremost, it is
 strictly tied to AWS and EC2. Other cloud providers are not supported and
 probably will not be in the near future. It does not have a GUI. It is written
 in Python and if you want to customize it, you will need to know Python. It
-makes extreme use of inheritance, multiple inheritance, actually. Some people
+makes extreme use of multiple inheritance. Some people
 frown at that since it will make it likely that your own customizations break
 between releases of CGCloud. While allowing CGCloud to be extremely
 [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself), multiple
@@ -72,7 +72,7 @@ After pulling changes from the remote, you need to run `make develop sdist` agai
 This step is easy to forget because you often get by without it.
 
 Specifically, `make develop` is necessary after any of the setup.py or
-version.py files have changed. And `make sdist` is necessary after changes to
+version.py files have changed, and `make sdist` is necessary after changes to
 the agent, spark-tools or mesos-tools subprojects. Otherwise, `cgcloud create`
 will install a stale version of these on the remote box.
 
