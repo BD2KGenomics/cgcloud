@@ -203,6 +203,9 @@ _ec2_instance_types = [
     InstanceType( 'd2.4xlarge', 16, 56, 122, [ hvm ], 12, hdd, 2000, True ),
     InstanceType( 'd2.8xlarge', 36, 116, 244, [ hvm ], 24, hdd, 2000, True ),
 
+    InstanceType( 'x1.16xlarge', 64, 174.5, 976, [ hvm ], 1, ssd, 1920, True ),
+    InstanceType( 'x1.32xlarge', 128, 349, 1952, [ hvm ], 2, ssd, 1920, True ),
+
     # previous generation instance types
     InstanceType( 'm1.small', 1, 1, 1.7, [ pv ], 1, hdd, 160, True ),
     InstanceType( 'm1.medium', 1, 2, 3.75, [ pv ], 1, hdd, 410, True ),
