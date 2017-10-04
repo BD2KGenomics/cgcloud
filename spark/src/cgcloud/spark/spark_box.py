@@ -26,7 +26,8 @@ persistent_dir = '/mnt/persistent'
 var_dir = '/var/lib/sparkbox'
 hdfs_replication = 1
 hadoop_version = '2.6.0'
-spark_version = '1.6.2'
+#spark_version = '1.6.2'
+spark_version = '1.6.3'
 # The major version of Hadoop that the Spark binaries were built against 
 spark_hadoop_version = '2.6'
 
