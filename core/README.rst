@@ -3,7 +3,7 @@ Prerequisites
 
 To install and use CGCloud, you need
 
-* Python ≧ 2.7.x
+* Python ≧ 2.7.x (does not work on Python 3)
 
 * pip_ and virtualenv_
 
