@@ -273,7 +273,8 @@ class SparkBox( ApacheSoftwareBox,
             SPARK_LOCAL_DIRS=self._lazy_mkdir( spark_dir, "local" ),
             JAVA_HOME='/usr/lib/jvm/java-8-oracle',
             SPARK_MASTER_IP='spark-master',
-            HADOOP_CONF_DIR=fmt( "{install_dir}/hadoop/etc/hadoop" ) )
+            HADOOP_CONF_DIR=fmt( "{install_dir}/hadoop/etc/hadoop" ),
+            SPARK_PUBLIC_DNS="$(curl -s http://169.254.169.254/latest/meta-data/public-hostname)" )
         with remote_open( spark_env_sh_path, use_sudo=True ) as spark_env_sh:
             spark_env_sh.write( '\n' )
             for name, value in spark_env.iteritems( ):
